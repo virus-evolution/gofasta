@@ -192,14 +192,14 @@ func writeResults(A [][]string, filepath string) error {
 
   _, err2 := f.WriteString("query,closest,SNPdistance,SNPs\n")
   if err2 != nil {
-    return err
+    return err2
   }
 
   for _, chunk := range A {
     for _, row := range chunk{
       _, err3 := f.WriteString(row)
       if err3 != nil {
-        return err
+        return err3
       }
     }
   }

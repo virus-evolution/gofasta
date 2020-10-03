@@ -1,39 +1,27 @@
 package cmd
 
 import (
-  "fmt"
-  "os"
+	"fmt"
+	"os"
 
-  "github.com/spf13/cobra"
+	"github.com/spf13/cobra"
 )
 
 var (
 	rootCmd = &cobra.Command{
 		Use:   "gofasta",
 		Short: "some functions for working with alignments in fasta format",
-		Long: `some functions for working with alignments in fasta format`,
+		Long:  `some functions for working with alignments in fasta format`,
 	}
 )
 
 // Execute executes the root command.
 func Execute() {
-  if err := rootCmd.Execute(); err != nil {
-    fmt.Println(err)
-    os.Exit(1)
-  }
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 // func main() {
 //   closestCmd := flag.NewFlagSet("closest", flag.ExitOnError)

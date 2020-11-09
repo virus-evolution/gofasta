@@ -5,19 +5,21 @@ import (
 )
 
 var samThreads int
-var samInfile string
+var samFile string
+var samReference string
 
 func init() {
 	rootCmd.AddCommand(samCmd)
 
-	tofasta.PersistentFlags().IntVarP(&samThreads, "threads", "t", 1, "Number of threads to use")
-	tofasta.PersistentFlags().StringVarP(&samInfile, "samfile", "s", "", "samfile to read")
+	samCmd.PersistentFlags().IntVarP(&samThreads, "threads", "t", 1, "Number of threads to use")
+	samCmd.PersistentFlags().StringVarP(&samFile, "samfile", "s", "", "samfile to read")
+	samCmd.PersistentFlags().StringVarP(&samReference, "reference", "r", "", "reference fasta file used to generate the sam file")
 }
 
 var samCmd = &cobra.Command{
 	Use:   "sam",
-	Short: "Do things with SAM files",
-	Long:  `Do things with SAM files`,
+	Short: "Do things with sam files",
+	Long:  `Do things with sam files`,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 

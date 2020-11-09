@@ -68,28 +68,25 @@ func checkArgs(refLen int, trim bool, pad bool, trimstart int, trimend int) erro
 
 // worker function that takes items from a channel of sam blocks and writes the
 // corresponding fasta records to a channel
-func blockToFastaRecord(ch_in chan []biogosam.Record,
-	ch_out chan fastaio.FastaRecord,
-	ch_err chan error,
-	refLen int, trim bool, pad bool, trimstart int, trimend int) {
+func blockToFastaRecord(ch_in chan []biogosam.Record, ch_out chan fastaio.FastaRecord, ch_err chan error,
+	refLen int, trim bool, pad bool, trimstart int, trimend int, includeInsertions bool) {
 
 	for group := range ch_in {
 
 		id := group[0].Name
-		rawseq, err := getSeqFromBlock(group, refLen)
+		rawseq, err := getSeqFromBlock(group, refLen, includeInsertions)
 		if err != nil {
 			ch_err <- err
 		}
 		ch_out <- getFastaRecord(rawseq, id, trim, pad, trimstart, trimend)
 	}
-
 	return
 }
 
-// writeOutput reads fasta records from a channel and writes them to a single
+// writeAlignmentOut reads fasta records from a channel and writes them to a single
 // outfile, as they arrive. It passes a true to a done channel when the
 // channel of fasta records is empty
-func writeOutput(ch chan fastaio.FastaRecord, outfile string, cdone chan bool, cerr chan error) {
+func writeAlignmentOut(ch chan fastaio.FastaRecord, outfile string, cdone chan bool, cerr chan error) {
 
 	// cerr <- errors.New("test")
 
@@ -125,11 +122,11 @@ func writeOutput(ch chan fastaio.FastaRecord, outfile string, cdone chan bool, c
 		}
 		cdone <- true
 	}
-
 }
 
-// ToFasta converts a SAM file to a fasta-format alignment
-func ToFasta(infile string, outfile string, trim bool, pad bool, trimstart int,
+// ToMultiAlign converts a SAM file to a fasta-format alignment
+// Insertions relative to the reference are discarded.
+func ToMultiAlign(infile string, outfile string, trim bool, pad bool, trimstart int,
 	trimend int, threads int) error {
 
 	samHeader, err := getSamHeader(infile)
@@ -156,14 +153,14 @@ func ToFasta(infile string, outfile string, trim bool, pad bool, trimstart int,
 
 	go groupSamRecords(infile, cSR, cReadDone, cErr)
 
-	go writeOutput(cFR, outfile, cWriteDone, cErr)
+	go writeAlignmentOut(cFR, outfile, cWriteDone, cErr)
 
 	var wg sync.WaitGroup
 	wg.Add(threads)
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			blockToFastaRecord(cSR, cFR, cErr, refLen, trim, pad, trimstart, trimend)
+			blockToFastaRecord(cSR, cFR, cErr, refLen, trim, pad, trimstart, trimend, false)
 			wg.Done()
 		}()
 	}

@@ -29,6 +29,32 @@ func MakeByteDict() map[rune]uint8 {
 	return byteMap
 }
 
+// MakeByteDict2 maps from bytes not runes
+func MakeByteDict2() map[byte]uint8 {
+
+	byteMap := make(map[byte]uint8)
+
+	byteMap['A'] = 136
+	byteMap['G'] = 72
+	byteMap['C'] = 40
+	byteMap['T'] = 24
+	byteMap['R'] = 192
+	byteMap['M'] = 160
+	byteMap['W'] = 144
+	byteMap['S'] = 96
+	byteMap['K'] = 80
+	byteMap['Y'] = 48
+	byteMap['V'] = 224
+	byteMap['H'] = 176
+	byteMap['D'] = 208
+	byteMap['B'] = 112
+	byteMap['N'] = 240
+	byteMap['-'] = 244
+	byteMap['?'] = 242
+
+	return byteMap
+}
+
 // MakeScoreDict is a map from uint8 values for IUPAC nucleotide codes to an
 // integer for how unambiguous they are. The score is caculated as:
 // 12 * 1/possible real nucleotides. E.g. an 'A' / 136::uint8 scores 12, but an

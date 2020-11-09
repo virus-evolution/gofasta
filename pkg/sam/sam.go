@@ -10,57 +10,16 @@ import (
 	biogosam "github.com/biogo/hts/sam"
 )
 
-// getCigarOperationMap is a map of SAM CIGAR operation types to function literals
-// that are used to build an aligned sequence. At the moment insertions relative
-// to the reference are discarded in the query sequence - this should become optional
-// in the future to handle annotation.
-func getCigarOperationMap() map[string]func(int, int, int, []byte) (int, int, []byte) {
-	lambda_dict := map[string]func(int, int, int, []byte) (int, int, []byte){
-		"M": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		},
-		"I": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start, []byte{}
-		},
-
-		"D": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			gaps := make([]byte, length)
-			for i, _ := range gaps {
-				gaps[i] = '-'
-			}
-			return query_start, ref_start + length, gaps
-		},
-
-		"N": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			gaps := make([]byte, length)
-			for i, _ := range gaps {
-				gaps[i] = '-'
-			}
-			return query_start, ref_start + length, gaps
-		},
-
-		"S": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start, []byte{}
-		},
-		"H": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start, ref_start, []byte{}
-		},
-		"P": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start, ref_start, []byte{}
-		},
-		"=": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		},
-		"X": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		}}
-	return lambda_dict
-}
-
 // getOneLine processes one non-header line of a SAM file into an aligned sequence
-func getOneLine(samLine biogosam.Record, refLen int) ([]byte, error) {
+func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
 
-	lambda_dict := getCigarOperationMap()
+	var lambda_dict map[string]func(int, int, int, []byte) (int, int, []byte)
+
+	if includeInsertions {
+		lambda_dict = getCigarOperationMapWithInsertions()
+	} else {
+		lambda_dict = getCigarOperationMapNoInsertions()
+	}
 
 	// QNAME := samLine.Name
 
@@ -98,16 +57,92 @@ func getOneLine(samLine biogosam.Record, refLen int) ([]byte, error) {
 
 	}
 
-	rightpad := make([]byte, refLen-len(newSeqArray))
-	for i, _ := range rightpad {
-		rightpad[i] = '*'
-	}
+	if ! includeInsertions {
+		rightpad := make([]byte, refLen-len(newSeqArray))
+		for i, _ := range rightpad {
+			rightpad[i] = '*'
+		}
 
-	newSeqArray = append(newSeqArray, rightpad...)
+		newSeqArray = append(newSeqArray, rightpad...)
+	}
 
 	// fmt.Println(string(newSeqArray))
 
 	return newSeqArray, nil
+}
+
+// getOneLinePlusRef processes one non-header line of a SAM file into a pair of
+// (aligned) sequences which are the query and the reference
+func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInsertions bool) ([]byte, []byte, error) {
+
+	var lambda_dict map[string]func(int, int, int, []byte, []byte) (int, int, []byte, []byte)
+
+	if includeInsertions {
+		lambda_dict = getCigarOperationMapWithInsertionsWithRef()
+	} else {
+		lambda_dict = getCigarOperationMapNoInsertionsWithRef()
+	}
+
+	// QNAME := samLine.Name
+
+	POS := samLine.Pos
+
+	if POS < 0 {
+		return []byte{}, []byte{}, errors.New("unmapped read")
+	}
+
+	SEQ := samLine.Seq.Expand()
+
+	CIGAR := samLine.Cigar
+
+	newSeqArray := make([]byte, POS)
+	for i, _ := range newSeqArray {
+		newSeqArray[i] = '*'
+	}
+
+	newRefSeqArray := make([]byte, POS)
+	for i, _ := range newRefSeqArray {
+		newRefSeqArray[i] = reference[i]
+	}
+
+	qstart := 0
+	rstart := POS
+
+	for _, op := range CIGAR {
+		// fmt.Println(op.Type().String())
+		// fmt.Println(op.Len())
+
+		operation := op.Type().String()
+		size := op.Len()
+
+		new_qstart, new_rstart, extension, refextension := lambda_dict[operation](qstart, rstart, size, SEQ, reference)
+
+		newSeqArray = append(newSeqArray, extension...)
+		newRefSeqArray = append(newRefSeqArray, refextension...)
+
+		// fmt.Println(extension)
+		// fmt.Println(refextension)
+		// fmt.Println()
+
+
+		qstart = new_qstart
+		rstart = new_rstart
+
+	}
+
+	if ! includeInsertions {
+		rightpad := make([]byte, len(reference)-len(newSeqArray))
+		// fmt.Println(len(rightpad))
+		for i, _ := range rightpad {
+			rightpad[i] = '*'
+		}
+
+		newSeqArray = append(newSeqArray, rightpad...)
+	}
+
+	// fmt.Println(string(newSeqArray))
+
+	return newSeqArray, newRefSeqArray, nil
 }
 
 // getSetFromSlice returns the Set of bytes from an array of bytes. It is used
@@ -184,7 +219,7 @@ func checkAndGetFlattenedSeq(block [][]byte) []byte {
 // getSeqFromBlock wraps the above functions to get a sequence from one query's
 // SAM records - if there is only one line (only a primary mapping) it
 // returns that aligned sequence without needing to do any flattening
-func getSeqFromBlock(records []biogosam.Record, refLen int) ([]byte, error) {
+func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
 
 	block := make([][]byte, len(records))
 	for i, _ := range block {
@@ -192,7 +227,7 @@ func getSeqFromBlock(records []biogosam.Record, refLen int) ([]byte, error) {
 	}
 
 	for i, line := range records {
-		temp, err := getOneLine(line, refLen)
+		temp, err := getOneLine(line, refLen, includeInsertions)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -282,7 +317,7 @@ func getSamHeader(infile string) (biogosam.Header, error) {
 }
 
 // groupSamRecords yields blocks of SAM records that correspond to the same query
-// sequence
+// sequence (to a channel)
 func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool, cerr chan error) {
 
 	f, err := os.Open(infile)

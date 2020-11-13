@@ -165,7 +165,7 @@ func getVariantsFromCDS(cPairParse chan []alignPair, cAnnotate chan []annoStruct
 }
 
 func getAnnoLine(aS annoStruct) (string, error) {
-	
+
 	if aS.changetype == "synSNP" {
 		s := aS.changetype + ":" + aS.refAl + strconv.Itoa(aS.position) + aS.queAl
 		return s, nil

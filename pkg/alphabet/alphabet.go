@@ -41,7 +41,7 @@ func MakeCodonDict() map[string]string {
 	codonAA["ATT"] = "I"
 	codonAA["ATC"] = "I"
 	codonAA["ATA"] = "I"
-	codonAA["ATG"] = "R"
+	codonAA["ATG"] = "M"
 	codonAA["ACT"] = "T"
 	codonAA["ACC"] = "T"
 	codonAA["ACA"] = "T"

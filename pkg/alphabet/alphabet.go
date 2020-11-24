@@ -1,5 +1,6 @@
 package alphabet
 
+// MakeCodonDict returns a map from codon (string) to amino acid code (string)
 func MakeCodonDict() map[string]string {
 
 	codonAA := make(map[string]string)

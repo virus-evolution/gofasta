@@ -14,7 +14,7 @@ func init() {
 	samCmd.AddCommand(variantCmd)
 
 	variantCmd.Flags().StringVarP(&variantGenbankFile, "genbank", "g", "", "genbank format annotation of a sequence in the same coordinates as the alignment")
-	variantCmd.Flags().StringVarP(&variantOutfile, "outfile", "o", "", "output file with list of variants to write")
+	variantCmd.Flags().StringVarP(&variantOutfile, "outfile", "o", "stdout", "where to write the variants")
 	// variantCmd.Flags().BoolVarP(&variantSkipInsertions, "skip-insertions", "", false, "skip insertions relative to the reference")
 
 	// variantCmd.Flags().Lookup("skip-insertions").NoOptDefVal = "true"

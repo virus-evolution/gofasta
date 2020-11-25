@@ -15,7 +15,7 @@ var toMultiAlignTrimEnd int
 func init() {
 	samCmd.AddCommand(toMultiAlignCmd)
 
-	toMultiAlignCmd.Flags().StringVarP(&toMultiAlignOutfile, "fasta-out", "o", "stdout", "fasta file to write")
+	toMultiAlignCmd.Flags().StringVarP(&toMultiAlignOutfile, "fasta-out", "o", "stdout", "where to write the alignment")
 	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignTrim, "trim", "", false, "trim the alignment")
 	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignPad, "pad", "", false, "if trim, pad the alignment with Ns")
 	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignTrimStart, "trimstart", "", -1, "start coordinate for trimming")
@@ -33,7 +33,7 @@ var toMultiAlignCmd = &cobra.Command{
 		in the output are the same ( = reference) length`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = sam.ToMultiAlign(samFile, toMultiAlignOutfile, toMultiAlignTrim, toMultiAlignPad, toMultiAlignTrimStart, toMultiAlignTrimEnd, samThreads)
+		err = sam.ToMultiAlign(samFile, samReference, toMultiAlignOutfile, toMultiAlignTrim, toMultiAlignPad, toMultiAlignTrimStart, toMultiAlignTrimEnd, samThreads)
 
 		return
 	},

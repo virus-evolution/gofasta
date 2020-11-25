@@ -183,10 +183,16 @@ func writeAnnotation(outfile string, cAnnotate chan []annoStruct, cWriteDone cha
 
 	_ = strings.Join
 
-	f, err := os.Create(outfile)
-	if err != nil {
-		cErr<- err
+	var err error
+	f := os.Stdout
+
+	if outfile != "stdout" {
+		f, err = os.Create(outfile)
+		if err != nil {
+			cErr<- err
+		}
 	}
+
 	defer f.Close()
 
 	_, err = f.WriteString("query,variants\n")

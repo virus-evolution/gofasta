@@ -300,10 +300,17 @@ func swapInGapsNs(seq []byte) []byte {
 
 // getSamHeader uses Biogo/sam to return the header of a SAM file
 func getSamHeader(infile string) (biogosam.Header, error) {
-	f, err := os.Open(infile)
-	if err != nil {
-		return biogosam.Header{}, err
+
+	var err error
+	f := os.Stdin
+
+	if len(infile) > 0 {
+		f, err = os.Open(infile)
+		if err != nil {
+			return biogosam.Header{}, err
+		}
 	}
+
 	defer f.Close()
 
 	s, err := biogosam.NewReader(f)
@@ -320,10 +327,16 @@ func getSamHeader(infile string) (biogosam.Header, error) {
 // sequence (to a channel)
 func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool, cerr chan error) {
 
-	f, err := os.Open(infile)
-	if err != nil {
-		cerr <- err
+	var err error
+	f := os.Stdin
+
+	if len(infile) > 0 {
+		f, err = os.Open(infile)
+		if err != nil {
+			cerr <- err
+		}
 	}
+
 	defer f.Close()
 
 	s, err := biogosam.NewReader(f)

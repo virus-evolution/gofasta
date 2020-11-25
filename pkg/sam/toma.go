@@ -92,7 +92,7 @@ func writeAlignmentOut(ch chan fastaio.FastaRecord, outfile string, cdone chan b
 
 	if outfile == "stdout" {
 		for FR := range ch {
-			_, err := fmt.Fprintln(os.Stdout, ">"+FR.ID)
+			_, err := fmt.Fprintln(os.Stdout, ">" + FR.ID)
 			if err != nil {
 				cerr <- err
 			}
@@ -126,15 +126,21 @@ func writeAlignmentOut(ch chan fastaio.FastaRecord, outfile string, cdone chan b
 
 // ToMultiAlign converts a SAM file to a fasta-format alignment
 // Insertions relative to the reference are discarded.
-func ToMultiAlign(infile string, outfile string, trim bool, pad bool, trimstart int,
+func ToMultiAlign(infile string, reffile string, outfile string, trim bool, pad bool, trimstart int,
 	trimend int, threads int) error {
 
-	samHeader, err := getSamHeader(infile)
+	// samHeader, err := getSamHeader(infile)
+	// if err != nil {
+	// 	return err
+	// }
+
+	refA, _, err := fastaio.PopulateByteArrayGetNames(reffile)
 	if err != nil {
 		return err
 	}
 
-	refLen := samHeader.Refs()[0].Len()
+	refLen := len(refA[0])
+	// fmt.Println(refLen)
 
 	err = checkArgs(refLen, trim, pad, trimstart, trimend)
 	if err != nil {

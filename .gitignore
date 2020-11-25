@@ -5,3 +5,4 @@ build_binaries.sh
 recipe/LICENSE
 .DS_Store
 gofasta
+test/*

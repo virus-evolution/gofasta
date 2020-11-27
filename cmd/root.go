@@ -10,8 +10,8 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "gofasta",
-		Short: "some functions for working with alignments in fasta format",
-		Long:  `some functions for working with alignments in fasta format`,
+		Short: "some functions for working with alignments",
+		Long:  `some functions for working with alignments`,
 	}
 )
 

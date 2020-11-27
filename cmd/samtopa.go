@@ -15,11 +15,11 @@ var toPairAlignSkipInsertions bool
 func init() {
 	samCmd.AddCommand(toPairAlignCmd)
 
-	toPairAlignCmd.Flags().StringVarP(&toPairAlignGenbankFile, "genbank", "g", "", "genbank format annotation of a sequence in the same coordinates as the alignment")
-	toPairAlignCmd.Flags().StringVarP(&toPairAlignGenbankFeature, "feature", "", "", "feature to output (choose one of: gene/CDS)")
-	toPairAlignCmd.Flags().StringVarP(&toPairAlignOutpath, "outpath", "o", "", "output path where fasta files will be written")
-	toPairAlignCmd.Flags().BoolVarP(&toPairAlignOmitReference, "omit-reference", "", false, "omit the reference sequences from the output alignments")
-	toPairAlignCmd.Flags().BoolVarP(&toPairAlignSkipInsertions, "skip-insertions", "", false, "skip insertions relative to the reference")
+	toPairAlignCmd.Flags().StringVarP(&toPairAlignGenbankFile, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
+	toPairAlignCmd.Flags().StringVarP(&toPairAlignGenbankFeature, "feature", "", "", "Feature to output (choose one of: gene, CDS). If none is specified, will output the entire alignment")
+	toPairAlignCmd.Flags().StringVarP(&toPairAlignOutpath, "outpath", "o", "", "Output path where fasta files will be written")
+	toPairAlignCmd.Flags().BoolVarP(&toPairAlignOmitReference, "omit-reference", "", false, "Omit the reference sequences from the output alignments")
+	toPairAlignCmd.Flags().BoolVarP(&toPairAlignSkipInsertions, "skip-insertions", "", false, "Skip insertions relative to the reference")
 
 	toPairAlignCmd.Flags().Lookup("omit-reference").NoOptDefVal = "true"
 	toPairAlignCmd.Flags().Lookup("skip-insertions").NoOptDefVal = "true"

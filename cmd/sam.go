@@ -12,8 +12,8 @@ func init() {
 	rootCmd.AddCommand(samCmd)
 
 	samCmd.PersistentFlags().IntVarP(&samThreads, "threads", "t", 1, "Number of threads to use")
-	samCmd.PersistentFlags().StringVarP(&samFile, "samfile", "s", "", "samfile to read")
-	samCmd.PersistentFlags().StringVarP(&samReference, "reference", "r", "", "reference fasta file used to generate the sam file")
+	samCmd.PersistentFlags().StringVarP(&samFile, "samfile", "s", "", "samfile to read. If none is specified, will read from stdin")
+	samCmd.PersistentFlags().StringVarP(&samReference, "reference", "r", "", "Reference fasta file used to generate the sam file")
 }
 
 var samCmd = &cobra.Command{

@@ -22,8 +22,8 @@ func init() {
 
 var closestCmd = &cobra.Command{
 	Use:   "closest",
-	Short: "Find the closest sequence to a query by SNP-distance",
-	Long:  `Find the closest sequence to a query by SNP-distance`,
+	Short: "Find the closest sequence to a query by raw distance",
+	Long:  `Find the closest sequence to a query by raw distance`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		err = closest.Closest(closestQuery, closestTarget, closestOutfile, closestThreads)

@@ -190,6 +190,7 @@ func TestCodonDict(t *testing.T) {
 			continue
 		}
 	}
+
 }
 
 // TODO: func TestDegenDict(t *testing.T){

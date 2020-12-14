@@ -78,7 +78,7 @@ func getSNPPos(i int, A []int) (int, error) {
 func getVariantsFromAlignPair(pair alignPair) ([]annoStruct, error) {
 
 	codon_2_AA := alphabet.MakeCodonDict()
-	rune_2_byte := encoding.MakeByteDict2()
+	rune_2_byte := encoding.MakeByteDict2() // this is emmanual paradis bitwise coding scheme byte
 
 	if len(pair.ref) != len(pair.query) {
 		return []annoStruct{}, errors.New("ref and query sequences are different lengths")

@@ -74,7 +74,6 @@ func MakeCodonDict() map[string]string {
 	codonAA["GGG"] = "G"
 
 	// ambiguities:
-	// NB needs testing
 
 	codonAA["AAR"] = "K"
 	codonAA["AAY"] = "N"

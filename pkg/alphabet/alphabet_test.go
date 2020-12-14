@@ -15,7 +15,7 @@ func SpaceMap(str string) string {
     }, str)
 }
 
-func TestAlphabet(t *testing.T) {
+func TestCodonDict(t *testing.T) {
 
 	temp_spike_nuc_gb := `ATGTTTGTTTTTCTTGTTTTATTGCCACTAGTCTCTAGTCAGTGTGTTAATCTTACAACCAGAACTCAAT
 			TACCCCCTGCATACACTAATTCTTTCACACGTGGTGTTTATTACCCTGACAAAGTTTTCAGATCCTCAGT
@@ -102,6 +102,7 @@ func TestAlphabet(t *testing.T) {
 
 	codonDict := MakeCodonDict()
 
+	// test the routine on real (ACTG-only) data
 	nuc_counter := 0
 	AA_counter := 0
 	nuc_array := make([]rune, 0)
@@ -128,4 +129,70 @@ func TestAlphabet(t *testing.T) {
 			AA_counter += 1
 		}
 	}
+
+	nuc_map := make(map[rune]bool)
+	nuc_map['A'] = true
+	nuc_map['G'] = true
+	nuc_map['C'] = true
+	nuc_map['T'] = true
+
+	lookupChar := make(map[string][]string)
+	lookupChar["A"] = []string{"A"}
+	lookupChar["C"] = []string{"C"}
+	lookupChar["G"] = []string{"G"}
+	lookupChar["T"] = []string{"T"}
+	lookupChar["R"] = []string{"A", "G"}
+	lookupChar["Y"] = []string{"C", "T"}
+	lookupChar["S"] = []string{"G", "C"}
+	lookupChar["W"] = []string{"A", "T"}
+	lookupChar["K"] = []string{"G", "T"}
+	lookupChar["M"] = []string{"A", "C"}
+	lookupChar["B"] = []string{"C", "G", "T"}
+	lookupChar["D"] = []string{"A", "G", "T"}
+	lookupChar["H"] = []string{"A", "C", "T"}
+	lookupChar["V"] = []string{"A", "C", "G"}
+	lookupChar["N"] = []string{"A", "C", "G", "T"}
+
+	// test the ambiguous codons
+	for codon, AA := range(codonDict) {
+
+		amb_present := false
+		for _, nuc := range(codon) {
+			if nuc_map[nuc] {
+				continue
+			} else {
+				amb_present = true
+				break
+			}
+		}
+
+		if amb_present {
+
+			pos1_set := lookupChar[string(codon[0])]
+			pos2_set := lookupChar[string(codon[1])]
+			pos3_set := lookupChar[string(codon[2])]
+
+			for _, nuc1 := range(pos1_set) {
+				for _, nuc2 := range(pos2_set) {
+					for _, nuc3 := range(pos3_set) {
+
+						possible_codon := nuc1 + nuc2 + nuc3
+						possible_AA := codonDict[possible_codon]
+
+						if possible_AA != AA {
+							t.Errorf("problem in alphabet test: %s %s", possible_AA, AA)
+						}
+					}
+				}
+			}
+
+		} else {
+			continue
+		}
+	}
+
 }
+
+// TODO: func TestDegenDict(t *testing.T){
+//
+// }

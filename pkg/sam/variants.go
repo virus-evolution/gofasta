@@ -28,6 +28,14 @@ type annoStruct struct {
 	feature string // this should be, for example, the name of the CDS that the thing is in
 }
 
+// for passing groups of annoStruct around with an index which is used to retain input
+// order in the output
+type annoStructs struct {
+	queryname string
+	as []annoStruct
+	idx int
+}
+
 // type alignPair struct {
 // 	ref []byte
 // 	query []byte
@@ -143,21 +151,21 @@ func getVariantsFromAlignPair(pair alignPair) ([]annoStruct, error) {
 }
 
 // Apply some other function over the channel of align pairs
-func getVariantsFromCDS(cPairParse chan []alignPair, cAnnotate chan []annoStruct, cErr chan error) {
+func getVariantsFromCDS(cPairParse chan alignPairs, cAnnotate chan annoStructs, cErr chan error) {
 	// this is what comes with the descriptor field of each alignPair struct from cPairParse:
 	// subPair.descriptor = pair.queryname + "." + feature.Feature + "." + strings.ReplaceAll(feature.Info[anno], " ", "_")
 
 	for A := range(cPairParse) {
 
-		annoArray := make([]annoStruct, 0)
+		annoArray := annoStructs{queryname: A.aps[0].queryname, idx: A.idx}
 
-		for _, pair := range(A) {
+		for _, pair := range(A.aps) {
 			anno, err := getVariantsFromAlignPair(pair)
 			if err != nil {
 				cErr<- err
 			}
 
-			annoArray = append(annoArray, anno...)
+			annoArray.as = append(annoArray.as, anno...)
 		}
 
 		cAnnotate<- annoArray
@@ -179,7 +187,7 @@ func getAnnoLine(aS annoStruct) (string, error) {
 }
 
 // write the annotation
-func writeAnnotation(outfile string, cAnnotate chan []annoStruct, cWriteDone chan bool, cErr chan error) {
+func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan bool, cErr chan error) {
 
 	_ = strings.Join
 
@@ -200,19 +208,53 @@ func writeAnnotation(outfile string, cAnnotate chan []annoStruct, cWriteDone cha
 		cErr<- err
 	}
 
-	for A := range(cAnnotate) {
+	outputMap := make(map[int]annoStructs)
 
-		if len(A) == 0 {
+	counter := 0
+
+	for AS := range(cAnnotate) {
+
+		outputMap[AS.idx] = AS
+
+		if A, ok := outputMap[counter]; ok {
+			queryname := A.queryname
+
+			f.WriteString(queryname + ",")
+
+			temp := make([]string, 0)
+
+			for _, aS := range(A.as) {
+				AL, err := getAnnoLine(aS)
+				if err != nil {
+					cErr<- err
+				}
+				temp = append(temp, AL)
+			}
+
+			s := strings.Join(temp, "|")
+
+			f.WriteString(s)
+			f.WriteString("\n")
+
+			delete(outputMap, counter)
+			counter++
+		} else {
 			continue
 		}
+	}
 
-		queryname := A[0].queryname
+	for n := 1; n > 0; {
+		if len(outputMap) == 0 {
+			break
+		}
+		A := outputMap[counter]
+		queryname := A.as[0].queryname
 
 		f.WriteString(queryname + ",")
 
 		temp := make([]string, 0)
 
-		for _, aS := range(A) {
+		for _, aS := range(A.as) {
 			AL, err := getAnnoLine(aS)
 			if err != nil {
 				cErr<- err
@@ -224,6 +266,9 @@ func writeAnnotation(outfile string, cAnnotate chan []annoStruct, cWriteDone cha
 
 		f.WriteString(s)
 		f.WriteString("\n")
+
+		delete(outputMap, counter)
+		counter++
 	}
 
 	cWriteDone<- true
@@ -263,8 +308,8 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 	cSamRecords := make(chan samRecords, threads)
 	cSH := make(chan biogosam.Header)
 	cPairAlign := make(chan alignPair)
-	cPairParse := make(chan []alignPair)
-	cVariants := make(chan []annoStruct)
+	cPairParse := make(chan alignPairs)
+	cVariants := make(chan annoStructs)
 
 	cReadDone := make(chan bool)
 	cAlignWaitGroupDone := make(chan bool)
@@ -273,6 +318,8 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 	cWriteDone := make(chan bool)
 
 	go groupSamRecords(samFile, cSH, cSamRecords, cReadDone, cErr)
+
+	_ = <-cSH
 
 	go writeAnnotation(outfile, cVariants, cWriteDone, cErr)
 

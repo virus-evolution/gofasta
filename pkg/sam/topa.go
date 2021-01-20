@@ -26,6 +26,14 @@ type alignPair struct {
 	featPosArray []int // parsed start/end positions of feature from annotation (can be >length(2) if Join())
 	featType string
 	featName string
+	idx int // for retaining input order in the output
+}
+
+// for passing groups of alignPairs around with an index which is used to retain input
+// order in the output
+type alignPairs struct {
+	aps []alignPair
+	idx int
 }
 
 // store some information about a single insertion from cigars in a block of SAM records
@@ -229,6 +237,7 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 			pair := blockToSeqPair(infoBlock, ref)
 			pair.refname = string(group.records[0].Ref.Name())
 			pair.queryname = group.records[0].Name
+			pair.idx = group.idx
 			cPair<- pair
 
 		} else {
@@ -244,6 +253,7 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 			pair := alignPair{ref: ref, query: Qflat}
 			pair.queryname = group.records[0].Name
 			pair.refname = string(group.records[0].Ref.Name())
+			pair.idx = group.idx
 
 			cPair<- pair
 		}
@@ -322,13 +332,13 @@ func findOffsetPos(i int, a []int) int {
 }
 
 // TODO - allow multiple feature types in features []genbank.GenbankFeature
-func parseAlignmentByAnnotation(features []genbank.GenbankFeature, cPairIn chan alignPair, cPairOut chan []alignPair, cErr chan error) {
+func parseAlignmentByAnnotation(features []genbank.GenbankFeature, cPairIn chan alignPair, cPairOut chan alignPairs, cErr chan error) {
 
 	// if no feature is specified on the command line:
 	if len(features) == 0 {
 		for pair := range(cPairIn) {
 			pair.descriptor = pair.queryname
-			cPairOut<- []alignPair{pair}
+			cPairOut<- alignPairs{aps: []alignPair{pair}, idx: pair.idx}
 		}
 	// if one feature is specified on the command line:
 	} else {
@@ -346,7 +356,7 @@ func parseAlignmentByAnnotation(features []genbank.GenbankFeature, cPairIn chan 
 
 		for pair := range(cPairIn) {
 
-			A := make([]alignPair, 0)
+			A := alignPairs{idx: pair.idx}
 
 			idx := getRefAdjustedPositions(pair.ref)
 
@@ -388,7 +398,7 @@ func parseAlignmentByAnnotation(features []genbank.GenbankFeature, cPairIn chan 
 					subPair.query = newQue
 				}
 
-				A = append(A, subPair)
+				A.aps = append(A.aps, subPair)
 			}
 
 			cPairOut<- A
@@ -398,7 +408,7 @@ func parseAlignmentByAnnotation(features []genbank.GenbankFeature, cPairIn chan 
 	return
 }
 
-func writePairwiseAlignment(p string, cPair chan []alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
+func writePairwiseAlignment(p string, cPair chan alignPairs, cWriteDone chan bool, cErr chan error, omitRef bool) {
 
 	_ = path.Join()
 
@@ -406,7 +416,7 @@ func writePairwiseAlignment(p string, cPair chan []alignPair, cWriteDone chan bo
 
 	if p == "stdout" {
 		for array := range cPair {
-			for _, AP := range(array) {
+			for _, AP := range(array.aps) {
 				if ! omitRef {
 					_, err = fmt.Fprintln(os.Stdout, ">" + AP.refname)
 					if err != nil {
@@ -431,7 +441,7 @@ func writePairwiseAlignment(p string, cPair chan []alignPair, cWriteDone chan bo
 		os.MkdirAll(p, 0755)
 
 		for array := range cPair {
-			for _, AP := range(array) {
+			for _, AP := range(array.aps) {
 				des := strings.ReplaceAll(AP.descriptor, "/", "_")
 				des = strings.ReplaceAll(des, "|", "_")
 				f, err := os.Create(path.Join(p, des + ".fasta"))
@@ -512,7 +522,7 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 	cSH := make(chan biogosam.Header)
 
 	cPairAlign := make(chan alignPair)
-	cPairParse := make(chan []alignPair)
+	cPairParse := make(chan alignPairs)
 
 	cReadDone := make(chan bool)
 	cAlignWaitGroupDone := make(chan bool)

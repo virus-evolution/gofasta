@@ -531,6 +531,8 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 
 	go groupSamRecords(samFile, cSH, cSR, cReadDone, cErr)
 
+	_ = <-cSH
+
 	go writePairwiseAlignment(outpath, cPairParse, cWriteDone, cErr, omitRef)
 
 	var wgAlign sync.WaitGroup

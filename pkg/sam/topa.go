@@ -509,6 +509,8 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 	// fmt.Println()
 
 	cSR := make(chan samRecords, threads)
+	cSH := make(chan biogosam.Header)
+
 	cPairAlign := make(chan alignPair)
 	cPairParse := make(chan []alignPair)
 
@@ -517,7 +519,7 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 	cParseWaitGroupDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go groupSamRecords(samFile, cSR, cReadDone, cErr)
+	go groupSamRecords(samFile, cSH, cSR, cReadDone, cErr)
 
 	go writePairwiseAlignment(outpath, cPairParse, cWriteDone, cErr, omitRef)
 
@@ -559,6 +561,7 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 			return err
 		case <-cReadDone:
 			close(cSR)
+			close(cSH)
 			n--
 		}
 	}

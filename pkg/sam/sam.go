@@ -306,34 +306,34 @@ func swapInGapsNs(seq []byte) []byte {
 	return seq
 }
 
-// getSamHeader uses Biogo/sam to return the header of a SAM file
-func getSamHeader(infile string) (biogosam.Header, error) {
-
-	var err error
-	f := os.Stdin
-
-	if len(infile) > 0 {
-		f, err = os.Open(infile)
-		if err != nil {
-			return biogosam.Header{}, err
-		}
-	}
-
-	defer f.Close()
-
-	s, err := biogosam.NewReader(f)
-	if err != nil {
-		return biogosam.Header{}, err
-	}
-
-	header := *s.Header()
-
-	return header, nil
-}
+// // getSamHeader uses Biogo/sam to return the header of a SAM file
+// func getSamHeader(infile string) (biogosam.Header, error) {
+//
+// 	var err error
+// 	f := os.Stdin
+//
+// 	if len(infile) > 0 {
+// 		f, err = os.Open(infile)
+// 		if err != nil {
+// 			return biogosam.Header{}, err
+// 		}
+// 	}
+//
+// 	defer f.Close()
+//
+// 	s, err := biogosam.NewReader(f)
+// 	if err != nil {
+// 		return biogosam.Header{}, err
+// 	}
+//
+// 	header := *s.Header()
+//
+// 	return header, nil
+// }
 
 // groupSamRecords yields blocks of SAM records that correspond to the same query
 // sequence (to a channel)
-func groupSamRecords(infile string, chnl chan samRecords, cdone chan bool, cerr chan error) {
+func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samRecords, cdone chan bool, cerr chan error) {
 
 	var err error
 	f := os.Stdin
@@ -352,10 +352,9 @@ func groupSamRecords(infile string, chnl chan samRecords, cdone chan bool, cerr 
 		cerr <- err
 	}
 
-	// fmt.Println(s.Header().Refs()[0].Name())
-	// fmt.Println(s.Header().Refs()[0].Len())
+	cHeader<- *s.Header()
 
-	// this will be used to preserve order in input and output
+	// this counter will be used to preserve order in input and output:
 	counter := 0
 
 	first := true

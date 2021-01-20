@@ -8,7 +8,7 @@ import (
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
 
-	// biogosam "github.com/biogo/hts/sam"
+	biogosam "github.com/biogo/hts/sam"
 )
 
 // getFastaRecord returns a FastaRecord struct with a sequence ID and a sequence
@@ -151,26 +151,11 @@ func writeAlignmentOut(ch chan fastaio.FastaRecord, outfile string, cdone chan b
 func ToMultiAlign(infile string, reffile string, outfile string, trim bool, pad bool, trimstart int,
 	trimend int, threads int) error {
 
-	// samHeader, err := getSamHeader(infile)
-	// if err != nil {
-	// 	return err
-	// }
-
-	refA, _, err := fastaio.PopulateByteArrayGetNames(reffile)
-	if err != nil {
-		return err
-	}
-
-	refLen := len(refA[0])
-	// fmt.Println(refLen)
-
-	err = checkArgs(refLen, trim, pad, trimstart, trimend)
-	if err != nil {
-		return err
-	}
 
 	cSR := make(chan samRecords, threads)
 	cReadDone := make(chan bool)
+
+	cSH := make(chan biogosam.Header)
 
 	cFR := make(chan fastaio.FastaRecord)
 	cWriteDone := make(chan bool)
@@ -179,7 +164,15 @@ func ToMultiAlign(infile string, reffile string, outfile string, trim bool, pad 
 
 	cWaitGroupDone := make(chan bool)
 
-	go groupSamRecords(infile, cSR, cReadDone, cErr)
+	go groupSamRecords(infile, cSH, cSR, cReadDone, cErr)
+
+	header := <-cSH
+	refLen := header.Refs()[0].Len()
+
+	err := checkArgs(refLen, trim, pad, trimstart, trimend)
+	if err != nil {
+		return err
+	}
 
 	go writeAlignmentOut(cFR, outfile, cWriteDone, cErr)
 
@@ -204,6 +197,7 @@ func ToMultiAlign(infile string, reffile string, outfile string, trim bool, pad 
 			return err
 		case <-cReadDone:
 			close(cSR)
+			close(cSH)
 			n--
 		}
 	}

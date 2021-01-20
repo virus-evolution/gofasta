@@ -15,7 +15,7 @@ import (
 	"github.com/cov-ert/gofasta/pkg/alphabet"
 	"github.com/cov-ert/gofasta/pkg/encoding"
 
-	biogosam "github.com/biogo/hts/sam"
+	// biogosam "github.com/biogo/hts/sam"
 )
 
 //
@@ -260,7 +260,7 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 		}
 	}
 
-	cSamRecords := make(chan []biogosam.Record, threads)
+	cSamRecords := make(chan samRecords, threads)
 	cPairAlign := make(chan alignPair)
 	cPairParse := make(chan []alignPair)
 	cVariants := make(chan []annoStruct)

@@ -10,6 +10,14 @@ import (
 	biogosam "github.com/biogo/hts/sam"
 )
 
+// samRecords is a struct that carries a group of sam lines (belonging to the
+// same sequence, probably) and a integer index which is used to keep track of
+// the order of the input when we parallelise
+type samRecords struct {
+	records []biogosam.Record
+	idx	int
+}
+
 // getOneLine processes one non-header line of a SAM file into an aligned sequence
 func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
 
@@ -325,7 +333,7 @@ func getSamHeader(infile string) (biogosam.Header, error) {
 
 // groupSamRecords yields blocks of SAM records that correspond to the same query
 // sequence (to a channel)
-func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool, cerr chan error) {
+func groupSamRecords(infile string, chnl chan samRecords, cdone chan bool, cerr chan error) {
 
 	var err error
 	f := os.Stdin
@@ -347,8 +355,11 @@ func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool
 	// fmt.Println(s.Header().Refs()[0].Name())
 	// fmt.Println(s.Header().Refs()[0].Len())
 
-	samLineGroup := make([]biogosam.Record, 0)
+	// this will be used to preserve order in input and output
+	counter := 0
+
 	first := true
+	samLineGroup := samRecords{idx: counter}
 	var previous string
 
 	for {
@@ -366,7 +377,7 @@ func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool
 		} else {
 
 			if first {
-				samLineGroup = append(samLineGroup, *rec)
+				samLineGroup.records = append(samLineGroup.records, *rec)
 				first = false
 				previous = rec.Name
 				continue
@@ -375,13 +386,15 @@ func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool
 			if rec.Name != previous {
 				// fmt.Println(previous, len(samLineGroup))
 				chnl <- samLineGroup
-				samLineGroup = make([]biogosam.Record, 0)
-				samLineGroup = append(samLineGroup, *rec)
+				counter++
+
+				samLineGroup = samRecords{idx: counter}
+				samLineGroup.records = append(samLineGroup.records, *rec)
 				previous = rec.Name
 				continue
 			}
 
-			samLineGroup = append(samLineGroup, *rec)
+			samLineGroup.records = append(samLineGroup.records, *rec)
 			previous = rec.Name
 
 			// fmt.Println(string(rec.Seq.Expand()))

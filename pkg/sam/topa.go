@@ -194,7 +194,7 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 // to the same query sequence to a pairwise alignment between that query and the
 // reference. It should return the pair of sequences (query + reference) aligned
 // to each other - insertions in the query can be represented or not.
-func blockToPairwiseAlignment(cSR chan []biogosam.Record, cPair chan alignPair, cErr chan error, ref []byte, omitIns bool) {
+func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr chan error, ref []byte, omitIns bool) {
 
 	for group := range(cSR) {
 
@@ -212,7 +212,7 @@ func blockToPairwiseAlignment(cSR chan []biogosam.Record, cPair chan alignPair, 
 
 		if !omitIns {
 			// populate it
-			for _, line := range(group) {
+			for _, line := range(group.records) {
 				seq, refseq, err := getOneLinePlusRef(line, ref, !omitIns)
 				if err != nil {
 					cErr<- err
@@ -227,12 +227,12 @@ func blockToPairwiseAlignment(cSR chan []biogosam.Record, cPair chan alignPair, 
 			infoBlock.posArray = positions
 
 			pair := blockToSeqPair(infoBlock, ref)
-			pair.refname = string(group[0].Ref.Name())
-			pair.queryname = group[0].Name
+			pair.refname = string(group.records[0].Ref.Name())
+			pair.queryname = group.records[0].Name
 			cPair<- pair
 
 		} else {
-			for _, line := range(group) {
+			for _, line := range(group.records) {
 				seq, _, err := getOneLinePlusRef(line, ref, !omitIns)
 				if err != nil {
 					cErr<- err
@@ -242,8 +242,8 @@ func blockToPairwiseAlignment(cSR chan []biogosam.Record, cPair chan alignPair, 
 
 			Qflat := swapInNs(checkAndGetFlattenedSeq(Q))
 			pair := alignPair{ref: ref, query: Qflat}
-			pair.queryname = group[0].Name
-			pair.refname = string(group[0].Ref.Name())
+			pair.queryname = group.records[0].Name
+			pair.refname = string(group.records[0].Ref.Name())
 
 			cPair<- pair
 		}
@@ -508,7 +508,7 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 	// fmt.Println(refSeq)
 	// fmt.Println()
 
-	cSR := make(chan []biogosam.Record, threads)
+	cSR := make(chan samRecords, threads)
 	cPairAlign := make(chan alignPair)
 	cPairParse := make(chan []alignPair)
 

@@ -14,6 +14,7 @@ type FastaRecord struct {
 	ID          string
 	Description string
 	Seq         string
+	Idx	    int
 }
 
 func getAlignmentDims(infile string) (int, int, error) {

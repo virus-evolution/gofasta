@@ -374,6 +374,9 @@ func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samR
 			cerr <- err
 
 		} else {
+			if rec.Pos < 0 {
+				continue
+			}
 
 			if first {
 				samLineGroup.records = append(samLineGroup.records, *rec)

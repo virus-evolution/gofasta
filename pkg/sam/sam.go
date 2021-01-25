@@ -10,6 +10,14 @@ import (
 	biogosam "github.com/biogo/hts/sam"
 )
 
+// samRecords is a struct that carries a group of sam lines (belonging to the
+// same sequence, probably) and a integer index which is used to keep track of
+// the order of the input when we parallelise
+type samRecords struct {
+	records []biogosam.Record
+	idx	int
+}
+
 // getOneLine processes one non-header line of a SAM file into an aligned sequence
 func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
 
@@ -298,34 +306,34 @@ func swapInGapsNs(seq []byte) []byte {
 	return seq
 }
 
-// getSamHeader uses Biogo/sam to return the header of a SAM file
-func getSamHeader(infile string) (biogosam.Header, error) {
-
-	var err error
-	f := os.Stdin
-
-	if len(infile) > 0 {
-		f, err = os.Open(infile)
-		if err != nil {
-			return biogosam.Header{}, err
-		}
-	}
-
-	defer f.Close()
-
-	s, err := biogosam.NewReader(f)
-	if err != nil {
-		return biogosam.Header{}, err
-	}
-
-	header := *s.Header()
-
-	return header, nil
-}
+// // getSamHeader uses Biogo/sam to return the header of a SAM file
+// func getSamHeader(infile string) (biogosam.Header, error) {
+//
+// 	var err error
+// 	f := os.Stdin
+//
+// 	if len(infile) > 0 {
+// 		f, err = os.Open(infile)
+// 		if err != nil {
+// 			return biogosam.Header{}, err
+// 		}
+// 	}
+//
+// 	defer f.Close()
+//
+// 	s, err := biogosam.NewReader(f)
+// 	if err != nil {
+// 		return biogosam.Header{}, err
+// 	}
+//
+// 	header := *s.Header()
+//
+// 	return header, nil
+// }
 
 // groupSamRecords yields blocks of SAM records that correspond to the same query
 // sequence (to a channel)
-func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool, cerr chan error) {
+func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samRecords, cdone chan bool, cerr chan error) {
 
 	var err error
 	f := os.Stdin
@@ -344,11 +352,13 @@ func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool
 		cerr <- err
 	}
 
-	// fmt.Println(s.Header().Refs()[0].Name())
-	// fmt.Println(s.Header().Refs()[0].Len())
+	cHeader<- *s.Header()
 
-	samLineGroup := make([]biogosam.Record, 0)
+	// this counter will be used to preserve order in input and output:
+	counter := 0
+
 	first := true
+	samLineGroup := samRecords{idx: counter}
 	var previous string
 
 	for {
@@ -364,9 +374,12 @@ func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool
 			cerr <- err
 
 		} else {
+			if rec.Pos < 0 {
+				continue
+			}
 
 			if first {
-				samLineGroup = append(samLineGroup, *rec)
+				samLineGroup.records = append(samLineGroup.records, *rec)
 				first = false
 				previous = rec.Name
 				continue
@@ -375,13 +388,15 @@ func groupSamRecords(infile string, chnl chan []biogosam.Record, cdone chan bool
 			if rec.Name != previous {
 				// fmt.Println(previous, len(samLineGroup))
 				chnl <- samLineGroup
-				samLineGroup = make([]biogosam.Record, 0)
-				samLineGroup = append(samLineGroup, *rec)
+				counter++
+
+				samLineGroup = samRecords{idx: counter}
+				samLineGroup.records = append(samLineGroup.records, *rec)
 				previous = rec.Name
 				continue
 			}
 
-			samLineGroup = append(samLineGroup, *rec)
+			samLineGroup.records = append(samLineGroup.records, *rec)
 			previous = rec.Name
 
 			// fmt.Println(string(rec.Seq.Expand()))

@@ -22,7 +22,7 @@ For a full list of commands and options, run `gofasta` with the `-h` flag, for e
 |------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | closest          | Find the closest sequence to a query by raw distance. Ties are broken by genome completeness (including for 0-length distances between genomes).                             |
 | sam toMultiAlign | Convert a SAM file to a multiple alignment in fasta format, insertions   relative to the reference are discarded.                                                            |
-| sam toPairAlign  | Convert a SAM file to pairwise alignments in fasta format, optionally   split by annotations in a GenBank file, optionally including insertions   relative to the reference. |
+| sam toPairAlign  | (**EXPERIMENTAL**) Convert a SAM file to pairwise alignments in fasta format, optionally   split by annotations in a GenBank file, optionally including insertions   relative to the reference. |
 | sam variants     | Annotate coding sequence variants relative to a reference sequence from   an alignment in SAM format, using annotations from a GenBank file.                              |                            |
 
 

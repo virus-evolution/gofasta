@@ -374,7 +374,10 @@ func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samR
 			cerr <- err
 
 		} else {
-			if rec.Pos < 0 {
+			// if this read is unmapped, then skip it.
+			// the third bit (== 4) in the sam flag is set if the read is unmapped,
+			// can use the rightshift method to check this:
+			if ((rec.Flags >> 2) & 1) == 1 {
 				continue
 			}
 

@@ -217,6 +217,7 @@ func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan
 		outputMap[AS.idx] = AS
 
 		if A, ok := outputMap[counter]; ok {
+
 			queryname := A.queryname
 
 			f.WriteString(queryname + ",")
@@ -248,7 +249,8 @@ func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan
 			break
 		}
 		A := outputMap[counter]
-		queryname := A.as[0].queryname
+
+		queryname := A.queryname
 
 		f.WriteString(queryname + ",")
 

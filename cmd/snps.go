@@ -19,18 +19,20 @@ func init() {
 }
 
 var snpCmd = &cobra.Command{
-	Use:   "snps --reference reference.fasta --query alignment.fasta --outfile snps.csv",
+	Use:   "snps",
 	Short: "Find snps relative to a reference",
 	Long:  `Find snps relative to a reference.
+
+Example usage:
+	gofasta snps -r reference.fasta -q alignment.fasta -o snps.csv
 
 The output is a csv-format file with one line per query sequence, and two columns:
 'query' and 'SNPs', the second of which is a "|"-delimited list of snps in that query.
 
-The default behaviour is to read the query alignment from stdin
-and write the snps file to stdout, e.g.:
+If input and output files are not specified, the behaviour is to read the query alignment
+from stdin and write the snps file to stdout, e.g. you could do this:
+	cat alignment.fasta | gofasta snps -r reference.fasta > snps.csv`,
 
-cat alignment.fasta | gofasta snps -r reference.fasta > snps.csv
-`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		err = snps.SNPs(snpsReference, snpsQuery, snpsOutfile)

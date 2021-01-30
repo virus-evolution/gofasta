@@ -55,6 +55,48 @@ func MakeByteDict2() map[byte]uint8 {
 	return byteMap
 }
 
+// MakeEncodingArray returns an array whose indices are the byte representations
+// of IUPAC codes and whose contents are Emmanual Paradis encodings
+// Lower case nucleotides are mapped to their upper case nucleotides's encoding
+func MakeEncodingArray() []byte {
+	byteArray := make([]byte, 256)
+
+	byteArray['A'] = 136
+	byteArray['a'] = 136
+	byteArray['G'] = 72
+	byteArray['g'] = 72
+	byteArray['C'] = 40
+	byteArray['c'] = 40
+	byteArray['T'] = 24
+	byteArray['t'] = 24
+	byteArray['R'] = 192
+	byteArray['r'] = 192
+	byteArray['M'] = 160
+	byteArray['m'] = 160
+	byteArray['W'] = 144
+	byteArray['w'] = 144
+	byteArray['S'] = 96
+	byteArray['s'] = 96
+	byteArray['K'] = 80
+	byteArray['k'] = 80
+	byteArray['Y'] = 48
+	byteArray['y'] = 48
+	byteArray['V'] = 224
+	byteArray['v'] = 224
+	byteArray['H'] = 176
+	byteArray['h'] = 176
+	byteArray['D'] = 208
+	byteArray['d'] = 208
+	byteArray['B'] = 112
+	byteArray['b'] = 112
+	byteArray['N'] = 240
+	byteArray['n'] = 240
+	byteArray['-'] = 244
+	byteArray['?'] = 242
+
+	return byteArray
+}
+
 // MakeScoreDict is a map from uint8 values for IUPAC nucleotide codes to an
 // integer for how unambiguous they are. The score is caculated as:
 // 12 * 1/possible real nucleotides. E.g. an 'A' / 136::uint8 scores 12, but an
@@ -108,4 +150,30 @@ func MakeNucDict() map[uint8]string {
 	nucMap[242] = "?"
 
 	return nucMap
+}
+
+// MakeDecodingArray returns an array whose indices are Emmanual Paradis encodings
+// of IUPAC codes and whose contents are IUPAC codes as strings
+func MakeDecodingArray() []string {
+	byteArray := make([]string, 256)
+
+	byteArray[136] = "A"
+	byteArray[72] = "G"
+	byteArray[40] = "C"
+	byteArray[24] = "T"
+	byteArray[192] = "R"
+	byteArray[160] = "M"
+	byteArray[144] = "W"
+	byteArray[96] = "S"
+	byteArray[80] = "K"
+	byteArray[48] = "Y"
+	byteArray[224] = "V"
+	byteArray[176] = "H"
+	byteArray[208] = "D"
+	byteArray[112] = "B"
+	byteArray[240] = "N"
+	byteArray[244] = "-"
+	byteArray[242] = "?"
+
+	return byteArray
 }

@@ -17,6 +17,14 @@ type FastaRecord struct {
 	Idx	    int
 }
 
+// EncodedFastaRecord is a struct for one Fasta record
+type EncodedFastaRecord struct {
+	ID          string
+	Description string
+	Seq         []byte
+	Idx int
+}
+
 func getAlignmentDims(infile string) (int, int, error) {
 	n := 0
 	l := 0
@@ -169,4 +177,85 @@ func PopulateByteArrayGetNames(infile string) ([][]uint8, []string, error) {
 	}
 
 	return A, IDs, nil
+}
+
+
+// ReadEncodeAlignment reads an alignment in fasta format to a channel
+// of encodedFastaRecord structs - converting sequence to EP's bitwise coding scheme
+func ReadEncodeAlignment(inFile string, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
+
+	var err error
+	var f *os.File
+
+	if inFile != "stdin" {
+		f, err = os.Open(inFile)
+		if err != nil {
+			cErr <- err
+		}
+	} else {
+		f = os.Stdin
+	}
+
+	defer f.Close()
+
+	encoding := encoding.MakeEncodingArray()
+
+	s := bufio.NewScanner(f)
+
+	first := true
+
+	var id string
+	var description string
+	var seqBuffer []byte
+	var line []byte
+	var nuc byte
+
+	counter := 0
+
+	for s.Scan() {
+		line = s.Bytes()
+
+		if first {
+
+			if line[0] != '>' {
+				cErr <- errors.New("badly formatted fasta file")
+			}
+
+			description = string(line[1:])
+			id = strings.Fields(description)[0]
+
+			first = false
+
+		} else if line[0] == '>' {
+
+			fr := EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
+			chnl <- fr
+			counter++
+
+			description = string(line[1:])
+			id = strings.Fields(description)[0]
+			seqBuffer = make([]byte, 0)
+
+		} else {
+			encodedLine := make([]byte, len(line))
+			for i := range(line) {
+				nuc = encoding[line[i]]
+				if nuc == 0 {
+					cErr<- fmt.Errorf("invalid nucleotide in fasta file (%s)", string(nuc))
+				}
+				encodedLine[i] = nuc
+			}
+			seqBuffer = append(seqBuffer, encodedLine...)
+		}
+	}
+
+	fr := EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
+	chnl <- fr
+
+	err = s.Err()
+	if err != nil {
+		cErr <- err
+	}
+
+	cDone <- true
 }

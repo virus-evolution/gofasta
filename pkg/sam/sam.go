@@ -179,7 +179,7 @@ func getSetFromSlice(s []byte) []byte {
 // has secondary mappings (multiple records/lines) in the SAM file.
 // * If there is more than one alphabetic character at this site, an N is returned.
 // * Alphabetic characters override '-'s and '*'s
-func getNucFromSite(s []byte) byte {
+func getNucFromSite(s []byte, qname string) byte {
 
 	check := 0
 
@@ -193,6 +193,7 @@ func getNucFromSite(s []byte) byte {
 	}
 
 	if check > 1 {
+		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + string(ss) + "\n")
 		return 'N'
 	}
 
@@ -208,7 +209,7 @@ func getNucFromSite(s []byte) byte {
 
 // checkAndGetFlattenedSeq applies getNucFromSite over all sites in a block
 // of SAM records to get a single flattened sequence for one query
-func checkAndGetFlattenedSeq(block [][]byte) []byte {
+func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 
 	seq := make([]byte, len(block[0]))
 	site := make([]byte, len(block))
@@ -217,7 +218,7 @@ func checkAndGetFlattenedSeq(block [][]byte) []byte {
 		for i, _ := range block {
 			site[i] = block[i][j]
 		}
-		nuc := getNucFromSite(site)
+		nuc := getNucFromSite(site, qname)
 		seq[j] = nuc
 	}
 
@@ -228,6 +229,8 @@ func checkAndGetFlattenedSeq(block [][]byte) []byte {
 // SAM records - if there is only one line (only a primary mapping) it
 // returns that aligned sequence without needing to do any flattening
 func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
+
+	qname := records[0].Name
 
 	block := make([][]byte, len(records))
 	for i, _ := range block {
@@ -245,7 +248,7 @@ func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bo
 	var seq []byte
 
 	if len(block) > 1 {
-		seq = checkAndGetFlattenedSeq(block)
+		seq = checkAndGetFlattenedSeq(block, qname)
 	} else {
 		seq = block[0]
 	}
@@ -378,6 +381,7 @@ func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samR
 			// the third bit (== 4) in the sam flag is set if the read is unmapped,
 			// can use the rightshift method to check this:
 			if ((rec.Flags >> 2) & 1) == 1 {
+				os.Stderr.WriteString("skipping unmapped read: " + rec.Name + "\n")
 				continue
 			}
 

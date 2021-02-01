@@ -159,7 +159,7 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 		// fmt.Println(line)
 	}
 
-	R := checkAndGetFlattenedSeq(RBlock)
+	R := checkAndGetFlattenedSeq(RBlock, "reference")
 
 	QBlock := make([][]byte, 0)
 	for _, line := range(queSeqArray){
@@ -174,7 +174,7 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 		QBlock = append(QBlock, line)
 	}
 
-	Q := checkAndGetFlattenedSeq(QBlock)
+	Q := checkAndGetFlattenedSeq(QBlock, alignedBlock.seqpairArray[0].queryname)
 
 	// extend the alignment to the ref length + the total number of
 	// insertions relative to the reference...
@@ -225,7 +225,7 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 				if err != nil {
 					cErr<- err
 				}
-				seqs = append(seqs, alignPair{ref: refseq, query: seq})
+				seqs = append(seqs, alignPair{ref: refseq, query: seq, queryname: line.Name})
 				cigars = append(cigars, line.Cigar)
 				positions = append(positions, line.Pos)
 			}
@@ -241,6 +241,8 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 			cPair<- pair
 
 		} else {
+			qname := group.records[0].Name
+
 			for _, line := range(group.records) {
 				seq, _, err := getOneLinePlusRef(line, ref, !omitIns)
 				if err != nil {
@@ -249,7 +251,8 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 				Q = append(Q, seq)
 			}
 
-			Qflat := swapInNs(checkAndGetFlattenedSeq(Q))
+			Qflat := swapInNs(checkAndGetFlattenedSeq(Q, qname))
+
 			pair := alignPair{ref: ref, query: Qflat}
 			pair.queryname = group.records[0].Name
 			pair.refname = string(group.records[0].Ref.Name())

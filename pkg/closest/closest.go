@@ -1,295 +1,251 @@
 package closest
 
 import (
-	"errors"
-	"fmt"
-	"github.com/cov-ert/gofasta/pkg/encoding"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
-	"math"
 	"os"
+	"fmt"
+	"sync"
+	"errors"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/cov-ert/gofasta/pkg/fastaio"
+	"github.com/cov-ert/gofasta/pkg/encoding"
 )
 
-// getDifferenceMatrix returns a Q x T array with one value per query - target
-// comparison. For each query sequence, the lowest cell(s) corresponds to the
-// closest target sequence(s)
-func getDifferenceMatrix(queryA [][]uint8, targetA [][]uint8) [][]float64 {
+type resultsStruct struct {
+	qname string
+	qidx int
+	tname string
+	completeness int64
+	distance float64
+	snps []string
+}
 
-	D := make([][]float64, len(queryA))
+func scoreEncodedAlignment(cIn chan fastaio.EncodedFastaRecord, cOut chan fastaio.EncodedFastaRecord) {
+	scoring := encoding.MakeEncodedScoreArray()
+	var score int64
 
-	for i := 0; i < len(queryA); i++ {
-		D[i] = make([]float64, len(targetA))
+	for EFR := range(cIn) {
+		score = 0
+		for _, nuc := range(EFR.Seq) {
+			score += scoring[nuc]
+		}
+		EFR.Score = score
+		cOut<- EFR
 	}
 
-	alignmentlength := len(queryA[0])
+	return
+}
 
-	for queryIndex := 0; queryIndex < len(queryA); queryIndex++ {
-		for targetIndex := 0; targetIndex < len(targetA); targetIndex++ {
-			differences := 0.0
-			denominator := 0.0
-			for r := 0; r < alignmentlength; r++ {
-				x := targetA[targetIndex][r]
-				y := queryA[queryIndex][r]
-				different := (x & y) < 16
-				same := (x&8 == 8) && x == y
+func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFastaRecord, cOut chan resultsStruct) {
+	var closest resultsStruct
+	var distance float64
+	var snps []string
 
-				if different {
-					differences += 1.0
-				}
+	var n int64
+	var d int64
 
-				if different || same {
-					denominator += 1.0
+	first := true
+
+	decoding := encoding.MakeDecodingArray()
+
+	for target := range(cIn) {
+		n = 0
+		d = 0
+		for i, tNuc := range(target.Seq) {
+			if (query.Seq[i] & tNuc) < 16 {
+				n += 1
+				d += 1
+			}
+			if (query.Seq[i] & 8 == 8) && query.Seq[i] == tNuc {
+				d += 1
+			}
+		}
+		distance = float64(n) / float64(d)
+
+		if first {
+			snps = make([]string, 0)
+			for i, tNuc := range(target.Seq) {
+				if (query.Seq[i] & tNuc) < 16 {
+					snps = append(snps,strconv.Itoa(i + 1) + decoding[query.Seq[i]] + decoding[tNuc])
 				}
 			}
+			closest = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance, snps: snps}
+			first = false
+			continue
+		}
 
-			D[queryIndex][targetIndex] = (differences / denominator)
+		if distance < closest.distance {
+			snps = make([]string, 0)
+			for i, tNuc := range(target.Seq) {
+				if (query.Seq[i] & tNuc) < 16 {
+					snps = append(snps,strconv.Itoa(i + 1) + decoding[query.Seq[i]] + decoding[tNuc])
+				}
+			}
+			closest = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance, snps: snps}
+
+		} else if distance == closest.distance {
+			if target.Score > closest.completeness {
+				snps = make([]string, 0)
+				for i, tNuc := range(target.Seq) {
+					if (query.Seq[i] & tNuc) < 16 {
+						snps = append(snps,strconv.Itoa(i + 1) + decoding[query.Seq[i]] + decoding[tNuc])
+					}
+				}
+				closest = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance, snps: snps}
+			}
 		}
 	}
 
-	return D
+	closest.qname = query.ID
+	closest.qidx = query.Idx
+
+	cOut<- closest
 }
 
-// scoreAlignment returns a 1-D array of integers, with higher scores
-// for genomes that are more complete (fewer ambiguities)
-func scoreAlignment(A [][]uint8) []int {
-	S := make([]int, len(A))
+func splitInput(queries []fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFastaRecord, cOut chan resultsStruct, cErr chan error, cSplitDone chan bool) {
 
-	scoreDict := encoding.MakeScoreDict()
+	nQ := len(queries)
 
-	for i := 0; i < len(A); i++ {
-		score := 0
-		for _, nuc := range A[i] {
-			score += scoreDict[nuc]
-		}
-		S[i] = score
+	// make an array of channels, one for each query
+	QChanArray := make([]chan fastaio.EncodedFastaRecord, nQ)
+	for i := 0; i < nQ; i++ {
+	   QChanArray[i] = make(chan fastaio.EncodedFastaRecord)
 	}
-	return S
-}
 
-// getMinFloatIndices returns the indices of the minimum values(s) from
-// a 1-D array of floats. If there are ties for the lowest value, all
-// indices of that value are returned
-func getMinFloatIndices(V []float64) []int {
+	for i, q := range(queries) {
+		go findClosest(q, QChanArray[i], cOut)
+	}
 
-	var min float64
-	I := make([]int, 0)
+	targetCounter := 0
+	for EFR := range(cIn) {
+		if targetCounter == 0 {
+			if len(EFR.Seq) != len(queries[0].Seq) {
+				cErr<- errors.New("query and target alignments are not the same width")
+			}
+		}
+		targetCounter++
 
-	for i := 0; i < len(V); i++ {
-
-		score := V[i]
-
-		if i == 0 {
-			min = score
-			I = append(I, i)
-
-		} else if score == min {
-			I = append(I, i)
-
-		} else if score < min {
-			min = score
-			I = []int{i}
+		for i, _ := range(QChanArray) {
+			QChanArray[i]<- EFR
 		}
 	}
 
-	return I
-}
+	fmt.Printf("number of sequences in target alignment: %d\n", targetCounter)
 
-// getMaxIntIndices returns the indices of the maximum values(s) from
-// a 1-D array of ints. If there are ties for the highest value, all
-// indices of that value are returned
-func getMaxIntIndices(V []int) []int {
-
-	var max int
-	I := make([]int, 0)
-
-	for i := 0; i < len(V); i++ {
-
-		score := V[i]
-
-		if i == 0 {
-			max = score
-			I = append(I, i)
-
-		} else if score == max {
-			I = append(I, i)
-
-		} else if score > max {
-			max = score
-			I = []int{i}
-		}
+	for i, _ := range(QChanArray) {
+		close(QChanArray[i])
 	}
 
-	return I
+	cSplitDone<- true
 }
 
-// getBestTargetIndex is used to select the target sequence that is closest
-// to one query sequence. This is based on genetic distance, and ties are
-// broken using genome completeness (of the target sequences)
-func getBestTargetIndex(differencesV []float64, completenessV []int) int {
-	distanceMinIndices := getMinFloatIndices(differencesV)
-
-	var indx int
-
-	if len(distanceMinIndices) > 1 {
-
-		completenesses := make([]int, 0)
-
-		for _, i := range distanceMinIndices {
-			completenesses = append(completenesses, completenessV[i])
-		}
-
-		completenessMaxIndices := getMaxIntIndices(completenesses)
-
-		indx = distanceMinIndices[completenessMaxIndices[0]]
-
-	} else {
-		indx = distanceMinIndices[0]
-	}
-
-	return indx
-}
-
-// getSNPs returns an array of SNPs between two sequences
-func getSNPs(queryV []uint8, targetV []uint8) []string {
-	nucDict := encoding.MakeNucDict()
-	SNPs := make([]string, 0)
-
-	for r := 0; r < len(targetV); r++ {
-		x := queryV[r]
-		y := targetV[r]
-		different := (x & y) < 16
-		if different {
-			nucQ := nucDict[x]
-			nucT := nucDict[y]
-			snp := strconv.Itoa(r+1) + nucQ + nucT
-			SNPs = append(SNPs, snp)
-		}
-	}
-
-	return SNPs
-}
-
-// csvRows is a simple struct used for passing the results of processChunk down
-// a channel between processes
-type csvRows struct {
-	id   int
-	rows []string
-}
-
-// processChunk returns the results from a set of query sequences or sequence.
-func processChunk(ch chan csvRows, id int, QA [][]uint8, Qnames []string, TA [][]uint8, Tnames []string, targetScores []int) {
-
-	S := make([]string, len(QA))
-
-	D := getDifferenceMatrix(QA, TA)
-
-	for queryi := 0; queryi < len(QA); queryi++ {
-		bestIndx := getBestTargetIndex(D[queryi], targetScores)
-		// distance := D[queryi][bestIndx]
-		SNPs := getSNPs(QA[queryi], TA[bestIndx])
-		SNPdistance := len(SNPs)
-		Qname := Qnames[queryi]
-		Tname := Tnames[bestIndx]
-
-		row := Qname + "," + Tname + "," + strconv.Itoa(SNPdistance) + "," + strings.Join(SNPs, ";") + "\n"
-
-		S[queryi] = row
-	}
-
-	ch <- csvRows{id: id, rows: S}
-}
-
-// writeResults writes the csv output file. It's called when all chunks
-// have been processed
-func writeResults(A [][]string, filepath string) error {
+func writeClosest(results []resultsStruct, filepath string) error {
 	f, err := os.Create(filepath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	_, err2 := f.WriteString("query,closest,SNPdistance,SNPs\n")
-	if err2 != nil {
-		return err2
+	_, err = f.WriteString("query,closest,SNPdistance,SNPs\n")
+	if err != nil {
+		return err
 	}
 
-	for _, chunk := range A {
-		for _, row := range chunk {
-			_, err3 := f.WriteString(row)
-			if err3 != nil {
-				return err3
-			}
-		}
+	for _, result := range results {
+		f.WriteString(result.qname + "," + result.tname + "," + strconv.Itoa(len(result.snps)) + "," + strings.Join(result.snps, ";") + "\n")
 	}
 
 	return nil
 }
 
-// Closest finds the closest sequence to each target sequence in a set of
-// query sequences. It breaks ties by genome completeness.
-func Closest(query string, target string, outfile string, threads int) error {
+func Closest(queryFile string, targetFile string, outFile string, threads int) error {
 
-	QA, Qnames, err := fastaio.PopulateByteArrayGetNames(query)
+	if threads == 0 {
+		threads = runtime.NumCPU()
+	} else if threads < runtime.NumCPU() {
+		runtime.GOMAXPROCS(threads)
+	}
+
+	queries, err := fastaio.ReadEncodeAlignmentToList(queryFile)
 	if err != nil {
 		return err
 	}
 
-	if len(QA) != len(Qnames) {
-		return errors.New("error parsing query alignment")
+	nQ := len(queries)
+
+	fmt.Printf("number of sequences in query alignment: %d\n", nQ)
+
+	QResultsArray := make([]resultsStruct, nQ)
+
+	cErr := make(chan error)
+
+	cTEFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
+	cTEFRscored := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
+	cTEFRdone := make(chan bool)
+	cTEFRscoreddone := make(chan bool)
+	cSplitDone := make(chan bool)
+
+	cResults := make(chan resultsStruct)
+
+	go fastaio.ReadEncodeAlignment(targetFile, cTEFR, cErr, cTEFRdone)
+
+	var wgScore sync.WaitGroup
+	wgScore.Add(threads)
+
+	for n := 0; n < threads; n++ {
+		go func() {
+			scoreEncodedAlignment(cTEFR, cTEFRscored)
+			wgScore.Done()
+		}()
 	}
 
-	fmt.Printf("number of sequences in query alignment: %d\n", len(QA))
+	go splitInput(queries, cTEFRscored, cResults, cErr, cSplitDone)
 
-	TA, Tnames, err := fastaio.PopulateByteArrayGetNames(target)
-	if err != nil {
-		return err
-	}
+	go func() {
+		wgScore.Wait()
+		cTEFRscoreddone<- true
+	}()
 
-	if len(TA) != len(Tnames) {
-		return errors.New("error parsing target alignment")
-	}
-
-	fmt.Printf("number of sequences in target alignment: %d\n", len(TA))
-
-	if len(QA[0]) != len(TA[0]) {
-		return errors.New("query and target alignments are not the same width")
-	}
-
-	targetScores := scoreAlignment(TA)
-
-	ch := make(chan csvRows)
-
-	NGoRoutines := threads
-
-	if NGoRoutines > len(QA) {
-		NGoRoutines = len(QA)
-	}
-
-	runtime.GOMAXPROCS(NGoRoutines)
-
-	chunkSize := int(math.Floor(float64(len(QA)) / float64(NGoRoutines)))
-
-	for i := 0; i < NGoRoutines; i++ {
-		start := i * chunkSize
-		end := start + chunkSize
-		if i == NGoRoutines-1 {
-			end = len(QA)
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			return err
+		case <-cTEFRdone:
+			close(cTEFR)
+			n--
 		}
-		go processChunk(ch, i, QA[start:end], Qnames[start:end], TA, Tnames, targetScores)
 	}
 
-	sorted := make([][]string, NGoRoutines)
-
-	for i := 0; i < NGoRoutines; i++ {
-		output := <-ch
-		sorted[output.id] = output.rows
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			return err
+		case <-cTEFRscoreddone:
+			close(cTEFRscored)
+			n--
+		}
 	}
 
-	close(ch)
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			return err
+		case <-cSplitDone:
+			n--
+		}
+	}
 
-	writeResults(sorted, outfile)
+	for i := 0; i < nQ; i++ {
+		result := <-cResults
+		QResultsArray[result.qidx] = result
+	}
+
+	err = writeClosest(QResultsArray, outFile)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

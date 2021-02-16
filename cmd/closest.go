@@ -45,7 +45,7 @@ Or you can find the nearest n neighbours:
 	gofasta closest -t 2 -n 1000 --query query.fasta --target target.fasta -o closest.n1000.csv
 
 and the output will be a CSV format file with just the headers query, closest. The 'closest' column
-is a "|"-delimited list of neighbours, closest first.
+is a ";"-delimited list of neighbours, closest first.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 

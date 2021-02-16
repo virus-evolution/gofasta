@@ -148,7 +148,7 @@ func writeClosestN(results []catchmentStruct, filepath string) error {
 		for _, hit := range(result.catchment) {
 			temp = append(temp, hit.tname)
 		}
-		f.WriteString(result.qname + "," + strings.Join(temp, "|") + "\n")
+		f.WriteString(result.qname + "," + strings.Join(temp, ";") + "\n")
 	}
 
 	return nil

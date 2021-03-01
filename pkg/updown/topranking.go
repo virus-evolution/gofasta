@@ -3,7 +3,6 @@ package updown
 
 import (
 	"os"
-	"fmt"
 	"math"
 	"sort"
 	"errors"
@@ -526,8 +525,6 @@ func sum4(a [4]int) int {
 func TopRanking(query string, target string, outfile string, reference string,
 	    sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	    threshsnp float32, threshtarg int, nofill bool) error {
-
-	_ = fmt.Println
 
 	sizeArray, q_in_type, t_in_type, err := checkArgs(query, target, reference, sizetotal, sizeup, sizedown, sizeside, sizesame)
 	if err != nil {

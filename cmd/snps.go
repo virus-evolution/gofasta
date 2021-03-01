@@ -26,10 +26,12 @@ var snpCmd = &cobra.Command{
 Example usage:
 	gofasta snps -r reference.fasta -q alignment.fasta -o snps.csv
 
+reference.fasta and alignment.fasta must be the same length.
+
 The output is a csv-format file with one line per query sequence, and two columns:
 'query' and 'SNPs', the second of which is a "|"-delimited list of snps in that query.
 
-If input and output files are not specified, the behaviour is to read the query alignment
+If query and  outfile are not specified, the behaviour is to read the query alignment
 from stdin and write the snps file to stdout, e.g. you could do this:
 	cat alignment.fasta | gofasta snps -r reference.fasta > snps.csv`,
 

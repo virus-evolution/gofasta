@@ -19,7 +19,7 @@ func init() {
 	closestCmd.Flags().StringVarP(&closestQuery, "query", "", "", "Alignment of sequences to find neighbours for, in fasta format")
 	closestCmd.Flags().StringVarP(&closestTarget, "target", "", "", "Alignment of sequences to search for neighbours in, in fasta format")
 	closestCmd.Flags().IntVarP(&closestN, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
-	closestCmd.Flags().StringVarP(&closestOutfile, "outfile", "o", "snps.csv", "The output file to write")
+	closestCmd.Flags().StringVarP(&closestOutfile, "outfile", "o", "stdout", "The output file to write")
 }
 
 var closestCmd = &cobra.Command{

@@ -122,7 +122,7 @@ func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn ch
 		}
 	}
 
-	fmt.Printf("number of sequences in target alignment: %d\n", targetCounter)
+	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", targetCounter)
 
 	for i, _ := range(QChanArray) {
 		close(QChanArray[i])
@@ -132,10 +132,17 @@ func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn ch
 }
 
 func writeClosestN(results []catchmentStruct, filepath string) error {
-	f, err := os.Create(filepath)
-	if err != nil {
-		return err
+
+	var err error
+	f := os.Stdout
+
+	if filepath != "stdout" {
+		f, err = os.Create(filepath)
+		if err != nil {
+			return err
+		}
 	}
+
 	defer f.Close()
 
 	_, err = f.WriteString("query,closest\n")
@@ -169,7 +176,7 @@ func ClosestN(catchmentSize int, queryFile string, targetFile string, outFile st
 
 	nQ := len(queries)
 
-	fmt.Printf("number of sequences in query alignment: %d\n", nQ)
+	fmt.Fprintf(os.Stderr, "number of sequences in query alignment: %d\n", nQ)
 
 	QResultsArray := make([]catchmentStruct, nQ)
 

@@ -9,7 +9,13 @@ Gofasta uses a slightly modified version of the bit-level coding scheme for nucl
 
 Binaries are available for Mac OS and Linux under the [latest release](https://github.com/cov-ert/gofasta/releases/latest)
 
-Or if you have Go installed, you can run `go get github.com/cov-ert/gofasta` to build a binary in your `$GOPATH`
+Or if you have Go installed, you can build the current contents of the repo:
+
+```
+git clone https://github.com/cov-ert/gofasta
+cd gofasta
+go build
+```
 
 
 ### Commands
@@ -19,7 +25,7 @@ For a full list of commands and options, run `gofasta` with the `-h` flag, for e
 
 | subcommand       | description                                                                                                                                                                                     |
 |------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| closest          | Find the closest sequence to a query by raw genetic distance. Ties are   broken by genome completeness (including for 0-length distances between   genomes).                                    |
+| closest          | Find the closest sequence(s) to a query by raw genetic distance. Ties are   broken by genome completeness (including for 0-length distances between   genomes).                                    |
 | updown           | Tools for pseudo-tree-aware SNP distances between sequences                                                                                                                                     |
 | snps             | Find snps relative to a reference.                                                                                                                                                              |
 | sam toMultiAlign | Convert a SAM file to a multiple alignment in fasta format. Insertions   relative to the reference are discarded.                                                                               |

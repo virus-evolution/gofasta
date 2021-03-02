@@ -51,8 +51,9 @@ For each sequence in --query, this routine finds the closest sequences by SNP-di
 whether they are likely children, parents, or siblings of, or on a polytomy with, the query sequence. It does this by comparing
 SNPs relative to a common reference sequence which is imagined to be the root of the tree.
 
---query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or one of each. If
-either is an alignment, you must provide --reference, and this should be the same sequence that was used by gofasta updown list.
+--query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or one of each. They
+must have file extensions .csv .fasta or .fa . If either is an alignment, you must provide --reference, and this should be the
+same sequence that was used by gofasta updown list.
 
 If you provide a number to --size-total, the output will try to include this many closest sequences to the query, split evenly
 between the four bins. If one or more bins has a shortfall, the sizes of the other bins will increase until --size-total is met,

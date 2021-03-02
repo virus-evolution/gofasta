@@ -61,6 +61,19 @@ func snpOverlap(vs []string, t string) bool {
     return index(vs, t) >= 0
 }
 
+func indexInt(vs []int, t int) int {
+    for i, v := range vs {
+        if v == t {
+            return i
+        }
+    }
+    return -1
+}
+
+func posOverlap(vs []int, t int) bool {
+	return indexInt(vs, t) >= 0
+}
+
 func isSiteAmb(pos int, a []int) bool {
 	for i := 0; i < len(a); i+=2 {
 		if pos >= a[i] && pos <= a[i+1] {
@@ -76,6 +89,10 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 
 	// table has 4 items: number of Q SNPs; no. QT SMPs; no. T SNPs; no of consequential ambiguous sites for this pair
 	var table [4]int
+
+	// d is an array of unique SNP positions to get distance from
+	d := make([]int, 0)
+
 	for i, qsnp := range(q.snps) {
 		if isSiteAmb(q.snpsPos[i], t.ambs) {
 			table[3]++
@@ -83,6 +100,7 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 			table[1]++
 		} else {
 			table[0]++
+			d = append(d, q.snpsPos[i])
 		}
 	}
 	for i, tsnp := range(t.snps) {
@@ -90,6 +108,9 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 			table[3]++
 		} else if !snpOverlap(q.snps, tsnp)  {
 			table[2]++
+			if !posOverlap(d, t.snpsPos[i]) {
+				d = append(d, t.snpsPos[i])
+			}
 		}
 	}
 
@@ -125,7 +146,10 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 		direction = 3
 	}
 
-	distance := table[0] + table[2]
+	// this is wrong (when there are multiple hits):
+	// distance := table[0] + table[2]
+
+	distance := len(d)
 
 	return direction, distance
 }

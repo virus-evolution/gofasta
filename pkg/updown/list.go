@@ -198,11 +198,12 @@ func List(referenceFile string, alignmentFile string, outFile string) error {
 
 	refSeq := temp[0].Seq
 
-	// every site in the reference should be ∈ {A,T,G,C} for now
+	// every site in the reference would ideally be ∈ {A,T,G,C}
 	DA := encoding.MakeDecodingArray()
 	for _, nuc := range(refSeq) {
 		if ! (nuc & 8 == 8) {
-			return fmt.Errorf("ambiguous nucleotide in reference sequence: %s", DA[nuc])
+			fmt.Fprintf(os.Stderr, "Warning: there is at least one ambiguous nucleotide in the --reference sequence: %s. This isn't recommended", DA[nuc])
+			break
 		}
 	}
 

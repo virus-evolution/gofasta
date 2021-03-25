@@ -3,7 +3,6 @@ package updown
 import (
 	"io"
 	"os"
-	"fmt"
 	"sync"
 	"errors"
 	"strings"
@@ -84,7 +83,7 @@ func readCSVToChan(inFile string, cudL chan updownLine, cErr chan error, cReadDo
 		}
 		if header {
 			if ! headerEqual(record, []string{"query","SNPs","ambiguities","SNPcount","ambcount"}) {
-				cErr<- errors.New("bad header when parsing mutation list")
+				cErr<- errors.New("bad header when parsing --target csv: is this the output of gofasta updown list?")
 			}
 			header = false
 			continue
@@ -146,7 +145,7 @@ func readCSVToList(inFile string) ([]updownLine, error) {
 		}
 		if header {
 			if ! headerEqual(record,[]string{"query","SNPs","ambiguities","SNPcount","ambcount"}) {
-				return make([]updownLine, 0), errors.New("bad header when parsing mutation list")
+				return make([]updownLine, 0), errors.New("bad header when parsing --query csv: is this file the output of gofasta updown list?")
 			}
 			header = false
 			continue
@@ -183,8 +182,6 @@ func readCSVToList(inFile string) ([]updownLine, error) {
 }
 
 func fastaToUDLslice(infile string, refSeq []byte) ([]updownLine, error) {
-
-	_ = fmt.Println
 
 	var udla []updownLine
 

@@ -11,9 +11,15 @@ import (
 	"encoding/csv"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
+
+	"fmt"
 )
 
 func getAmbArr(s string) ([]int, error) {
+	// if there are no ambiguities:
+	if len(s) == 0 {
+		return make([]int, 0), nil
+	}
 	ambs := strings.Split(s, "|")
 	A := make([]int, 0)
 	for _, a := range(ambs) {

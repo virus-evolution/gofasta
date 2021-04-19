@@ -11,8 +11,6 @@ import (
 	"encoding/csv"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
-
-	"fmt"
 )
 
 func getAmbArr(s string) ([]int, error) {

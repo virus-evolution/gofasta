@@ -28,7 +28,7 @@ Example usage:
 
 	gofasta updown list -r reference.fasta -q alignment.fasta -o mutationlist.csv
 
-Non-ATGC nucleotides are not permitted in the --reference, and --reference and --query should
+Non-ATGC nucleotides are not recommended in the --reference, and --reference and --query should
 be aligned to the same thing.
 
 --outfile is a CSV-format file with the columns: query,SNPs,ambiguities,SNPcount,ambcount. There is one row

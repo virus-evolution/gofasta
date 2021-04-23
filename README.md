@@ -9,7 +9,7 @@ Gofasta uses a slightly modified version of the bit-level coding scheme for nucl
 
 Binaries are available for Mac OS and Linux under the [latest release](https://github.com/cov-ert/gofasta/releases/latest)
 
-Or if you have Go installed, you can run `go get github.com/cov-ert/gofasta` to build a binary in your `$GOPATH`
+Or if you have Go installed, you can run `go get github.com/cov-ert/gofasta` to build a binary locally
 
 
 ### Commands

@@ -2,7 +2,6 @@ package sam
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"sync"
 
@@ -56,12 +55,12 @@ func checkArgs(refLen int, trim bool, pad bool, trimstart int, trimend int) erro
 		}
 	}
 
-	if pad && !trim {
-		_, err := fmt.Fprintln(os.Stderr, "warning: using --pad without --trim has no effect")
-		if err != nil {
-			return err
-		}
-	}
+	// if pad && !trim {
+	// 	_, err := fmt.Fprintln(os.Stderr, "warning: using --pad without --trim has no effect")
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return nil
 }

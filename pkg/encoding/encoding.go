@@ -58,8 +58,12 @@ func MakeByteDict2() map[byte]uint8 {
 // MakeEncodingArray returns an array whose indices are the byte representations
 // of IUPAC codes and whose contents are Emmanual Paradis encodings
 // Lower case nucleotides are mapped to their upper case nucleotides's encoding
-func MakeEncodingArray() []byte {
-	byteArray := make([]byte, 256)
+func MakeEncodingArray() [256]byte {
+	var byteArray [256]byte
+
+	for i := 0; i < 256; i++ {
+		byteArray[i] = 0
+	}
 
 	byteArray['A'] = 136
 	byteArray['a'] = 136
@@ -126,6 +130,85 @@ func MakeScoreDict() map[uint8]int {
 	return scoreMap
 }
 
+// like MakeScoreArray() but the indices are EP bitwise representations of
+// nucleotides
+func MakeEncodedScoreArray() [256]int64 {
+
+	var byteArray [256]int64
+
+	for i := 0; i < 256; i++ {
+		byteArray[i] = 0
+	}
+
+	byteArray[136] = 12
+	byteArray[72] = 12
+	byteArray[40] = 12
+	byteArray[24] = 12
+	byteArray[192] = 6
+	byteArray[160] = 6
+	byteArray[144] = 6
+	byteArray[96] = 6
+	byteArray[80] = 6
+	byteArray[48] = 6
+	byteArray[224] = 4
+	byteArray[176] = 4
+	byteArray[208] = 4
+	byteArray[112] = 4
+	byteArray[240] = 3
+	byteArray[244] = 3
+	byteArray[242] = 3
+
+	return byteArray
+}
+
+// MakeScoreArray makes an array that maps (the byte value of) IUPAC nucleotide
+// characters (which are the arrays indices) to a score for how ambiguous that
+// nucleotide is. The score is caculated as:
+// 12 * 1/possible real nucleotides.
+// E.g. an 'A' scores 12, but an 'N' (A, C, G or T) scores 3
+func MakeScoreArray() [256]int64 {
+	var byteArray [256]int64
+
+	for i := 0; i < 256; i++ {
+		byteArray[i] = 0
+	}
+
+	byteArray['A'] = 12
+	byteArray['a'] = 12
+	byteArray['G'] = 12
+	byteArray['g'] = 12
+	byteArray['C'] = 12
+	byteArray['c'] = 12
+	byteArray['T'] = 12
+	byteArray['t'] = 12
+	byteArray['R'] = 6
+	byteArray['r'] = 6
+	byteArray['M'] = 6
+	byteArray['m'] = 6
+	byteArray['W'] = 6
+	byteArray['w'] = 6
+	byteArray['S'] = 6
+	byteArray['s'] = 6
+	byteArray['K'] = 6
+	byteArray['k'] = 6
+	byteArray['Y'] = 6
+	byteArray['y'] = 6
+	byteArray['V'] = 4
+	byteArray['v'] = 4
+	byteArray['H'] = 4
+	byteArray['h'] = 4
+	byteArray['D'] = 4
+	byteArray['d'] = 4
+	byteArray['B'] = 4
+	byteArray['b'] = 4
+	byteArray['N'] = 3
+	byteArray['n'] = 3
+	byteArray['-'] = 3
+	byteArray['?'] = 3
+
+	return byteArray
+}
+
 // MakeNucDict maps from uint8 representation of nucleotides to their IUPAC code
 func MakeNucDict() map[uint8]string {
 
@@ -154,8 +237,12 @@ func MakeNucDict() map[uint8]string {
 
 // MakeDecodingArray returns an array whose indices are Emmanual Paradis encodings
 // of IUPAC codes and whose contents are IUPAC codes as strings
-func MakeDecodingArray() []string {
-	byteArray := make([]string, 256)
+func MakeDecodingArray() [256]string {
+	var byteArray [256]string
+
+	for i := 0; i < 256; i++ {
+		byteArray[i] = ""
+	}
 
 	byteArray[136] = "A"
 	byteArray[72] = "G"

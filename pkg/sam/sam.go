@@ -385,6 +385,14 @@ func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samR
 				continue
 			}
 
+			// if this mapping is secondary, then skip it.
+			// the 9th bit (== 256) in the sam flag is set if the mapping is secondary,
+			// can use the rightshift method to check this:
+			if ((rec.Flags >> 8) & 1) == 1 {
+				os.Stderr.WriteString("ignoring secondary mapping: " + rec.Name + "\n")
+				continue
+			}
+
 			if first {
 				samLineGroup.records = append(samLineGroup.records, *rec)
 				first = false
@@ -393,7 +401,6 @@ func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samR
 			}
 
 			if rec.Name != previous {
-				// fmt.Println(previous, len(samLineGroup))
 				chnl <- samLineGroup
 				counter++
 
@@ -406,14 +413,13 @@ func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samR
 			samLineGroup.records = append(samLineGroup.records, *rec)
 			previous = rec.Name
 
-			// fmt.Println(string(rec.Seq.Expand()))
-			// fmt.Println(rec.String())
 		}
 
-		// fmt.Println(previous, len(samLineGroup))
 	}
 
-	chnl <- samLineGroup
+	if len(samLineGroup.records) > 0 {
+		chnl <- samLineGroup
+	}
 
 	cdone <- true
 }

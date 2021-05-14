@@ -1,6 +1,6 @@
 module github.com/cov-ert/gofasta
 
-go 1.15
+go 1.16
 
 require (
 	github.com/biogo/hts v1.2.1

@@ -2,18 +2,31 @@
 
 Some functions for dealing with alignments, developed to handle SARS-CoV-2 data as part of the [COG-UK project](https://www.cogconsortium.uk/).
 
+### Third party licences / acknowledgements
 
 Gofasta uses a slightly modified version of the bit-level coding scheme for nucleotides by Emmanuel Paradis (described [here](http://ape-package.ird.fr/misc/BitLevelCodingScheme.html), and implemented in the R package [ape](https://doi.org/10.1093/bioinformatics/btg412)).
 
-### Third party licences
 
 Gofasta also incorporates [bíogo](https://github.com/biogo/biogo), which is distributed under licence. Its licence is reproduced under `THIRD_PARTY_LICENCES/biogo` or run `gofasta licences` to print it.
 
 ### Installation
 
-Binaries are available for Mac OS and Linux under the [latest release](https://github.com/cov-ert/gofasta/releases/latest)
+Binaries are available for Mac OS and Linux under the [latest release](https://github.com/cov-ert/gofasta/releases/latest).
 
-Or if you have Go installed, you can run `go get github.com/cov-ert/gofasta` to build a binary locally
+Or if you have Go installed, you can run `go get github.com/cov-ert/gofasta` to build a binary of the latest release locally.
+
+Or you can get them from Conda:
+
+`conda install benjamincjackson::gofasta=v0.0.3`
+
+You can also build the current contents of this repository if you have go installed:
+
+```
+git clone github.com/cov-ert/gofasta
+cd gofasta
+go build
+```
+
 
 ### Commands
 
@@ -22,6 +35,7 @@ For a full list of commands and options, run `gofasta` with the `-h` flag, for e
 
 | subcommand       | description                                                                                                                                                                                     |
 |------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|licences| Print gofasta's and third-party licence information|
 | closest          | Find the closest sequence(s) to a query by raw genetic distance. Ties are   broken by genome completeness (including for 0-length distances between   genomes).                                    |
 | updown           | Tools for pseudo-tree-aware SNP distances between sequences                                                                                                                                     |
 | snps             | Find snps relative to a reference.                                                                                                                                                              |

@@ -17,7 +17,7 @@ Or if you have Go installed, you can run `go get github.com/cov-ert/gofasta` to 
 
 Or you can get them from Conda:
 
-`conda install benjamincjackson::gofasta`
+`conda install bioconda::gofasta`
 
 You can also build the current contents of this repository if you have go installed:
 

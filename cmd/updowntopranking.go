@@ -9,11 +9,18 @@ import (
 var TRquery string
 var TRtarget string
 var TRoutfile string
+
 var TRsizetotal int
 var TRsizeup int
 var TRsizedown int
 var TRsizeside int
 var TRsizesame int
+
+var TRdistall int
+var TRdistup int
+var TRdistdown int
+var TRdistside int
+
 var TRthresholdpair float32
 var TRthresholdtarget int
 var TRnofill bool
@@ -25,12 +32,19 @@ func init() {
 	toprankingCmd.Flags().StringVarP(&TRtarget, "target", "t", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	toprankingCmd.Flags().StringVarP(&TRoutfile, "outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
 	toprankingCmd.Flags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
+
 	toprankingCmd.Flags().IntVarP(&TRsizetotal, "size-total", "", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")
 	toprankingCmd.Flags().IntVarP(&TRsizeup, "size-up", "", 0, "Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill")
 	toprankingCmd.Flags().IntVarP(&TRsizedown, "size-down", "", 0, "Max number of closest child sequences to find, if size-total not specified. A soft limit unless --no-fill")
 	toprankingCmd.Flags().IntVarP(&TRsizeside, "size-side", "", 0, "Max number of closest sibling sequences to find, if size-total not specified. A soft limit unless --no-fill")
 	toprankingCmd.Flags().IntVarP(&TRsizesame, "size-same", "", 0, "Max number of identical sequences to find, if size-total not specified. A soft limit unless --no-fill")
-	toprankingCmd.Flags().Float32VarP(&TRthresholdpair, "threshold-pair", "", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous for each pairwise comparison")
+
+	toprankingCmd.Flags().IntVarP(&TRdistall, "dist-all", "", 0, "Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below")
+	toprankingCmd.Flags().IntVarP(&TRdistup, "dist-up", "", 0, "Maximum allowed SNP-distance from query for sequences in the parent bin")
+	toprankingCmd.Flags().IntVarP(&TRdistdown, "dist-down", "", 0, "Maximum allowed SNP-distance from query for sequences in the child bin")
+	toprankingCmd.Flags().IntVarP(&TRdistside, "dist-side", "", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
+
+	toprankingCmd.Flags().Float32VarP(&TRthresholdpair, "threshold-pair", "", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
 	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target must have fewer than this number of ambiguities to be considered")
 	toprankingCmd.Flags().BoolVarP(&TRnofill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
 
@@ -62,10 +76,16 @@ if possible, unless you use --no-fill.
 You can provide --size-up, -down, -side and -same, instead of --size-total, if you want different proportions for each bin.
 The program will aim to provide the sum of these numbers in total in the output, and will make up for a shortfall in one bin
 by increasing the count of the other bins where possible, unless --no-fill.
+
+You can also filter on SNP-distance instead of returning the closest n sequences. Use the --dist flags to do this. Or you can 
+combine the two types of flag, to return only the closest n sequences under a set distance.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = updown.TopRanking(TRquery, TRtarget, TRoutfile, udReference, TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame, TRthresholdpair, TRthresholdtarget, TRnofill)
+		err = updown.TopRanking(TRquery, TRtarget, TRoutfile, udReference,
+			TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
+			TRdistall, TRdistup, TRdistdown, TRdistside,
+			TRthresholdpair, TRthresholdtarget, TRnofill)
 
 		return
 	},

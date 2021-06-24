@@ -9,12 +9,11 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "gofasta",
-		Short: "some functions for working with alignments",
-		Long:  `some functions for working with alignments`,
-		Version: "0.0.4",
+		Use:     "gofasta",
+		Short:   "some functions for working with alignments",
+		Long:    `some functions for working with alignments`,
+		Version: "0.0.5pre",
 	}
-
 )
 
 // Execute executes the root command.

@@ -16,14 +16,17 @@ var TRsizedown int
 var TRsizeside int
 var TRsizesame int
 
+var TRnofill bool
+
 var TRdistall int
 var TRdistup int
 var TRdistdown int
 var TRdistside int
 
+var TRdistpush bool
+
 var TRthresholdpair float32
 var TRthresholdtarget int
-var TRnofill bool
 
 func init() {
 	updownCmd.AddCommand(toprankingCmd)
@@ -46,9 +49,12 @@ func init() {
 
 	toprankingCmd.Flags().Float32VarP(&TRthresholdpair, "threshold-pair", "", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
 	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target must have fewer than this number of ambiguities to be considered")
+
 	toprankingCmd.Flags().BoolVarP(&TRnofill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
+	toprankingCmd.Flags().BoolVarP(&TRdistpush, "dist-push", "", false, "Push the SNP-distance boundaries for any empty bins to the closest distance for which there are neighbours, where possible")
 
 	toprankingCmd.Flags().Lookup("no-fill").NoOptDefVal = "true"
+	toprankingCmd.Flags().Lookup("dist-push").NoOptDefVal = "true"
 
 	toprankingCmd.Flags().SortFlags = false
 }
@@ -85,7 +91,7 @@ combine the two types of flag, to return only the closest n sequences under a se
 		err = updown.TopRanking(TRquery, TRtarget, TRoutfile, udReference,
 			TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 			TRdistall, TRdistup, TRdistdown, TRdistside,
-			TRthresholdpair, TRthresholdtarget, TRnofill)
+			TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
 
 		return
 	},

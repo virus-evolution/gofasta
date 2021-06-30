@@ -8,6 +8,7 @@ import (
 
 var TRquery string
 var TRtarget string
+var TRignore string
 var TRoutfile string
 
 var TRsizetotal int
@@ -35,6 +36,7 @@ func init() {
 	toprankingCmd.Flags().StringVarP(&TRtarget, "target", "t", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	toprankingCmd.Flags().StringVarP(&TRoutfile, "outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
 	toprankingCmd.Flags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
+	toprankingCmd.Flags().StringVarP(&TRignore, "ignore", "", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
 
 	toprankingCmd.Flags().IntVarP(&TRsizetotal, "size-total", "", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")
 	toprankingCmd.Flags().IntVarP(&TRsizeup, "size-up", "", 0, "Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill")
@@ -83,12 +85,15 @@ You can provide --size-up, -down, -side and -same, instead of --size-total, if y
 The program will aim to provide the sum of these numbers in total in the output, and will make up for a shortfall in one bin
 by increasing the count of the other bins where possible, unless --no-fill.
 
-You can also filter on SNP-distance instead of returning the closest n sequences. Use the --dist flags to do this. Or you can 
-combine the two types of flag, to return only the closest n sequences under a set distance.
+You can also filter on SNP-distance instead of returning the closest n sequences. Use the --dist flags to do this. If --dist-push 
+is invoked, the program will push the SNP-distance boundaries for any empty bins until it finds a neighbour, and then it will
+return all the neighbours at that distance in that bin, and print what it's done to stderr.
+
+You can combine the two types of flag (size and dist), to return only the closest n sequences under a set distance.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = updown.TopRanking(TRquery, TRtarget, TRoutfile, udReference,
+		err = updown.TopRanking(TRquery, TRtarget, TRoutfile, udReference, TRignore,
 			TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 			TRdistall, TRdistup, TRdistdown, TRdistside,
 			TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)

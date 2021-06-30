@@ -1,6 +1,7 @@
 package updown
 
 import (
+	"bufio"
 	"errors"
 	"math"
 	"os"
@@ -187,8 +188,16 @@ func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
 	nS.minAmbig = nS.catchment[catchmentSize-1].ambCount
 }
 
-// func findUpDownCatchment(q updownLine, sizetotal int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
-func findUpDownCatchmentPushDistance(q updownLine, sizeArray [4]int, distArray [4]int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
+func stringInArray(s string, sa []string) bool {
+	for i := range sa {
+		if s == sa[i] {
+			return true
+		}
+	}
+	return false
+}
+
+func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4]int, distArray [4]int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
 
 	neighbours := updownCatchmentStruct{qname: q.id, qidx: q.idx}
 	neighbours.same = updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)}
@@ -225,6 +234,13 @@ func findUpDownCatchmentPushDistance(q updownLine, sizeArray [4]int, distArray [
 
 	// then we iterate over all the targets
 	for target := range cIn {
+
+		// skip ignored sequences
+		if len(ignore) > 0 {
+			if stringInArray(target.id, ignore) {
+				continue
+			}
+		}
 
 		// return direction values of 0,1,2,3 = same,up,down,side respectively
 		// distance is SNP-distance (int)
@@ -413,7 +429,7 @@ func findUpDownCatchmentPushDistance(q updownLine, sizeArray [4]int, distArray [
 	cOut <- neighbours
 }
 
-func findUpDownCatchment(q updownLine, sizeArray [4]int, distArray [4]int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
+func findUpDownCatchment(q updownLine, ignore []string, sizeArray [4]int, distArray [4]int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
 
 	neighbours := updownCatchmentStruct{qname: q.id, qidx: q.idx}
 	neighbours.same = updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)}
@@ -441,6 +457,13 @@ func findUpDownCatchment(q updownLine, sizeArray [4]int, distArray [4]int, thres
 
 	// then we iterate over all the targets
 	for target := range cIn {
+
+		// skip ignored sequences
+		if len(ignore) > 0 {
+			if stringInArray(target.id, ignore) {
+				continue
+			}
+		}
 
 		// return direction values of 0,1,2,3 = same,up,down,side respectively
 		// distance is SNP-distance (int)
@@ -552,8 +575,7 @@ func findUpDownCatchment(q updownLine, sizeArray [4]int, distArray [4]int, thres
 	cOut <- neighbours
 }
 
-// func splitInput(queries []updownLine, sizetotal int, distArray [4]int, threshpair float32, threshtarg int,
-func splitInput(queries []updownLine, sizeArray [4]int, distArray [4]int, threshpair float32, threshtarg int,
+func splitInput(queries []updownLine, ignore []string, sizeArray [4]int, distArray [4]int, threshpair float32, threshtarg int,
 	pushDistance bool, cIn chan updownLine, cOut chan updownCatchmentStruct, cErr chan error, cSplitDone chan bool) {
 
 	nQ := len(queries)
@@ -568,9 +590,9 @@ func splitInput(queries []updownLine, sizeArray [4]int, distArray [4]int, thresh
 		// go findUpDownCatchment(q, sizetotal, threshsnp, QChanArray[i], cOut)
 		switch pushDistance {
 		case true:
-			go findUpDownCatchmentPushDistance(q, sizeArray, distArray, threshpair, QChanArray[i], cOut)
+			go findUpDownCatchmentPushDistance(q, ignore, sizeArray, distArray, threshpair, QChanArray[i], cOut)
 		default:
-			go findUpDownCatchment(q, sizeArray, distArray, threshpair, QChanArray[i], cOut)
+			go findUpDownCatchment(q, ignore, sizeArray, distArray, threshpair, QChanArray[i], cOut)
 		}
 
 	}
@@ -865,7 +887,7 @@ func sum4(a [4]int) int {
 	return t
 }
 
-func TopRanking(query string, target string, outfile string, reference string,
+func TopRanking(query string, target string, outfile string, reference string, ignoreFile string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
 	threshpair float32, threshtarg int, nofill bool, pushdist bool) error {
@@ -911,6 +933,24 @@ func TopRanking(query string, target string, outfile string, reference string,
 
 	}
 
+	// targets to ignore (potentially):
+	ignore := make([]string, 0)
+	if len(ignoreFile) != 0 {
+		f, err := os.Open(ignoreFile)
+		defer f.Close()
+		if err != nil {
+			return err
+		}
+		s := bufio.NewScanner(f)
+		for s.Scan() {
+			ignore = append(ignore, s.Text())
+		}
+		err = s.Err()
+		if err != nil {
+			return err
+		}
+	}
+
 	nQ := len(queries)
 	QResultsArray := make([]updownCatchmentStruct, nQ)
 
@@ -927,7 +967,7 @@ func TopRanking(query string, target string, outfile string, reference string,
 		go readFastaToChan(target, refSeq, cudL, cErr, cReadDone)
 	}
 
-	go splitInput(queries,
+	go splitInput(queries, ignore,
 		sizeArray, distArray, threshpair, threshtarg, pushdist,
 		cudL, cResults, cErr, cSplitDone)
 

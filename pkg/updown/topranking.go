@@ -937,10 +937,10 @@ func TopRanking(query string, target string, outfile string, reference string, i
 	ignore := make([]string, 0)
 	if len(ignoreFile) != 0 {
 		f, err := os.Open(ignoreFile)
-		defer f.Close()
 		if err != nil {
 			return err
 		}
+		defer f.Close()
 		s := bufio.NewScanner(f)
 		for s.Scan() {
 			ignore = append(ignore, s.Text())

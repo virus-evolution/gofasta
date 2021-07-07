@@ -1,26 +1,26 @@
 package updown
 
 import (
-	"os"
-	"fmt"
-	"sync"
 	"errors"
+	"fmt"
+	"os"
 	"runtime"
-	"strings"
 	"strconv"
+	"strings"
+	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/fastaio"
 	"github.com/cov-ert/gofasta/pkg/encoding"
+	"github.com/cov-ert/gofasta/pkg/fastaio"
 )
 
 type updownLine struct {
-	id string
-	idx int
-	snps []string
-	snpsPos []int
+	id       string
+	idx      int
+	snps     []string
+	snpsPos  []int
 	snpCount int
-	ambs []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
-	ambCount int // total number of sites that are not ATGC
+	ambs     []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
+	ambCount int   // total number of sites that are not ATGC
 }
 
 // getLine gets the mutation + ambiguity lists between the reference and each Fasta record at a time
@@ -39,7 +39,12 @@ func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updo
 	var amb_stop int
 	var cont bool
 
-	for FR := range(cFR) {
+	for FR := range cFR {
+
+		if len(FR.Seq) != len(refSeq) {
+			cErr <- errors.New("alignment and reference are not the same width")
+		}
+
 		cont = false // for tracts of ambiguities
 
 		udLine = updownLine{}
@@ -51,24 +56,24 @@ func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updo
 		snpCount = 0
 		ambCount = 0
 
-		for i, que_nuc := range(FR.Seq) {
+		for i, que_nuc := range FR.Seq {
 
 			// if query nucleotide is a known base
-			if (que_nuc & 8 == 8) {
+			if que_nuc&8 == 8 {
 				// if it is different from the reference:
 				if (refSeq[i] & que_nuc) < 16 {
-					snp = DA[refSeq[i]] + strconv.Itoa(i + 1) + DA[que_nuc]
+					snp = DA[refSeq[i]] + strconv.Itoa(i+1) + DA[que_nuc]
 					snps = append(snps, snp)
-					snpPos = append(snpPos, i + 1)
+					snpPos = append(snpPos, i+1)
 					snpCount++
 				}
 				// also need to finalise any previous ambiguity tract
 				if cont {
-					ambs = append(ambs, amb_start + 1)
-					ambs = append(ambs, amb_stop + 1)
+					ambs = append(ambs, amb_start+1)
+					ambs = append(ambs, amb_stop+1)
 					cont = false
 				}
-			// otherwise update the ambiguities
+				// otherwise update the ambiguities
 			} else {
 				ambCount++
 				if cont {
@@ -83,8 +88,8 @@ func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updo
 
 		// need to finalise any ambiguity tract that reaches the edge of the sequence
 		if cont {
-			ambs = append(ambs, amb_start + 1)
-			ambs = append(ambs, amb_stop + 1)
+			ambs = append(ambs, amb_start+1)
+			ambs = append(ambs, amb_stop+1)
 		}
 
 		udLine.snps = snps
@@ -92,7 +97,7 @@ func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updo
 		udLine.snpsPos = snpPos
 		udLine.ambs = ambs
 		udLine.ambCount = ambCount
-		cUDs<- udLine
+		cUDs <- udLine
 	}
 
 	return
@@ -132,11 +137,11 @@ func writeOutput(outFile string, cudLs chan updownLine, cErr chan error, cWriteD
 
 		if udLine, ok := outputMap[counter]; ok {
 			ambstrings = make([]string, 0)
-			for i := 0; i < len(udLine.ambs); i+=2 {
+			for i := 0; i < len(udLine.ambs); i += 2 {
 				if udLine.ambs[i] == udLine.ambs[i+1] {
 					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
 				} else {
-					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]) + "-" + strconv.Itoa(udLine.ambs[i+1]))
+					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
 				}
 			}
 			_, err := f.WriteString(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n")
@@ -157,11 +162,11 @@ func writeOutput(outFile string, cudLs chan updownLine, cErr chan error, cWriteD
 		}
 		udLine := outputMap[counter]
 		ambstrings = make([]string, 0)
-		for i := 0; i < len(udLine.ambs); i+=2 {
+		for i := 0; i < len(udLine.ambs); i += 2 {
 			if udLine.ambs[i] == udLine.ambs[i+1] {
 				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
 			} else {
-				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]) + "-" + strconv.Itoa(udLine.ambs[i+1]))
+				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
 			}
 		}
 		_, err := f.WriteString(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n")
@@ -200,9 +205,9 @@ func List(referenceFile string, alignmentFile string, outFile string) error {
 
 	// every site in the reference would ideally be ∈ {A,T,G,C}
 	DA := encoding.MakeDecodingArray()
-	for _, nuc := range(refSeq) {
-		if ! (nuc & 8 == 8) {
-			fmt.Fprintf(os.Stderr, "Warning: there is at least one ambiguous nucleotide in the --reference sequence: %s. This isn't recommended", DA[nuc])
+	for _, nuc := range refSeq {
+		if !(nuc&8 == 8) {
+			fmt.Fprintf(os.Stderr, "Warning: there is at least one ambiguous nucleotide in the --reference sequence: %s. This isn't recommended\n", DA[nuc])
 			break
 		}
 	}
@@ -223,7 +228,7 @@ func List(referenceFile string, alignmentFile string, outFile string) error {
 
 	go func() {
 		wgudLs.Wait()
-		cudLsDone<- true
+		cudLsDone <- true
 	}()
 
 	for n := 1; n > 0; {

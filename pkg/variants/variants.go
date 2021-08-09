@@ -29,23 +29,23 @@ type Region struct {
 }
 
 //
-type variant struct {
-	queryname  string
-	refAl      string
-	queAl      string
-	position   int // genomic location
-	residue    int // feature location?
-	changetype string
-	feature    string // this should be, for example, the name of the CDS that the thing is in
-	length     int    // for indels
+type Variant struct {
+	Queryname  string
+	RefAl      string
+	QueAl      string
+	Position   int // genomic location
+	Residue    int // feature location?
+	Changetype string
+	Feature    string // this should be, for example, the name of the CDS that the thing is in
+	Length     int    // for indels
 }
 
 // for passing groups of annoStruct around with an index which is used to retain input
 // order in the output
-type annoStructs struct {
-	queryname string
-	vs        []variant
-	idx       int
+type AnnoStructs struct {
+	Queryname string
+	Vs        []Variant
+	Idx       int
 }
 
 func Variants(msa string, reference string, gbfile string, outfile string) error {
@@ -70,23 +70,23 @@ func Variants(msa string, reference string, gbfile string, outfile string) error
 	}
 
 	// get a list of CDS + intergenic regions from the genbank file
-	regions, err := getRegions(gbfile)
+	regions, err := GetRegions(gbfile)
 	if err != nil {
 		return err
 	}
 
 	// get the offset accounting for insertions relative to the reference
-	offsetRefCoord, offsetMSACoord := getOffsets(ref.Seq)
+	offsetRefCoord, offsetMSACoord := GetOffsets(ref.Seq)
 
 	cMSA := make(chan fastaio.EncodedFastaRecord)
 	cErr := make(chan error)
 	cMSADone := make(chan bool)
 
-	cVariants := make(chan annoStructs)
+	cVariants := make(chan AnnoStructs)
 	cVariantsDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go writeVariants(outfile, cVariants, cWriteDone, cErr)
+	go WriteVariants(outfile, cVariants, cWriteDone, cErr)
 
 	go fastaio.ReadEncodeAlignment(msa, cMSA, cErr, cMSADone)
 
@@ -242,7 +242,7 @@ func findReference(msa string, reference string) (fastaio.EncodedFastaRecord, er
 	return refRec, nil
 }
 
-func getRegions(genbankFileIn string) ([]Region, error) {
+func GetRegions(genbankFileIn string) ([]Region, error) {
 	gb, err := genbank.ReadGenBank(genbankFileIn)
 	if err != nil {
 		return make([]Region, 0), err
@@ -262,7 +262,7 @@ func getRegions(genbankFileIn string) ([]Region, error) {
 		REGION := Region{Whichtype: "CDS", Name: feat.Info["gene"], Codonstarts: make([]int, 0), Translation: feat.Info["translation"] + "*"}
 
 		// these are genbank positions, so they are 1-based, inclusive
-		positions, err := parsePositions(feat.Pos)
+		positions, err := genbank.ParsePositions(feat.Pos)
 		if err != nil {
 			return make([]Region, 0), err
 		}
@@ -320,39 +320,7 @@ func getRegions(genbankFileIn string) ([]Region, error) {
 	return regions, nil
 }
 
-func parsePositions(position string) ([]int, error) {
-	var A []int
-	if position[0:4] == "join" {
-		A = make([]int, 0)
-		position = strings.TrimLeft(position, "join(")
-		position = strings.TrimRight(position, ")")
-		ranges := strings.Split(position, ",")
-		for _, x := range ranges {
-			y := strings.Split(x, "..")
-			for _, z := range y {
-				temp, err := strconv.Atoi(z)
-				if err != nil {
-					return []int{}, err
-				}
-				A = append(A, temp)
-			}
-		}
-	} else {
-		A = make([]int, 0)
-		y := strings.Split(position, "..")
-		for _, z := range y {
-			temp, err := strconv.Atoi(z)
-			if err != nil {
-				return []int{}, err
-			}
-			A = append(A, temp)
-		}
-	}
-
-	return A, nil
-}
-
-func getOffsets(refseq []byte) ([]int, []int) {
+func GetOffsets(refseq []byte) ([]int, []int) {
 	// we make an array of integers to offset the positions by.
 	// this should be the same length as a degapped refseq?
 	degappedLen := 0
@@ -385,7 +353,7 @@ func getOffsets(refseq []byte) ([]int, []int) {
 	return offsetRefCoord, offsetMSACoord
 }
 
-func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fastaio.EncodedFastaRecord, cVariants chan annoStructs, cErr chan error) {
+func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fastaio.EncodedFastaRecord, cVariants chan AnnoStructs, cErr chan error) {
 
 	DA := encoding.MakeDecodingArray()
 	CD := alphabet.MakeCodonDict()
@@ -407,7 +375,7 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 
 		// here is the slice of variants that we will populate, then sort, then put in an
 		// annoStructs{} to write to file
-		variants := make([]variant, 0)
+		variants := make([]Variant, 0)
 
 		// first, we get indels
 		for pos := range record.Seq {
@@ -425,7 +393,7 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 				}
 			} else { // not an insertion relative to the reference at this position
 				if insOpen { // first base after an insertion, so we need to log the insertion
-					variants = append(variants, variant{changetype: "ins", position: insStart - offsetMSACoord[insStart], length: insLength})
+					variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
 					insOpen = false
 				}
 				if record.Seq[pos] == 244 { // deletion in this seq
@@ -438,7 +406,7 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 					}
 				} else { // no deletion in this seq
 					if delOpen { // first base after a deletion, so we need to log the deletion
-						variants = append(variants, variant{changetype: "del", position: delStart - offsetMSACoord[delStart], length: delLength})
+						variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
 						delOpen = false // and reset things
 					}
 				}
@@ -447,10 +415,10 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 
 		// catch things that abut the end of the alignment
 		if delOpen {
-			variants = append(variants, variant{changetype: "del", position: delStart - offsetMSACoord[delStart], length: delLength})
+			variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
 		}
 		if insOpen {
-			variants = append(variants, variant{changetype: "ins", position: insStart - offsetMSACoord[insStart], length: insLength})
+			variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
 		}
 
 		// then we loop over the regions to get AAs and snps
@@ -462,11 +430,11 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 				adjStop := region.Stop + offsetRefCoord[region.Stop]
 				for pos := adjStart - 1; pos < adjStop; pos++ {
 					if (ref.Seq[pos] & record.Seq[pos]) < 16 { // check for SNPs
-						variants = append(variants, variant{changetype: "nuc", refAl: DA[ref.Seq[pos]], queAl: DA[record.Seq[pos]], position: pos - offsetMSACoord[pos]})
+						variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref.Seq[pos]], QueAl: DA[record.Seq[pos]], Position: pos - offsetMSACoord[pos]})
 					}
 				}
 			case "CDS":
-				codonSNPs := make([]variant, 0, 3)
+				codonSNPs := make([]Variant, 0, 3)
 				decodedCodon := ""
 				aa := ""
 				refaa := ""
@@ -483,7 +451,7 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 							continue
 						}
 						if (record.Seq[pos+codonCounter] & ref.Seq[pos+codonCounter]) < 16 {
-							codonSNPs = append(codonSNPs, variant{changetype: "nuc", refAl: DA[ref.Seq[pos+codonCounter]], queAl: DA[record.Seq[pos+codonCounter]], position: (pos + codonCounter) - offsetMSACoord[pos+codonCounter]})
+							codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref.Seq[pos+codonCounter]], QueAl: DA[record.Seq[pos+codonCounter]], Position: (pos + codonCounter) - offsetMSACoord[pos+codonCounter]})
 						}
 						decodedCodon = decodedCodon + DA[record.Seq[pos+codonCounter]]
 					}
@@ -497,14 +465,14 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 					refaa = string(region.Translation[aaCounter])
 
 					if aa != refaa && aa != "X" {
-						variants = append(variants, variant{changetype: "aa", feature: region.Name, refAl: refaa, queAl: aa, position: pos - offsetMSACoord[pos], residue: aaCounter})
+						variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: pos - offsetMSACoord[pos], Residue: aaCounter})
 					} else {
 						for _, v := range codonSNPs {
 							variants = append(variants, v)
 						}
 					}
 
-					codonSNPs = make([]variant, 0, 3)
+					codonSNPs = make([]Variant, 0, 3)
 					decodedCodon = ""
 				}
 			}
@@ -512,12 +480,12 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 
 		// sort the variants
 		sort.SliceStable(variants, func(i, j int) bool {
-			return variants[i].position < variants[j].position || (variants[i].position == variants[j].position && variants[i].changetype < variants[j].changetype)
+			return variants[i].Position < variants[j].Position || (variants[i].Position == variants[j].Position && variants[i].Changetype < variants[j].Changetype)
 		})
 
 		// there might be dups if there was a snp in the region of a join()
-		finalVariants := make([]variant, 0)
-		previousVariant := variant{}
+		finalVariants := make([]Variant, 0)
+		previousVariant := Variant{}
 		for i, v := range variants {
 			if i == 0 {
 				finalVariants = append(finalVariants, v)
@@ -531,11 +499,11 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 			previousVariant = v
 		}
 
-		AS := annoStructs{queryname: record.ID, vs: finalVariants, idx: record.Idx}
+		AS := AnnoStructs{Queryname: record.ID, Vs: finalVariants, Idx: record.Idx}
 
 		// if this is the reference, let the writer know
 		if record.ID == ref.ID {
-			AS.queryname = "ref"
+			AS.Queryname = "ref"
 		}
 
 		// and we're done
@@ -543,18 +511,18 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 	}
 }
 
-func formatVariant(v variant, cErr chan error) string {
+func FormatVariant(v Variant, cErr chan error) string {
 	var s string
 
-	switch v.changetype {
+	switch v.Changetype {
 	case "del":
-		s = "del:" + strconv.Itoa(v.position+1) + ":" + strconv.Itoa(v.length)
+		s = "del:" + strconv.Itoa(v.Position+1) + ":" + strconv.Itoa(v.Length)
 	case "ins":
-		s = "ins:" + strconv.Itoa(v.position+1) + ":" + strconv.Itoa(v.length)
+		s = "ins:" + strconv.Itoa(v.Position+1) + ":" + strconv.Itoa(v.Length)
 	case "nuc":
-		s = "nuc:" + v.refAl + strconv.Itoa(v.position+1) + v.queAl
+		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position+1) + v.QueAl
 	case "aa":
-		s = "aa:" + v.feature + ":" + v.refAl + strconv.Itoa(v.residue+1) + v.queAl
+		s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue+1) + v.QueAl
 	default:
 		cErr <- errors.New("couldn't parse variant type")
 	}
@@ -562,9 +530,9 @@ func formatVariant(v variant, cErr chan error) string {
 	return s
 }
 
-func writeVariants(outfile string, cVariants chan annoStructs, cWriteDone chan bool, cErr chan error) {
+func WriteVariants(outfile string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
-	outputMap := make(map[int]annoStructs)
+	outputMap := make(map[int]AnnoStructs)
 
 	counter := 0
 
@@ -589,23 +557,23 @@ func writeVariants(outfile string, cVariants chan annoStructs, cWriteDone chan b
 	}
 
 	for variantLine := range cVariants {
-		outputMap[variantLine.idx] = variantLine
+		outputMap[variantLine.Idx] = variantLine
 
 		if VL, ok := outputMap[counter]; ok {
 
-			if VL.queryname == "ref" {
+			if VL.Queryname == "ref" {
 				delete(outputMap, counter)
 				counter++
 				continue
 			}
 
-			_, err = f.WriteString(VL.queryname + ",")
+			_, err = f.WriteString(VL.Queryname + ",")
 			if err != nil {
 				cErr <- err
 			}
 			sa = make([]string, 0)
-			for _, v := range VL.vs {
-				sa = append(sa, formatVariant(v, cErr))
+			for _, v := range VL.Vs {
+				sa = append(sa, FormatVariant(v, cErr))
 			}
 			_, err = f.WriteString(strings.Join(sa, "|") + "\n")
 			if err != nil {
@@ -626,18 +594,18 @@ func writeVariants(outfile string, cVariants chan annoStructs, cWriteDone chan b
 		}
 
 		VL := outputMap[counter]
-		if VL.queryname == "ref" {
+		if VL.Queryname == "ref" {
 			delete(outputMap, counter)
 			counter++
 			continue
 		}
-		_, err = f.WriteString(VL.queryname + ",")
+		_, err = f.WriteString(VL.Queryname + ",")
 		if err != nil {
 			cErr <- err
 		}
 		sa = make([]string, 0)
-		for _, v := range VL.vs {
-			sa = append(sa, formatVariant(v, cErr))
+		for _, v := range VL.Vs {
+			sa = append(sa, FormatVariant(v, cErr))
 		}
 		_, err = f.WriteString(strings.Join(sa, "|") + "\n")
 		if err != nil {

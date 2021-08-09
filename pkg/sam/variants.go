@@ -1,300 +1,28 @@
 package sam
 
 import (
-	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
-	// "sort"
-	"os"
-	// "path"
-	"strconv"
-	"strings"
-
+	biogosam "github.com/biogo/hts/sam"
 	"github.com/cov-ert/gofasta/pkg/alphabet"
 	"github.com/cov-ert/gofasta/pkg/encoding"
 	"github.com/cov-ert/gofasta/pkg/fastaio"
-	"github.com/cov-ert/gofasta/pkg/genbank"
-
-	biogosam "github.com/biogo/hts/sam"
+	"github.com/cov-ert/gofasta/pkg/variants"
 )
 
-//
-type annoStruct struct {
-	queryname  string
-	refAl      string
-	queAl      string
-	position   int
-	changetype string
-	feature    string // this should be, for example, the name of the CDS that the thing is in
-}
-
-// for passing groups of annoStruct around with an index which is used to retain input
-// order in the output
-type annoStructs struct {
-	queryname string
-	as        []annoStruct
-	idx       int
-}
-
-// type alignPair struct {
-// 	ref []byte
-// 	query []byte
-// 	refname string
-// 	queryname string
-// 	descriptor string
-// }
-
-// getSNPPos gets the position in reference coordinates from a subalignment
-// of some particular feature
-// TODO: use sam.getRefAdjustedPositions & sam.findOffsetPos to get the coordinates
-// when insertions are included
-func getSNPPos(i int, A []int) (int, error) {
-
-	pos := -1
-	leftadd := 0
-
-	if (len(A) / 2) > 1 {
-
-		// e.g. join(266..13468,13468..21555)
-		// [266, 13468, 13468, 21555]
-
-		for j := 1; j < len(A); j += 2 {
-			if i <= (A[j] - (A[j-1] - leftadd)) {
-				pos = A[j-1] - leftadd + i
-				break
-			}
-			leftadd += (A[j] - A[j-1] + 1)
-		}
-
-	} else if len(A) == 2 {
-		pos = A[0] + i
-	} else {
-		s := []string{}
-		for _, j := range A {
-			s = append(s, strconv.Itoa(j))
-		}
-		return 0, fmt.Errorf("bad(ly parsed?) annotation positions array: %s", strings.Join(s, " "))
-	}
-
-	if pos < 0 {
-		return 0, errors.New("badly parsed SNP position")
-	}
-
-	return pos, nil
-}
-
-func getVariantsFromAlignPair(pair alignPair) ([]annoStruct, error) {
-
-	codon_2_AA := alphabet.MakeCodonDict()
-	rune_2_byte := encoding.MakeByteDict2() // this is emmanual paradis bitwise coding scheme byte
-
-	if len(pair.ref) != len(pair.query) {
-		return []annoStruct{}, errors.New("ref and query sequences are different lengths")
-	}
-
-	annotation_array := make([]annoStruct, 0)
-
-	ref_codon := make([]byte, 3)
-	que_codon := make([]byte, 3)
-
-	codon_snps := make([]annoStruct, 0)
-
-	counter := 0
-
-	// now compare ref and query
-	for i, _ := range pair.ref {
-
-		if pair.ref[i] != pair.query[i] {
-			a := rune_2_byte[pair.ref[i]]
-			b := rune_2_byte[pair.query[i]]
-
-			if (a & b) < 16 {
-				// need to calculate pos here because pair.ref is no longer in reference coordinates if the genbank feature is two stretches of sequence Join()ed together:
-				pos, err := getSNPPos(i, pair.featPosArray)
-				if err != nil {
-					return []annoStruct{}, err
-				}
-				codon_snps = append(codon_snps, annoStruct{queryname: pair.queryname, refAl: string(pair.ref[i]), queAl: string(pair.query[i]), position: pos, changetype: "SNP", feature: pair.featName})
-			}
-		}
-
-		ref_codon[counter] = pair.ref[i]
-		que_codon[counter] = pair.query[i]
-
-		counter += 1
-
-		if counter == 3 {
-			ref_AA, ok_ref := codon_2_AA[string(ref_codon)]
-			que_AA, ok_que := codon_2_AA[string(que_codon)]
-
-			if ok_ref && ok_que {
-
-				if ref_AA != que_AA {
-					annotation_array = append(annotation_array, annoStruct{queryname: pair.queryname, refAl: ref_AA, queAl: que_AA, position: (i + 1) / 3, changetype: "AA", feature: pair.featName})
-				} else {
-					if len(codon_snps) > 0 {
-						for _, snp := range codon_snps {
-							snp.changetype = "synSNP"
-							annotation_array = append(annotation_array, snp)
-						}
-					}
-				}
-			}
-
-			codon_snps = make([]annoStruct, 0)
-			counter = 0
-		}
-
-	}
-
-	return annotation_array, nil
-}
-
-// Apply some other function over the channel of align pairs
-func getVariantsFromCDS(cPairParse chan alignPairs, cAnnotate chan annoStructs, cErr chan error) {
-	// this is what comes with the descriptor field of each alignPair struct from cPairParse:
-	// subPair.descriptor = pair.queryname + "." + feature.Feature + "." + strings.ReplaceAll(feature.Info[anno], " ", "_")
-
-	for A := range cPairParse {
-
-		annoArray := annoStructs{queryname: A.aps[0].queryname, idx: A.idx}
-
-		for _, pair := range A.aps {
-			anno, err := getVariantsFromAlignPair(pair)
-			if err != nil {
-				cErr <- err
-			}
-
-			annoArray.as = append(annoArray.as, anno...)
-		}
-
-		cAnnotate <- annoArray
-	}
-}
-
-func getAnnoLine(aS annoStruct) (string, error) {
-
-	if aS.changetype == "synSNP" {
-		s := aS.changetype + ":" + aS.refAl + strconv.Itoa(aS.position) + aS.queAl
-		return s, nil
-	}
-	if aS.changetype == "AA" {
-		s := aS.feature + ":" + aS.refAl + strconv.Itoa(aS.position) + aS.queAl
-		return s, nil
-	}
-
-	return "", errors.New("couldn't parse variant for writing out; unrecognised variant type: needs to be one of AA or synSNP")
-}
-
-// write the annotation
-func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan bool, cErr chan error) {
-
-	_ = strings.Join
-
-	var err error
-	f := os.Stdout
-
-	if outfile != "stdout" {
-		f, err = os.Create(outfile)
-		if err != nil {
-			cErr <- err
-		}
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("query,variants\n")
-	if err != nil {
-		cErr <- err
-	}
-
-	outputMap := make(map[int]annoStructs)
-
-	counter := 0
-
-	for AS := range cAnnotate {
-
-		outputMap[AS.idx] = AS
-
-		if A, ok := outputMap[counter]; ok {
-
-			queryname := A.queryname
-
-			f.WriteString(queryname + ",")
-
-			temp := make([]string, 0)
-
-			for _, aS := range A.as {
-				AL, err := getAnnoLine(aS)
-				if err != nil {
-					cErr <- err
-				}
-				temp = append(temp, AL)
-			}
-
-			s := strings.Join(temp, "|")
-
-			f.WriteString(s)
-			f.WriteString("\n")
-
-			delete(outputMap, counter)
-			counter++
-		} else {
-			continue
-		}
-	}
-
-	for n := 1; n > 0; {
-		if len(outputMap) == 0 {
-			break
-		}
-		A := outputMap[counter]
-
-		queryname := A.queryname
-
-		f.WriteString(queryname + ",")
-
-		temp := make([]string, 0)
-
-		for _, aS := range A.as {
-			AL, err := getAnnoLine(aS)
-			if err != nil {
-				cErr <- err
-			}
-			temp = append(temp, AL)
-		}
-
-		s := strings.Join(temp, "|")
-
-		f.WriteString(s)
-		f.WriteString("\n")
-
-		delete(outputMap, counter)
-		counter++
-	}
-
-	cWriteDone <- true
-}
-
-// Variants annotates variants wrt. a reference sequence
-func Variants(samFile string, referenceFile string, genbankFile string,
-	outfile string, threads int) error {
-
-	gb, err := genbank.ReadGenBank(genbankFile)
-	if err != nil {
-		return err
-	}
+func Variants(samfile string, referencefile string, gbfile string, outfile string, threads int) error {
 
 	cErr := make(chan error)
-
 	cRef := make(chan fastaio.FastaRecord)
 	cRefDone := make(chan bool)
 
-	go fastaio.ReadAlignment(referenceFile, cRef, cErr, cRefDone)
+	go fastaio.ReadAlignment(referencefile, cRef, cErr, cRefDone)
 
 	var refSeq string
 
+	// to do - do this more sensibly
 	for n := 1; n > 0; {
 		select {
 		case err := <-cErr:
@@ -308,53 +36,47 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 		}
 	}
 
-	cSamRecords := make(chan samRecords, threads)
+	// get a list of CDS + intergenic regions from the genbank file
+	regions, err := variants.GetRegions(gbfile)
+	if err != nil {
+		return err
+	}
+
+	// do some things that are basically just sam topairalign:
+	cSR := make(chan samRecords, threads)
 	cSH := make(chan biogosam.Header)
 	cPairAlign := make(chan alignPair)
-	cPairParse := make(chan alignPairs)
-	cVariants := make(chan annoStructs)
+
+	cVariants := make(chan variants.AnnoStructs)
 
 	cReadDone := make(chan bool)
 	cAlignWaitGroupDone := make(chan bool)
-	cParseWaitGroupDone := make(chan bool)
 	cVariantsDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go groupSamRecords(samFile, cSH, cSamRecords, cReadDone, cErr)
+	go variants.WriteVariants(outfile, cVariants, cWriteDone, cErr)
+
+	go groupSamRecords(samfile, cSH, cSR, cReadDone, cErr)
 
 	_ = <-cSH
-
-	go writeAnnotation(outfile, cVariants, cWriteDone, cErr)
 
 	var wgAlign sync.WaitGroup
 	wgAlign.Add(threads)
 
-	var wgParse sync.WaitGroup
-	wgParse.Add(threads)
-
-	var wgVar sync.WaitGroup
-	wgVar.Add(threads)
+	var wgVariants sync.WaitGroup
+	wgVariants.Add(threads)
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			blockToPairwiseAlignment(cSamRecords, cPairAlign, cErr, []byte(refSeq), true)
+			blockToPairwiseAlignment(cSR, cPairAlign, cErr, []byte(refSeq), false)
 			wgAlign.Done()
 		}()
 	}
 
-	features := getFeaturesFromAnnotation(gb, "CDS")
-
 	for n := 0; n < threads; n++ {
 		go func() {
-			parseAlignmentByAnnotation(features, cPairAlign, cPairParse, cErr)
-			wgParse.Done()
-		}()
-	}
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			getVariantsFromCDS(cPairParse, cVariants, cErr)
-			wgVar.Done()
+			getVariantsSam(regions, cPairAlign, cVariants, cErr)
+			wgVariants.Done()
 		}()
 	}
 
@@ -364,12 +86,7 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 	}()
 
 	go func() {
-		wgParse.Wait()
-		cParseWaitGroupDone <- true
-	}()
-
-	go func() {
-		wgVar.Wait()
+		wgVariants.Wait()
 		cVariantsDone <- true
 	}()
 
@@ -378,7 +95,7 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 		case err := <-cErr:
 			return err
 		case <-cReadDone:
-			close(cSamRecords)
+			close(cSR)
 			close(cSH)
 			n--
 		}
@@ -390,16 +107,6 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 			return err
 		case <-cAlignWaitGroupDone:
 			close(cPairAlign)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cParseWaitGroupDone:
-			close(cPairParse)
 			n--
 		}
 	}
@@ -424,4 +131,169 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 	}
 
 	return nil
+}
+
+func getVariantsSam(regions []variants.Region, cAlignPair chan alignPair, cVariants chan variants.AnnoStructs, cErr chan error) {
+
+	EA := encoding.MakeEncodingArray()
+	DA := encoding.MakeDecodingArray()
+	CD := alphabet.MakeCodonDict()
+
+	for pair := range cAlignPair {
+
+		for i, nuc := range pair.query {
+			pair.query[i] = EA[nuc]
+		}
+
+		for i, nuc := range pair.ref {
+			pair.ref[i] = EA[nuc]
+		}
+
+		offsetRefCoord, offsetMSACoord := variants.GetOffsets(pair.ref)
+
+		insOpen := false
+		insStart := 0
+		insLength := 0
+		delOpen := false
+		delStart := 0
+		delLength := 0
+
+		// check that the reference is the same length as this record
+		// (might conceivably not be if the ref came from the genbank file and the msa has insertions in it)
+		if len(pair.ref) != len(pair.query) {
+			cErr <- fmt.Errorf("sequence length for query %s (%d) is different to the sequence length of the reference %s (%d)", pair.queryname, len(pair.query), pair.refname, len(pair.ref))
+			break
+		}
+
+		// here is the slice of variants that we will populate, then sort, then put in an
+		// annoStructs{} to write to file
+		vs := make([]variants.Variant, 0)
+
+		// first, we get indels
+		for pos := range pair.query {
+			if pair.ref[pos] == 244 { // insertion relative to reference (somewhere in the alignment)
+				if pair.query[pos] == 244 { // insertion is not in this seq
+					continue
+				} else { // insertion is in this seq
+					if insOpen { // not the first position of an insertion
+						insLength++ // we increment the length counter
+					} else { // the first position of an insertion
+						insStart = pos - 1 // we record the position of the insertion as the left-neighbouring reference position
+						insLength = 1
+						insOpen = true
+					}
+				}
+			} else { // not an insertion relative to the reference at this position
+				if insOpen { // first base after an insertion, so we need to log the insertion
+					vs = append(vs, variants.Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
+					insOpen = false
+				}
+				if pair.query[pos] == 244 { // deletion in this seq
+					if delOpen { // not the first position of a deletion
+						delLength++ // we increment the length (there is not a deletion in the reference)
+					} else { // the first position of a deletion
+						delStart = pos
+						delLength = 1
+						delOpen = true
+					}
+				} else { // no deletion in this seq
+					if delOpen { // first base after a deletion, so we need to log the deletion
+						vs = append(vs, variants.Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
+						delOpen = false // and reset things
+					}
+				}
+			}
+		}
+
+		// catch things that abut the end of the alignment
+		if delOpen {
+			vs = append(vs, variants.Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
+		}
+		if insOpen {
+			vs = append(vs, variants.Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
+		}
+
+		// then we loop over the regions to get AAs and snps
+		for _, region := range regions {
+			// and switch on whether it is intergenic or CDS:
+			switch region.Whichtype {
+			case "int":
+				adjStart := region.Start + offsetRefCoord[region.Start]
+				adjStop := region.Stop + offsetRefCoord[region.Stop]
+				for pos := adjStart - 1; pos < adjStop; pos++ {
+					if (pair.ref[pos] & pair.query[pos]) < 16 { // check for SNPs
+						vs = append(vs, variants.Variant{Changetype: "nuc", RefAl: DA[pair.ref[pos]], QueAl: DA[pair.query[pos]], Position: pos - offsetMSACoord[pos]})
+					}
+				}
+			case "CDS":
+				codonSNPs := make([]variants.Variant, 0, 3)
+				decodedCodon := ""
+				aa := ""
+				refaa := ""
+				// here are the 1-based start positions of each codon in reference coordinates
+				for aaCounter, tempPos := range region.Codonstarts {
+					// here is the actual position in the msa:
+					pos := (tempPos - 1) + offsetRefCoord[tempPos]
+
+					// for each position in this codon
+					for codonCounter := 0; codonCounter < 3; codonCounter++ {
+						// skip insertions relative to the reference
+						// TO DO = if they are in this record log/take them into account
+						if pair.ref[pos+codonCounter] == 244 {
+							continue
+						}
+						if (pair.query[pos+codonCounter] & pair.ref[pos+codonCounter]) < 16 {
+							codonSNPs = append(codonSNPs, variants.Variant{Changetype: "nuc", RefAl: DA[pair.ref[pos+codonCounter]], QueAl: DA[pair.query[pos+codonCounter]], Position: (pos + codonCounter) - offsetMSACoord[pos+codonCounter]})
+						}
+						decodedCodon = decodedCodon + DA[pair.query[pos+codonCounter]]
+					}
+
+					if _, ok := CD[decodedCodon]; ok {
+						aa = CD[decodedCodon]
+					} else {
+						aa = "X"
+					}
+
+					refaa = string(region.Translation[aaCounter])
+
+					if aa != refaa && aa != "X" {
+						vs = append(vs, variants.Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: pos - offsetMSACoord[pos], Residue: aaCounter})
+					} else {
+						for _, v := range codonSNPs {
+							vs = append(vs, v)
+						}
+					}
+
+					codonSNPs = make([]variants.Variant, 0, 3)
+					decodedCodon = ""
+				}
+			}
+		}
+
+		// sort the variants
+		sort.SliceStable(vs, func(i, j int) bool {
+			return vs[i].Position < vs[j].Position || (vs[i].Position == vs[j].Position && vs[i].Changetype < vs[j].Changetype)
+		})
+
+		// there might be dups if there was a snp in the region of a join()
+		finalVariants := make([]variants.Variant, 0)
+		previousVariant := variants.Variant{}
+		for i, v := range vs {
+			if i == 0 {
+				finalVariants = append(finalVariants, v)
+				previousVariant = v
+				continue
+			}
+			if v == previousVariant {
+				continue
+			}
+			finalVariants = append(finalVariants, v)
+			previousVariant = v
+		}
+
+		AS := variants.AnnoStructs{Queryname: pair.queryname, Vs: finalVariants, Idx: pair.idx}
+
+		// and we're done
+		cVariants <- AS
+	}
 }

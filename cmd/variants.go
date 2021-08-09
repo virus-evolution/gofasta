@@ -3,40 +3,38 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/cov-ert/gofasta/pkg/sam"
+	"github.com/cov-ert/gofasta/pkg/variants"
 )
 
-var variantGenbankFile string
-var variantOutfile string
+var variantsMSA string
+var variantsReference string
+var variantsGenbankFile string
+var variantsOutfile string
 
 func init() {
-	samCmd.AddCommand(variantCmd)
+	rootCmd.AddCommand(variantsCmd)
 
-	variantCmd.Flags().StringVarP(&variantGenbankFile, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
-	variantCmd.Flags().StringVarP(&variantOutfile, "outfile", "o", "stdout", "Where to write the variants")
+	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "", "multiple sequence alignment in fasta format")
+	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "", "", "the name of the reference sequence in the msa")
+	variantsCmd.Flags().StringVarP(&variantsGenbankFile, "genbank", "", "", "genbank format annotation")
+	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "name of the file of variants to write")
 
-	variantCmd.Flags().SortFlags = false
+	variantsCmd.Flags().SortFlags = false
 }
 
-var variantCmd = &cobra.Command{
+var variantsCmd = &cobra.Command{
 	Use:   "variants",
-	Short: "Call variants between ref and query from a SAM file",
-	Long:  `Call variants between a reference sequence and query sequences aligned in sam format
+	Short: "find variants relative to a reference in a multiple sequence alignment",
+	Long: `find variants relative to a reference in a multiple sequence alignment
 
 Example usage:
-	gofasta sam variants -s aligned.sam -r reference.fasta -g annotation.gb -o variants.csv
 
-The output is a csv-format file with one line per query sequence, and two columns: 'query' and
-'variants', the second of which is a "|"-delimited list of amino acid changes and synonymous SNPs
-in that query relative to the reference sequence specified using --reference/-r.
-
-If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
-the variants to stdout.`,
-
+./gofasta variants --msa alignment.fasta --genbank MN908947.gb --reference MN908947.3 > variants.csv
+`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = sam.Variants(samFile, samReference, variantGenbankFile, variantOutfile, samThreads)
+		err = variants.Variants(variantsMSA, variantsReference, variantsGenbankFile, variantsOutfile)
 
-		return err
+		return
 	},
 }

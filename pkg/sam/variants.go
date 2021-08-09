@@ -4,36 +4,37 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+
 	// "sort"
 	"os"
 	// "path"
-	"strings"
 	"strconv"
+	"strings"
 
-	"github.com/cov-ert/gofasta/pkg/genbank"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
 	"github.com/cov-ert/gofasta/pkg/alphabet"
 	"github.com/cov-ert/gofasta/pkg/encoding"
+	"github.com/cov-ert/gofasta/pkg/fastaio"
+	"github.com/cov-ert/gofasta/pkg/genbank"
 
 	biogosam "github.com/biogo/hts/sam"
 )
 
 //
 type annoStruct struct {
-	queryname string
-	refAl string
-	queAl string
-	position int
+	queryname  string
+	refAl      string
+	queAl      string
+	position   int
 	changetype string
-	feature string // this should be, for example, the name of the CDS that the thing is in
+	feature    string // this should be, for example, the name of the CDS that the thing is in
 }
 
 // for passing groups of annoStruct around with an index which is used to retain input
 // order in the output
 type annoStructs struct {
 	queryname string
-	as []annoStruct
-	idx int
+	as        []annoStruct
+	idx       int
 }
 
 // type alignPair struct {
@@ -70,7 +71,7 @@ func getSNPPos(i int, A []int) (int, error) {
 		pos = A[0] + i
 	} else {
 		s := []string{}
-		for _, j := range(A) {
+		for _, j := range A {
 			s = append(s, strconv.Itoa(j))
 		}
 		return 0, fmt.Errorf("bad(ly parsed?) annotation positions array: %s", strings.Join(s, " "))
@@ -102,7 +103,7 @@ func getVariantsFromAlignPair(pair alignPair) ([]annoStruct, error) {
 	counter := 0
 
 	// now compare ref and query
-	for i, _ := range(pair.ref) {
+	for i, _ := range pair.ref {
 
 		if pair.ref[i] != pair.query[i] {
 			a := rune_2_byte[pair.ref[i]]
@@ -133,7 +134,7 @@ func getVariantsFromAlignPair(pair alignPair) ([]annoStruct, error) {
 					annotation_array = append(annotation_array, annoStruct{queryname: pair.queryname, refAl: ref_AA, queAl: que_AA, position: (i + 1) / 3, changetype: "AA", feature: pair.featName})
 				} else {
 					if len(codon_snps) > 0 {
-						for _, snp := range(codon_snps) {
+						for _, snp := range codon_snps {
 							snp.changetype = "synSNP"
 							annotation_array = append(annotation_array, snp)
 						}
@@ -155,20 +156,20 @@ func getVariantsFromCDS(cPairParse chan alignPairs, cAnnotate chan annoStructs, 
 	// this is what comes with the descriptor field of each alignPair struct from cPairParse:
 	// subPair.descriptor = pair.queryname + "." + feature.Feature + "." + strings.ReplaceAll(feature.Info[anno], " ", "_")
 
-	for A := range(cPairParse) {
+	for A := range cPairParse {
 
 		annoArray := annoStructs{queryname: A.aps[0].queryname, idx: A.idx}
 
-		for _, pair := range(A.aps) {
+		for _, pair := range A.aps {
 			anno, err := getVariantsFromAlignPair(pair)
 			if err != nil {
-				cErr<- err
+				cErr <- err
 			}
 
 			annoArray.as = append(annoArray.as, anno...)
 		}
 
-		cAnnotate<- annoArray
+		cAnnotate <- annoArray
 	}
 }
 
@@ -197,7 +198,7 @@ func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan
 	if outfile != "stdout" {
 		f, err = os.Create(outfile)
 		if err != nil {
-			cErr<- err
+			cErr <- err
 		}
 	}
 
@@ -205,14 +206,14 @@ func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan
 
 	_, err = f.WriteString("query,variants\n")
 	if err != nil {
-		cErr<- err
+		cErr <- err
 	}
 
 	outputMap := make(map[int]annoStructs)
 
 	counter := 0
 
-	for AS := range(cAnnotate) {
+	for AS := range cAnnotate {
 
 		outputMap[AS.idx] = AS
 
@@ -224,10 +225,10 @@ func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan
 
 			temp := make([]string, 0)
 
-			for _, aS := range(A.as) {
+			for _, aS := range A.as {
 				AL, err := getAnnoLine(aS)
 				if err != nil {
-					cErr<- err
+					cErr <- err
 				}
 				temp = append(temp, AL)
 			}
@@ -256,10 +257,10 @@ func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan
 
 		temp := make([]string, 0)
 
-		for _, aS := range(A.as) {
+		for _, aS := range A.as {
 			AL, err := getAnnoLine(aS)
 			if err != nil {
-				cErr<- err
+				cErr <- err
 			}
 			temp = append(temp, AL)
 		}
@@ -273,12 +274,12 @@ func writeAnnotation(outfile string, cAnnotate chan annoStructs, cWriteDone chan
 		counter++
 	}
 
-	cWriteDone<- true
+	cWriteDone <- true
 }
 
 // Variants annotates variants wrt. a reference sequence
 func Variants(samFile string, referenceFile string, genbankFile string,
-	      outfile string, threads int) error {
+	outfile string, threads int) error {
 
 	gb, err := genbank.ReadGenBank(genbankFile)
 	if err != nil {
@@ -359,17 +360,17 @@ func Variants(samFile string, referenceFile string, genbankFile string,
 
 	go func() {
 		wgAlign.Wait()
-		cAlignWaitGroupDone<- true
+		cAlignWaitGroupDone <- true
 	}()
 
 	go func() {
 		wgParse.Wait()
-		cParseWaitGroupDone<- true
+		cParseWaitGroupDone <- true
 	}()
 
 	go func() {
 		wgVar.Wait()
-		cVariantsDone<- true
+		cVariantsDone <- true
 	}()
 
 	for n := 1; n > 0; {

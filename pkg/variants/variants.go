@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/spf13/cobra"
-
 	"github.com/cov-ert/gofasta/pkg/alphabet"
 	"github.com/cov-ert/gofasta/pkg/encoding"
 	"github.com/cov-ert/gofasta/pkg/fastaio"
@@ -48,42 +46,6 @@ type annoStructs struct {
 	queryname string
 	vs        []variant
 	idx       int
-}
-
-var msa string
-var gbfile string
-var reference string
-var outfile string
-
-var mainCmd = &cobra.Command{
-	Use:   "variants",
-	Short: "",
-	Long: `variants ...
-
-Example usage:
-
-./variants ...
-`,
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
-
-		err = Variants(msa, reference, gbfile, outfile)
-
-		return
-	},
-}
-
-func init() {
-
-	mainCmd.Flags().StringVarP(&msa, "msa", "", "", "mutliple sequence alignment in fasta format")
-	mainCmd.Flags().StringVarP(&gbfile, "genbank", "", "", "genbank format annotation")
-	mainCmd.Flags().StringVarP(&reference, "reference", "", "", "the name of the reference sequence in the msa")
-	mainCmd.Flags().StringVarP(&outfile, "outfile", "o", "stdout", "the name of the reference sequence in the msa")
-
-	mainCmd.Flags().SortFlags = false
-}
-
-func main() {
-	mainCmd.Execute()
 }
 
 func Variants(msa string, reference string, gbfile string, outfile string) error {

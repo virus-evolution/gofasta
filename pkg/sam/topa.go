@@ -274,29 +274,29 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 // 	return FEATS
 // }
 
-func getRefAdjustedPositions(seq []byte) []int {
-	idx := make([]int, len(seq))
-	pos := 0
-	for i, nuc := range seq {
-		if nuc != '-' {
-			pos += 1
-		}
-		idx[i] = pos
-	}
+// func getRefAdjustedPositions(seq []byte) []int {
+// 	idx := make([]int, len(seq))
+// 	pos := 0
+// 	for i, nuc := range seq {
+// 		if nuc != '-' {
+// 			pos += 1
+// 		}
+// 		idx[i] = pos
+// 	}
 
-	return idx
-}
+// 	return idx
+// }
 
-func findOffsetPos(i int, a []int) int {
-	var pos int
-	for j, x := range a {
-		if x == i {
-			pos = j
-			break
-		}
-	}
-	return pos
-}
+// func findOffsetPos(i int, a []int) int {
+// 	var pos int
+// 	for j, x := range a {
+// 		if x == i {
+// 			pos = j
+// 			break
+// 		}
+// 	}
+// 	return pos
+// }
 
 func getOffset(refseq []byte) []int {
 	// we make an array of integers to offset the positions by.

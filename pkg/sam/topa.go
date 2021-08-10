@@ -1,6 +1,7 @@
 package sam
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -9,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
-	"github.com/cov-ert/gofasta/pkg/genbank"
 
 	biogosam "github.com/biogo/hts/sam"
 )
@@ -261,18 +261,18 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 	return
 }
 
-func getFeaturesFromAnnotation(gb genbank.Genbank, annotation string) []genbank.GenbankFeature {
+// func getFeaturesFromAnnotation(gb genbank.Genbank, annotation string) []genbank.GenbankFeature {
 
-	FEATS := make([]genbank.GenbankFeature, 0)
+// 	FEATS := make([]genbank.GenbankFeature, 0)
 
-	for _, F := range gb.FEATURES {
-		if F.Feature == annotation {
-			FEATS = append(FEATS, F)
-		}
-	}
+// 	for _, F := range gb.FEATURES {
+// 		if F.Feature == annotation {
+// 			FEATS = append(FEATS, F)
+// 		}
+// 	}
 
-	return FEATS
-}
+// 	return FEATS
+// }
 
 func getRefAdjustedPositions(seq []byte) []int {
 	idx := make([]int, len(seq))
@@ -298,162 +298,150 @@ func findOffsetPos(i int, a []int) int {
 	return pos
 }
 
+func getOffset(refseq []byte) []int {
+	// we make an array of integers to offset the positions by.
+	// this should be the same length as a degapped refseq?
+	degappedLen := 0
+	for _, nuc := range refseq {
+		// if there is no alignment gap at this site, ++
+		if nuc != '-' {
+			degappedLen++
+		}
+	}
+	// if there are no alignment gaps, we can return a slice of 0s
+	if degappedLen == len(refseq) {
+		return make([]int, len(refseq), len(refseq))
+	}
+
+	// otherwise, we get one offset:
+	// 1) offsetRefCoord = the number of bases to add to convert each position to msa coordinates
+	gapsum := 0
+	offsetRefCoord := make([]int, degappedLen)
+	for i, nuc := range refseq {
+		if nuc == '-' {
+			gapsum++
+			continue
+		}
+		offsetRefCoord[i-gapsum] = gapsum
+	}
+
+	return offsetRefCoord
+}
+
 // TODO - allow multiple feature types in features []genbank.GenbankFeature
-func parseAlignmentByAnnotation(features []genbank.GenbankFeature, cPairIn chan alignPair, cPairOut chan alignPairs, cErr chan error) {
+func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair, cErr chan error) {
 
 	// if no feature is specified on the command line, we take the whole sequence:
-	if len(features) == 0 {
+	if !trim {
 		for pair := range cPairIn {
 			pair.descriptor = pair.queryname
-			cPairOut <- alignPairs{aps: []alignPair{pair}, idx: pair.idx}
+			cPairOut <- pair
 		}
 		// if one feature is specified on the command line:
 	} else {
-		ftype := features[0].Feature
-
-		var anno string
-
-		if ftype == "CDS" || ftype == "gene" {
-			anno = "gene"
-		}
-
-		if ftype == "source" {
-			anno = "organism"
-		}
-
 		for pair := range cPairIn {
 
-			A := alignPairs{idx: pair.idx}
+			offsetRefCoord := getOffset(pair.ref)
 
-			idx := getRefAdjustedPositions(pair.ref)
+			adjTrimStart := trimStart + offsetRefCoord[trimStart]
+			adjTrimEnd := trimEnd + offsetRefCoord[trimEnd]
 
-			for _, feature := range features {
+			pair.query = pair.query[adjTrimStart:adjTrimEnd]
+			pair.ref = pair.ref[adjTrimStart:adjTrimEnd]
 
-				subPair := alignPair{}
-
-				subPair.refname = pair.refname
-				subPair.queryname = pair.queryname
-				subPair.featType = feature.Feature
-				subPair.featName = feature.Info[anno]
-				subPair.descriptor = pair.queryname + "." + feature.Feature + "." + strings.ReplaceAll(feature.Info[anno], " ", "_")
-
-				positions, err := genbank.ParsePositions(feature.Pos)
-				if err != nil {
-					cErr <- err
-				}
-
-				subPair.featPosArray = positions
-
-				var newRef []byte
-				var newQue []byte
-
-				if len(positions)/2 > 1 {
-					for i := 0; i < len(positions); i += 2 {
-						start := findOffsetPos(positions[i], idx)
-						stop := findOffsetPos(positions[i+1], idx) + 1
-						newRef = append(newRef, pair.ref[start:stop]...)
-						newQue = append(newQue, pair.query[start:stop]...)
-					}
-					subPair.ref = newRef
-					subPair.query = newQue
-				} else {
-					start := findOffsetPos(positions[0], idx)
-					stop := findOffsetPos(positions[1], idx) + 1
-					newRef = pair.ref[start:stop]
-					newQue = pair.query[start:stop]
-					subPair.ref = newRef
-					subPair.query = newQue
-				}
-
-				A.aps = append(A.aps, subPair)
-			}
-
-			cPairOut <- A
+			cPairOut <- pair
 		}
 	}
-
-	return
 }
 
-func writePairwiseAlignment(p string, cPair chan alignPairs, cWriteDone chan bool, cErr chan error, omitRef bool) {
+func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
 
 	_ = path.Join()
 
 	var err error
 
 	if p == "stdout" {
-		for array := range cPair {
-			for _, AP := range array.aps {
-				if !omitRef {
-					_, err = fmt.Fprintln(os.Stdout, ">"+AP.refname)
-					if err != nil {
-						cErr <- err
-					}
-					_, err = fmt.Fprintln(os.Stdout, string(AP.ref))
-					if err != nil {
-						cErr <- err
-					}
-				}
-				_, err = fmt.Fprintln(os.Stdout, ">"+AP.queryname)
+		for AP := range cPair {
+			if !omitRef {
+				_, err = fmt.Fprintln(os.Stdout, ">"+AP.refname)
 				if err != nil {
 					cErr <- err
 				}
-				_, err = fmt.Fprintln(os.Stdout, string(AP.query))
+				_, err = fmt.Fprintln(os.Stdout, string(AP.ref))
 				if err != nil {
 					cErr <- err
 				}
+			}
+			_, err = fmt.Fprintln(os.Stdout, ">"+AP.queryname)
+			if err != nil {
+				cErr <- err
+			}
+			_, err = fmt.Fprintln(os.Stdout, string(AP.query))
+			if err != nil {
+				cErr <- err
 			}
 		}
 	} else {
 		os.MkdirAll(p, 0755)
 
-		for array := range cPair {
-			for _, AP := range array.aps {
-				// forward slashes are illegal in unix filenames (so is ascii NUL ?)
-				des := strings.ReplaceAll(AP.descriptor, "/", "_")
-				// unix filenames must be <= 255 chars, (account for ".fasta")
-				if len(des) > 249 {
-					fmt.Fprintf(os.Stderr, "Filename too long, truncating \"%s\" to: \"%s\"\n", des, des[0:249])
-					des = des[0:249]
-				}
-				f, err := os.Create(path.Join(p, des+".fasta"))
-				if err != nil {
-					cErr <- err
-				}
-				if !omitRef {
-					_, err = f.WriteString(">" + AP.refname + "\n")
-					if err != nil {
-						cErr <- err
-					}
-					_, err = f.WriteString(string(AP.ref) + "\n")
-					if err != nil {
-						cErr <- err
-					}
-				}
-				_, err = f.WriteString(">" + AP.queryname + "\n")
-				if err != nil {
-					cErr <- err
-				}
-				_, err = f.WriteString(string(AP.query) + "\n")
-				if err != nil {
-					cErr <- err
-				}
-				f.Close()
+		for AP := range cPair {
+			// forward slashes are illegal in unix filenames (so is ascii NUL ?)
+			des := strings.ReplaceAll(AP.queryname, "/", "_")
+			// unix filenames must be <= 255 chars, (account for ".fasta")
+			if len(des) > 249 {
+				fmt.Fprintf(os.Stderr, "Filename too long, truncating \"%s\" to: \"%s\"\n", des, des[0:249])
+				des = des[0:249]
 			}
+			f, err := os.Create(path.Join(p, des+".fasta"))
+			if err != nil {
+				cErr <- err
+			}
+			if !omitRef {
+				_, err = f.WriteString(">" + AP.refname + "\n")
+				if err != nil {
+					cErr <- err
+				}
+				_, err = f.WriteString(string(AP.ref) + "\n")
+				if err != nil {
+					cErr <- err
+				}
+			}
+			_, err = f.WriteString(">" + AP.queryname + "\n")
+			if err != nil {
+				cErr <- err
+			}
+			_, err = f.WriteString(string(AP.query) + "\n")
+			if err != nil {
+				cErr <- err
+			}
+			f.Close()
 		}
 	}
 	cWriteDone <- true
 }
 
+// sanity checks the trimming and padding arguments (given the length of the ref seq)
+func checkArgsPairAlign(refLen int, trim bool, trimstart int, trimend int) error {
+
+	if trim {
+		if trimstart > refLen-2 || trimstart < 1 {
+			return errors.New("error parsing trimming coordinates: check or include --trimstart")
+		}
+		if trimend > refLen-1 || trimend < 1 {
+			return errors.New("error parsing trimming coordinates: check or include --trimend")
+		}
+		if trimstart >= trimend {
+			return errors.New("error parsing trimming coordinates: check trimstart and trimend")
+		}
+	}
+
+	return nil
+}
+
 // ToPairAlign converts a SAM file into pairwise fasta-format alignments
 // optionally including the reference, optionally split by annotations,
 // optionally skipping insertions relative to the reference
-func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat string, outpath string, omitRef bool, omitIns bool, threads int) error {
-
-	gb, err := genbank.ReadGenBank(genbankFile)
-	if err != nil {
-		return err
-	}
+func ToPairAlign(samFile string, referenceFile string, outpath string, trim bool, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
 	// NB probably uncomment the below and use it for checks (e.g. for
 	// reference length)
@@ -487,28 +475,33 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 		}
 	}
 
+	err := checkArgsPairAlign(len(refSeq), trim, trimStart, trimEnd)
+	if err != nil {
+		return err
+	}
+
 	cSR := make(chan samRecords, threads)
 	cSH := make(chan biogosam.Header)
 
 	cPairAlign := make(chan alignPair)
-	cPairParse := make(chan alignPairs)
+	cPairTrim := make(chan alignPair)
 
 	cReadDone := make(chan bool)
 	cAlignWaitGroupDone := make(chan bool)
-	cParseWaitGroupDone := make(chan bool)
+	cTrimWaitGroupDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
 	go groupSamRecords(samFile, cSH, cSR, cReadDone, cErr)
 
 	_ = <-cSH
 
-	go writePairwiseAlignment(outpath, cPairParse, cWriteDone, cErr, omitRef)
+	go writePairwiseAlignment(outpath, cPairTrim, cWriteDone, cErr, omitRef)
 
 	var wgAlign sync.WaitGroup
 	wgAlign.Add(threads)
 
-	var wgParse sync.WaitGroup
-	wgParse.Add(threads)
+	var wgTrim sync.WaitGroup
+	wgTrim.Add(threads)
 
 	for n := 0; n < threads; n++ {
 		go func() {
@@ -517,12 +510,10 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 		}()
 	}
 
-	features := getFeaturesFromAnnotation(gb, feat)
-
 	for n := 0; n < threads; n++ {
 		go func() {
-			parseAlignmentByAnnotation(features, cPairAlign, cPairParse, cErr)
-			wgParse.Done()
+			trimAlignment(trim, trimStart, trimEnd, cPairAlign, cPairTrim, cErr)
+			wgTrim.Done()
 		}()
 	}
 
@@ -532,8 +523,8 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 	}()
 
 	go func() {
-		wgParse.Wait()
-		cParseWaitGroupDone <- true
+		wgTrim.Wait()
+		cTrimWaitGroupDone <- true
 	}()
 
 	for n := 1; n > 0; {
@@ -561,8 +552,8 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 		select {
 		case err := <-cErr:
 			return err
-		case <-cParseWaitGroupDone:
-			close(cPairParse)
+		case <-cTrimWaitGroupDone:
+			close(cPairTrim)
 			n--
 		}
 	}

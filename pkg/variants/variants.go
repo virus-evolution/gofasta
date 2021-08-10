@@ -414,9 +414,10 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 		}
 
 		// catch things that abut the end of the alignment
-		if delOpen {
-			variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
-		}
+		// don't want deletions at the end of the alignment (or at the beginning)
+		// if delOpen {
+		// 	variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
+		// }
 		if insOpen {
 			variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
 		}
@@ -488,8 +489,15 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 		previousVariant := Variant{}
 		for i, v := range variants {
 			if i == 0 {
+				// don't want deletions that abut the start of the sequence
+				if v.Changetype == "del" && v.Position == 0 {
+					continue
+				}
 				finalVariants = append(finalVariants, v)
 				previousVariant = v
+				continue
+			}
+			if v.Changetype == "del" && v.Position == 0 {
 				continue
 			}
 			if v == previousVariant {

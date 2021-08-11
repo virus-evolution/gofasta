@@ -6,11 +6,10 @@ import (
 
 var udReference string
 
-
 func init() {
 	rootCmd.AddCommand(updownCmd)
 
-	updownCmd.PersistentFlags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format")
+	updownCmd.PersistentFlags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format, which is treated as the root of the imaginary tree")
 }
 
 var updownCmd = &cobra.Command{

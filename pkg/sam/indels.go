@@ -2,6 +2,7 @@ package sam
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -281,6 +282,8 @@ func writeDelMap(outfile string, delmap map[int]map[int][]string, threshold int)
 }
 
 func Indels(samFile string, insOut string, delOut string, threshold int) error {
+
+	fmt.Println("sam indels is deprecated and may be removed in a future version. Please use sam variants instead.")
 
 	cErr := make(chan error)
 

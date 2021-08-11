@@ -24,7 +24,7 @@ var TRdistup int
 var TRdistdown int
 var TRdistside int
 
-var TRdistpush bool
+var TRdistpush int
 
 var TRthresholdpair float32
 var TRthresholdtarget int
@@ -53,10 +53,10 @@ func init() {
 	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target must have fewer than this number of ambiguities to be considered")
 
 	toprankingCmd.Flags().BoolVarP(&TRnofill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
-	toprankingCmd.Flags().BoolVarP(&TRdistpush, "dist-push", "", false, "Push the SNP-distance boundaries for any empty bins to the closest distance for which there are neighbours, where possible")
+	toprankingCmd.Flags().IntVarP(&TRdistpush, "dist-push", "", 0, "Push the SNP-distance boundaries for any empty bins to the closest n distances for which there are neighbours, where possible")
 
 	toprankingCmd.Flags().Lookup("no-fill").NoOptDefVal = "true"
-	toprankingCmd.Flags().Lookup("dist-push").NoOptDefVal = "true"
+	toprankingCmd.Flags().Lookup("dist-push").NoOptDefVal = "1"
 
 	toprankingCmd.Flags().SortFlags = false
 }

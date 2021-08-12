@@ -206,13 +206,20 @@ func getMaxKey(m map[int][]resultsStruct) int {
 
 func refactorPushCatchment(pC *pushCatchmentSubStruct, rS resultsStruct, nodeDistance int) {
 	if _, ok := pC.catchmentMap[rS.distance]; ok {
+		// if this sequence's distance is already present, then add to it
 		pC.catchmentMap[rS.distance] = append(pC.catchmentMap[rS.distance], rS)
-	} else {
+	} else if len(pC.catchmentMap) == nodeDistance {
+		// if it isn't, and the map is at capacity, delete the farthest sequences
+		// and add this one  elsewhere
 		maxKey := getMaxKey(pC.catchmentMap)
 		delete(pC.catchmentMap, maxKey)
 		pC.catchmentMap[rS.distance] = []resultsStruct{rS}
-		maxKey = getMaxKey(pC.catchmentMap)
-		pC.maxDist = maxKey
+		pC.maxDist = getMaxKey(pC.catchmentMap)
+		pC.nDists = len(pC.catchmentMap)
+	} else {
+		// otherwise the map isn't at capacity and we can add this sequence with impunity
+		pC.catchmentMap[rS.distance] = []resultsStruct{rS}
+		pC.maxDist = getMaxKey(pC.catchmentMap)
 		pC.nDists = len(pC.catchmentMap)
 	}
 }
@@ -225,8 +232,6 @@ func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct
 			uC.catchment = append(uC.catchment, r)
 		}
 	}
-	catchmentSize := len(uC.catchment)
-	rearrangeCatchment(&uC, catchmentSize)
 	return uC
 }
 

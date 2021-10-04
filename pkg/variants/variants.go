@@ -236,7 +236,7 @@ func findReference(msa string, reference string) (fastaio.EncodedFastaRecord, er
 	if refFound {
 		refRec = fastaio.EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 	} else {
-		fmt.Println("no reference sequence found in --msa, attempting to use --genbank source as reference")
+		os.Stderr.WriteString("no reference sequence found in --msa, attempting to use --genbank source as reference\n")
 	}
 
 	return refRec, nil

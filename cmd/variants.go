@@ -15,7 +15,7 @@ func init() {
 	rootCmd.AddCommand(variantsCmd)
 
 	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "", "multiple sequence alignment in fasta format")
-	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "", "", "the name of the reference sequence in the msa")
+	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "r", "", "the name of the reference sequence in the msa")
 	variantsCmd.Flags().StringVarP(&variantsGenbankFile, "genbank", "", "", "genbank format annotation")
 	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "name of the file of variants to write")
 

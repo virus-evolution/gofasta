@@ -3,6 +3,7 @@ package sam
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"sort"
@@ -441,7 +442,7 @@ func checkArgsPairAlign(refLen int, trim bool, trimstart int, trimend int) error
 // ToPairAlign converts a SAM file into pairwise fasta-format alignments
 // optionally including the reference, optionally split by annotations,
 // optionally skipping insertions relative to the reference
-func ToPairAlign(samFile string, referenceFile string, outpath string, trim bool, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
+func ToPairAlign(samIn, ref io.Reader, outpath string, trim bool, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
 	// NB probably uncomment the below and use it for checks (e.g. for
 	// reference length)
@@ -457,7 +458,7 @@ func ToPairAlign(samFile string, referenceFile string, outpath string, trim bool
 	cRef := make(chan fastaio.FastaRecord)
 	cRefDone := make(chan bool)
 
-	go fastaio.ReadAlignment(referenceFile, cRef, cErr, cRefDone)
+	go fastaio.ReadAlignment(ref, cRef, cErr, cRefDone)
 
 	var refSeq string
 	// var refName string
@@ -491,7 +492,7 @@ func ToPairAlign(samFile string, referenceFile string, outpath string, trim bool
 	cTrimWaitGroupDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go groupSamRecords(samFile, cSH, cSR, cReadDone, cErr)
+	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
 	_ = <-cSH
 

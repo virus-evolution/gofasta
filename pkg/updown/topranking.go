@@ -1,11 +1,10 @@
 package updown
 
 import (
-	"bufio"
 	"errors"
+	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -702,25 +701,15 @@ func balance(sizetotal int, sizeIdeal [4]int, sizeObserved [4]int, nofill bool) 
 	return size
 }
 
-func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeArray [4]int, nofill bool) error {
+func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct, sizeArray [4]int, nofill bool) error {
 
 	var err error
-	f := os.Stdout
-
-	if fileOut != "stdout" {
-		f, err = os.Create(fileOut)
-		if err != nil {
-			return err
-		}
-	}
-
-	defer f.Close()
 
 	var temp []string
 	var size [4]int
 	var sizeObserved [4]int
 
-	_, err = f.WriteString("query,closestsame,closestup,closestdown,closestside\n")
+	_, err = w.Write([]byte("query,closestsame,closestup,closestdown,closestside\n"))
 	if err != nil {
 		return err
 	}
@@ -747,7 +736,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		sizeObserved[3] = len(result.side.catchment)
 		size = balance(sizetotal, sizeArray, sizeObserved, nofill)
 
-		_, err = f.WriteString(result.qname + ",")
+		_, err = w.Write([]byte(result.qname + ","))
 		if err != nil {
 			return err
 		}
@@ -756,7 +745,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.same.catchment[0:size[0]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + ",")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
 		if err != nil {
 			return err
 		}
@@ -765,7 +754,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.up.catchment[0:size[1]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + ",")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
 		if err != nil {
 			return err
 		}
@@ -774,7 +763,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.down.catchment[0:size[2]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + ",")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
 		if err != nil {
 			return err
 		}
@@ -783,7 +772,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.side.catchment[0:size[3]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + "\n")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + "\n"))
 		if err != nil {
 			return err
 		}
@@ -801,41 +790,11 @@ func allZero(s []int) bool {
 	return true
 }
 
-func checkArgs(query string, target string, reference string,
-	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
-	distall int, distup int, distdown int, distside int) ([4]int, [4]int, string, string, error) {
-
-	var qtype string
-	var ttype string
-
-	switch filepath.Ext(query) {
-	case ".csv":
-		qtype = "csv"
-	case ".fasta":
-		qtype = "fasta"
-	case ".fa":
-		qtype = "fasta"
-	default:
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("couldn't tell if --query was a .csv or a .fasta file")
-	}
-
-	switch filepath.Ext(target) {
-	case ".csv":
-		ttype = "csv"
-	case ".fasta":
-		ttype = "fasta"
-	case ".fa":
-		ttype = "fasta"
-	default:
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("couldn't tell if --target was a .csv or a .fasta file")
-	}
-
-	if (qtype == "fasta" || ttype == "fasta") && len(reference) == 0 {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("if your either of your input files are fastas, you must provide a --reference")
-	}
+func checkArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
+	distall int, distup int, distdown int, distside int) ([4]int, [4]int, error) {
 
 	if sizetotal == 0 && allZero([]int{sizeup, sizedown, sizeside, sizesame}) && allZero([]int{distup, distdown, distside, distall}) {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New(`
+		return [4]int{}, [4]int{}, errors.New(`
 Please provide values to either --size-total,
 or all or some of --size-up, --size-down, --size-side and --size-same,
 
@@ -848,7 +807,7 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 	}
 
 	if sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame}) {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
+		return [4]int{}, [4]int{}, errors.New("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
 	}
 
 	// bucket sizes for same,up,down,side,total respectively
@@ -883,7 +842,7 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 	}
 
 	if distall != 0 && !allZero([]int{distup, distdown, distside}) {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
+		return [4]int{}, [4]int{}, errors.New("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
 	}
 
 	var distArray [4]int
@@ -906,7 +865,7 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 		distArray[3] = math.MaxInt32
 	}
 
-	return sizeArray, distArray, qtype, ttype, nil
+	return sizeArray, distArray, nil
 }
 
 func sum4(a [4]int) int {
@@ -917,12 +876,13 @@ func sum4(a [4]int) int {
 	return t
 }
 
-func TopRanking(query string, target string, outfile string, reference string, ignoreFile string,
+func TopRanking(query, target, reference io.Reader, out io.Writer,
+	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
 	threshpair float32, threshtarg int, nofill bool, pushdist int) error {
 
-	sizeArray, distArray, q_in_type, t_in_type, err := checkArgs(query, target, reference, sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside)
+	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside)
 	if err != nil {
 		switch {
 		case err.Error() == "warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same":
@@ -963,24 +923,6 @@ func TopRanking(query string, target string, outfile string, reference string, i
 
 	}
 
-	// targets to ignore (potentially):
-	ignore := make([]string, 0)
-	if len(ignoreFile) != 0 {
-		f, err := os.Open(ignoreFile)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		s := bufio.NewScanner(f)
-		for s.Scan() {
-			ignore = append(ignore, s.Text())
-		}
-		err = s.Err()
-		if err != nil {
-			return err
-		}
-	}
-
 	nQ := len(queries)
 	QResultsArray := make([]updownCatchmentStruct, nQ)
 
@@ -997,7 +939,7 @@ func TopRanking(query string, target string, outfile string, reference string, i
 		go readFastaToChan(target, refSeq, cudL, cErr, cReadDone)
 	}
 
-	go splitInput(queries, ignore,
+	go splitInput(queries, ignoreArray,
 		sizeArray, distArray, threshpair, threshtarg, pushdist,
 		cudL, cResults, cErr, cSplitDone)
 
@@ -1025,7 +967,7 @@ func TopRanking(query string, target string, outfile string, reference string, i
 		QResultsArray[result.qidx] = result
 	}
 
-	err = writeUpDownCatchment(outfile, QResultsArray, sizeArray, nofill)
+	err = writeUpDownCatchment(out, QResultsArray, sizeArray, nofill)
 	if err != nil {
 		return err
 	}

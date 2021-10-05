@@ -15,7 +15,7 @@ import (
 // the order of the input when we parallelise
 type samRecords struct {
 	records []biogosam.Record
-	idx	int
+	idx     int
 }
 
 // getOneLine processes one non-header line of a SAM file into an aligned sequence
@@ -65,7 +65,7 @@ func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]
 
 	}
 
-	if ! includeInsertions {
+	if !includeInsertions {
 		rightpad := make([]byte, refLen-len(newSeqArray))
 		for i, _ := range rightpad {
 			rightpad[i] = '*'
@@ -132,13 +132,12 @@ func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInserti
 		// fmt.Println(refextension)
 		// fmt.Println()
 
-
 		qstart = new_qstart
 		rstart = new_rstart
 
 	}
 
-	if ! includeInsertions {
+	if !includeInsertions {
 		rightpad := make([]byte, len(reference)-len(newSeqArray))
 		// fmt.Println(len(rightpad))
 		for i, _ := range rightpad {
@@ -336,26 +335,16 @@ func swapInGapsNs(seq []byte) []byte {
 
 // groupSamRecords yields blocks of SAM records that correspond to the same query
 // sequence (to a channel)
-func groupSamRecords(infile string, cHeader chan biogosam.Header, chnl chan samRecords, cdone chan bool, cerr chan error) {
+func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samRecords, cdone chan bool, cerr chan error) {
 
 	var err error
-	f := os.Stdin
 
-	if len(infile) > 0 {
-		f, err = os.Open(infile)
-		if err != nil {
-			cerr <- err
-		}
-	}
-
-	defer f.Close()
-
-	s, err := biogosam.NewReader(f)
+	s, err := biogosam.NewReader(sam)
 	if err != nil {
 		cerr <- err
 	}
 
-	cHeader<- *s.Header()
+	cHeader <- *s.Header()
 
 	// this counter will be used to preserve order in input and output:
 	counter := 0

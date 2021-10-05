@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/variants"
 )
 
@@ -14,7 +15,7 @@ var variantsOutfile string
 func init() {
 	rootCmd.AddCommand(variantsCmd)
 
-	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "", "multiple sequence alignment in fasta format")
+	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "stdin", "multiple sequence alignment in fasta format")
 	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "r", "", "the name of the reference sequence in the msa")
 	variantsCmd.Flags().StringVarP(&variantsGenbankFile, "genbank", "", "", "genbank format annotation")
 	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "name of the file of variants to write")
@@ -33,7 +34,25 @@ Example usage:
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = variants.Variants(variantsMSA, variantsReference, variantsGenbankFile, variantsOutfile)
+		msa, err := gfio.OpenIn(variantsMSA)
+		if err != nil {
+			return err
+		}
+		defer msa.Close()
+
+		genbank, err := gfio.OpenIn(variantsGenbankFile)
+		if err != nil {
+			return err
+		}
+		defer genbank.Close()
+
+		out, err := gfio.OpenOut(variantsOutfile)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		err = variants.Variants(msa, variantsReference, genbank, out)
 
 		return
 	},

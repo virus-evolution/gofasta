@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"sort"
@@ -48,14 +49,14 @@ type AnnoStructs struct {
 	Idx       int
 }
 
-func Variants(msa string, reference string, gbfile string, outfile string) error {
+func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) error {
 
-	gb, err := genbank.ReadGenBank(gbfile)
+	gb, err := genbank.ReadGenBank(gbIn)
 	if err != nil {
 		return err
 	}
 
-	ref, err := findReference(msa, reference)
+	ref, err := findReference(msaIn, refID)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func Variants(msa string, reference string, gbfile string, outfile string) error
 	}
 
 	// get a list of CDS + intergenic regions from the genbank file
-	regions, err := GetRegions(gbfile)
+	regions, err := GetRegions(gbIn)
 	if err != nil {
 		return err
 	}
@@ -86,9 +87,9 @@ func Variants(msa string, reference string, gbfile string, outfile string) error
 	cVariantsDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go WriteVariants(outfile, cVariants, cWriteDone, cErr)
+	go WriteVariants(out, cVariants, cWriteDone, cErr)
 
-	go fastaio.ReadEncodeAlignment(msa, cMSA, cErr, cMSADone)
+	go fastaio.ReadEncodeAlignment(msaIn, cMSA, cErr, cMSADone)
 
 	var wgVariants sync.WaitGroup
 	wgVariants.Add(runtime.NumCPU())
@@ -141,25 +142,13 @@ func Variants(msa string, reference string, gbfile string, outfile string) error
 
 // get the reference sequence from the msa if it is in there. If it isn't, we will try get it
 // from the genbank record (in which case can be no insertions relative to the ref in the msa)
-func findReference(msa string, reference string) (fastaio.EncodedFastaRecord, error) {
+func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRecord, error) {
 
 	var err error
-	var f *os.File
-
-	if msa != "stdin" {
-		f, err = os.Open(msa)
-		if err != nil {
-			return fastaio.EncodedFastaRecord{}, err
-		}
-	} else {
-		f = os.Stdin
-	}
-
-	defer f.Close()
 
 	coding := encoding.MakeEncodingArray()
 
-	s := bufio.NewScanner(f)
+	s := bufio.NewScanner(msaIn)
 
 	first := true
 
@@ -187,7 +176,7 @@ func findReference(msa string, reference string) (fastaio.EncodedFastaRecord, er
 			description = string(line[1:])
 			id = strings.Fields(description)[0]
 
-			if id == reference {
+			if id == referenceID {
 				refFound = true
 			}
 
@@ -211,7 +200,7 @@ func findReference(msa string, reference string) (fastaio.EncodedFastaRecord, er
 			id = strings.Fields(description)[0]
 			seqBuffer = make([]byte, 0)
 
-			if id == reference {
+			if id == referenceID {
 				refFound = true
 			}
 
@@ -242,8 +231,8 @@ func findReference(msa string, reference string) (fastaio.EncodedFastaRecord, er
 	return refRec, nil
 }
 
-func GetRegions(genbankFileIn string) ([]Region, error) {
-	gb, err := genbank.ReadGenBank(genbankFileIn)
+func GetRegions(genbankIn io.Reader) ([]Region, error) {
+	gb, err := genbank.ReadGenBank(genbankIn)
 	if err != nil {
 		return make([]Region, 0), err
 	}
@@ -538,28 +527,16 @@ func FormatVariant(v Variant, cErr chan error) string {
 	return s
 }
 
-func WriteVariants(outfile string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	outputMap := make(map[int]AnnoStructs)
 
 	counter := 0
 
-	var f *os.File
 	var err error
 	var sa []string
 
-	if outfile != "stdout" {
-		f, err = os.Create(outfile)
-		if err != nil {
-			cErr <- err
-		}
-	} else {
-		f = os.Stdout
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("query,variants\n")
+	_, err = w.Write([]byte("query,variants\n"))
 	if err != nil {
 		cErr <- err
 	}
@@ -575,7 +552,7 @@ func WriteVariants(outfile string, cVariants chan AnnoStructs, cWriteDone chan b
 				continue
 			}
 
-			_, err = f.WriteString(VL.Queryname + ",")
+			_, err = w.Write([]byte(VL.Queryname + ","))
 			if err != nil {
 				cErr <- err
 			}
@@ -583,7 +560,7 @@ func WriteVariants(outfile string, cVariants chan AnnoStructs, cWriteDone chan b
 			for _, v := range VL.Vs {
 				sa = append(sa, FormatVariant(v, cErr))
 			}
-			_, err = f.WriteString(strings.Join(sa, "|") + "\n")
+			_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
 			if err != nil {
 				cErr <- err
 			}
@@ -607,7 +584,7 @@ func WriteVariants(outfile string, cVariants chan AnnoStructs, cWriteDone chan b
 			counter++
 			continue
 		}
-		_, err = f.WriteString(VL.Queryname + ",")
+		_, err = w.Write([]byte(VL.Queryname + ","))
 		if err != nil {
 			cErr <- err
 		}
@@ -615,7 +592,7 @@ func WriteVariants(outfile string, cVariants chan AnnoStructs, cWriteDone chan b
 		for _, v := range VL.Vs {
 			sa = append(sa, FormatVariant(v, cErr))
 		}
-		_, err = f.WriteString(strings.Join(sa, "|") + "\n")
+		_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
 		if err != nil {
 			cErr <- err
 		}

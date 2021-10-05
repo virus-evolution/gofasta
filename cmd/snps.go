@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/snps"
 )
 
@@ -21,7 +22,7 @@ func init() {
 var snpCmd = &cobra.Command{
 	Use:   "snps",
 	Short: "Find snps relative to a reference",
-	Long:  `Find snps relative to a reference.
+	Long: `Find snps relative to a reference.
 
 Example usage:
 	gofasta snps -r reference.fasta -q alignment.fasta -o snps.csv
@@ -37,7 +38,25 @@ from stdin and write the snps file to stdout, e.g. you could do this:
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = snps.SNPs(snpsReference, snpsQuery, snpsOutfile)
+		query, err := gfio.OpenIn(snpsQuery)
+		if err != nil {
+			return err
+		}
+		defer query.Close()
+
+		ref, err := gfio.OpenIn(snpsReference)
+		if err != nil {
+			return err
+		}
+		defer ref.Close()
+
+		out, err := gfio.OpenIn(snpsOutfile)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		err = snps.SNPs(ref, query, out)
 
 		return
 	},

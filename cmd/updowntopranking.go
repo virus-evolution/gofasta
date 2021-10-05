@@ -1,8 +1,14 @@
 package cmd
 
 import (
+	"bufio"
+	"errors"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/updown"
 )
 
@@ -93,7 +99,85 @@ You can combine the two types of flag (size and dist), to return only the closes
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = updown.TopRanking(TRquery, TRtarget, TRoutfile, udReference, TRignore,
+		var qtype string
+		var ttype string
+
+		switch filepath.Ext(TRquery) {
+		case ".csv":
+			qtype = "csv"
+		case ".fasta":
+			qtype = "fasta"
+		case ".fa":
+			qtype = "fasta"
+		default:
+			return errors.New("couldn't tell if --query was a .csv or a .fasta file")
+		}
+
+		switch filepath.Ext(TRtarget) {
+		case ".csv":
+			ttype = "csv"
+		case ".fasta":
+			ttype = "fasta"
+		case ".fa":
+			ttype = "fasta"
+		default:
+			return errors.New("couldn't tell if --target was a .csv or a .fasta file")
+		}
+
+		if (qtype == "fasta" || ttype == "fasta") && len(udReference) == 0 {
+			return errors.New("if your either of your input files are fastas, you must provide a --reference")
+		}
+
+		// targets to ignore (potentially):
+		ignoreArray := make([]string, 0)
+		if len(TRignore) != 0 {
+			f, err := os.Open(TRignore)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			s := bufio.NewScanner(f)
+			for s.Scan() {
+				ignoreArray = append(ignoreArray, s.Text())
+			}
+			err = s.Err()
+			if err != nil {
+				return err
+			}
+		}
+
+		query, err := gfio.OpenIn(TRquery)
+		if err != nil {
+			return err
+		}
+		defer query.Close()
+
+		target, err := gfio.OpenIn(TRtarget)
+		if err != nil {
+			return err
+		}
+		defer target.Close()
+
+		ref, err := gfio.OpenIn(udReference)
+		if err != nil {
+			return err
+		}
+		defer ref.Close()
+
+		ignore, err := gfio.OpenIn(TRignore)
+		if err != nil {
+			return err
+		}
+		defer ignore.Close()
+
+		out, err := gfio.OpenOut(TRoutfile)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		err = updown.TopRanking(query, target, ref, out,
+			qtype, ttype, ignoreArray,
 			TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 			TRdistall, TRdistup, TRdistdown, TRdistside,
 			TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)

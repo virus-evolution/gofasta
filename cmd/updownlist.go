@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/updown"
 )
 
@@ -22,7 +23,7 @@ func init() {
 var updownListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "generate input CSV files for gofasta updown topranking",
-	Long:  `generate input CSV files for gofasta updown topranking
+	Long: `generate input CSV files for gofasta updown topranking
 
 Example usage:
 
@@ -39,7 +40,25 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = updown.List(udReference, UDListQuery, UDListOutfile)
+		ref, err := gfio.OpenIn(udReference)
+		if err != nil {
+			return err
+		}
+		defer ref.Close()
+
+		query, err := gfio.OpenIn(UDListQuery)
+		if err != nil {
+			return err
+		}
+		defer query.Close()
+
+		out, err := gfio.OpenOut(UDListOutfile)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		err = updown.List(ref, query, out)
 
 		return
 	},

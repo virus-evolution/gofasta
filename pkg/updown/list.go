@@ -3,6 +3,7 @@ package updown
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strconv"
@@ -105,29 +106,18 @@ func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updo
 
 // writeOutput writes the output to stdout or a file as it arrives.
 // It uses a map to write things in the same order as they are in the input file.
-func writeOutput(outFile string, cudLs chan updownLine, cErr chan error, cWriteDone chan bool) {
+func writeOutput(w io.Writer, cudLs chan updownLine, cErr chan error, cWriteDone chan bool) {
 
 	outputMap := make(map[int]updownLine)
 
 	counter := 0
 
-	var f *os.File
 	var err error
 
-	if outFile != "stdout" {
-		f, err = os.Create(outFile)
-		if err != nil {
-			cErr <- err
-		}
-	} else {
-		f = os.Stdout
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("query,SNPs,ambiguities,SNPcount,ambcount\n")
+	_, err = w.Write([]byte("query,SNPs,ambiguities,SNPcount,ambcount\n"))
 	if err != nil {
 		cErr <- err
+		return
 	}
 
 	var ambstrings []string
@@ -144,9 +134,10 @@ func writeOutput(outFile string, cudLs chan updownLine, cErr chan error, cWriteD
 					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
 				}
 			}
-			_, err := f.WriteString(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n")
+			_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
 			if err != nil {
 				cErr <- err
+				return
 			}
 			delete(outputMap, counter)
 			counter++
@@ -169,9 +160,10 @@ func writeOutput(outFile string, cudLs chan updownLine, cErr chan error, cWriteD
 				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
 			}
 		}
-		_, err := f.WriteString(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n")
+		_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
 		if err != nil {
 			cErr <- err
+			return
 		}
 		delete(outputMap, counter)
 		counter++
@@ -181,7 +173,7 @@ func writeOutput(outFile string, cudLs chan updownLine, cErr chan error, cWriteD
 }
 
 // List gets a list of ATGC SNPs and ambiguous sites for each query
-func List(referenceFile string, alignmentFile string, outFile string) error {
+func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cErr := make(chan error)
 
@@ -193,7 +185,7 @@ func List(referenceFile string, alignmentFile string, outFile string) error {
 
 	cWriteDone := make(chan bool)
 
-	temp, err := fastaio.ReadEncodeAlignmentToList(referenceFile)
+	temp, err := fastaio.ReadEncodeAlignmentToList(reference)
 	if err != nil {
 		return err
 	}
@@ -212,9 +204,9 @@ func List(referenceFile string, alignmentFile string, outFile string) error {
 		}
 	}
 
-	go fastaio.ReadEncodeAlignment(alignmentFile, cFR, cErr, cFRDone)
+	go fastaio.ReadEncodeAlignment(alignment, cFR, cErr, cFRDone)
 
-	go writeOutput(outFile, cudLs, cErr, cWriteDone)
+	go writeOutput(out, cudLs, cErr, cWriteDone)
 
 	var wgudLs sync.WaitGroup
 	wgudLs.Add(runtime.NumCPU())

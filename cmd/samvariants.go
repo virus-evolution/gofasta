@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/sam"
 )
 
@@ -21,7 +22,7 @@ func init() {
 var variantCmd = &cobra.Command{
 	Use:   "variants",
 	Short: "Call variants between ref and query from a SAM file",
-	Long:  `Call variants between a reference sequence and query sequences aligned in sam format
+	Long: `Call variants between a reference sequence and query sequences aligned in sam format
 
 Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -g annotation.gb -o variants.csv
@@ -35,7 +36,31 @@ the variants to stdout.`,
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = sam.Variants(samFile, samReference, variantGenbankFile, variantOutfile, samThreads)
+		samIn, err := gfio.OpenIn(samFile)
+		if err != nil {
+			return err
+		}
+		defer samIn.Close()
+
+		ref, err := gfio.OpenIn(samReference)
+		if err != nil {
+			return err
+		}
+		defer ref.Close()
+
+		genbank, err := gfio.OpenIn(variantGenbankFile)
+		if err != nil {
+			return err
+		}
+		defer genbank.Close()
+
+		out, err := gfio.OpenOut(variantOutfile)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		err = sam.Variants(samIn, ref, genbank, out, samThreads)
 
 		return err
 	},

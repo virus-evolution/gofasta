@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/sam"
 )
 
@@ -45,7 +46,19 @@ the fasta file to stdout, e.g.:
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = sam.ToMultiAlign(samFile, samReference, toMultiAlignOutfile, toMultiAlignTrim, toMultiAlignPad, toMultiAlignTrimStart, toMultiAlignTrimEnd, samThreads)
+		samIn, err := gfio.OpenIn(samFile)
+		if err != nil {
+			return err
+		}
+		defer samIn.Close()
+
+		out, err := gfio.OpenOut(toMultiAlignOutfile)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		err = sam.ToMultiAlign(samIn, out, toMultiAlignTrim, toMultiAlignPad, toMultiAlignTrimStart, toMultiAlignTrimEnd, samThreads)
 
 		return
 	},

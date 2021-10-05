@@ -2,6 +2,7 @@ package sam
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 
@@ -12,13 +13,13 @@ import (
 	"github.com/cov-ert/gofasta/pkg/variants"
 )
 
-func Variants(samfile string, referencefile string, gbfile string, outfile string, threads int) error {
+func Variants(samIn, ref, gb io.Reader, out io.Writer, threads int) error {
 
 	cErr := make(chan error)
 	cRef := make(chan fastaio.FastaRecord)
 	cRefDone := make(chan bool)
 
-	go fastaio.ReadAlignment(referencefile, cRef, cErr, cRefDone)
+	go fastaio.ReadAlignment(ref, cRef, cErr, cRefDone)
 
 	var refSeq string
 
@@ -37,7 +38,7 @@ func Variants(samfile string, referencefile string, gbfile string, outfile strin
 	}
 
 	// get a list of CDS + intergenic regions from the genbank file
-	regions, err := variants.GetRegions(gbfile)
+	regions, err := variants.GetRegions(gb)
 	if err != nil {
 		return err
 	}
@@ -54,9 +55,9 @@ func Variants(samfile string, referencefile string, gbfile string, outfile strin
 	cVariantsDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go variants.WriteVariants(outfile, cVariants, cWriteDone, cErr)
+	go variants.WriteVariants(out, cVariants, cWriteDone, cErr)
 
-	go groupSamRecords(samfile, cSH, cSR, cReadDone, cErr)
+	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
 	_ = <-cSH
 

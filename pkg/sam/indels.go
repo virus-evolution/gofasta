@@ -27,24 +27,14 @@ type delOccurrence struct {
 	length int
 }
 
-func getSamRecords(infile string, chnl chan biogosam.Record, cdone chan bool, cerr chan error) {
+func getSamRecords(in io.Reader, chnl chan biogosam.Record, cdone chan bool, cerr chan error) {
 
 	var err error
 
-	f := os.Stdin
-
-	if len(infile) > 0 {
-		f, err = os.Open(infile)
-		if err != nil {
-			cerr <- err
-		}
-	}
-
-	defer f.Close()
-
-	s, err := biogosam.NewReader(f)
+	s, err := biogosam.NewReader(in)
 	if err != nil {
 		cerr <- err
+		return
 	}
 
 	for {
@@ -57,6 +47,7 @@ func getSamRecords(infile string, chnl chan biogosam.Record, cdone chan bool, ce
 		} else if err != nil {
 
 			cerr <- err
+			return
 
 		} else {
 			// if this read is unmapped, then skip it.
@@ -98,6 +89,7 @@ func getIndels(cSR chan biogosam.Record, cIns chan insOccurrence, cDel chan delO
 
 		if POS < 0 {
 			cErr <- errors.New("unmapped read")
+			return
 		}
 
 		SEQ := samLine.Seq.Expand()
@@ -201,7 +193,9 @@ func populateDelMap(cDel chan delOccurrence, cDelMap chan map[int]map[int][]stri
 	cDelMap <- delMap
 }
 
-func writeInsMap(outfile string, insmap map[int]map[string][]string, threshold int) error {
+func writeInsMap(w io.Writer, insmap map[int]map[string][]string, threshold int) error {
+
+	var err error
 
 	keys := make([]int, 0, len(insmap))
 	for k := range insmap {
@@ -209,14 +203,7 @@ func writeInsMap(outfile string, insmap map[int]map[string][]string, threshold i
 	}
 	sort.Ints(keys)
 
-	f, err := os.Create(outfile)
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("ref_start\tinsertion\tsamples\n")
+	_, err = w.Write([]byte("ref_start\tinsertion\tsamples\n"))
 	if err != nil {
 		return err
 	}
@@ -231,7 +218,7 @@ func writeInsMap(outfile string, insmap map[int]map[string][]string, threshold i
 			c2 := v
 			c3 := strings.Join(insmap[k][v], "|")
 
-			_, err = f.WriteString(c1 + "\t" + c2 + "\t" + c3 + "\n")
+			_, err = w.Write([]byte(c1 + "\t" + c2 + "\t" + c3 + "\n"))
 			if err != nil {
 				return err
 			}
@@ -241,7 +228,9 @@ func writeInsMap(outfile string, insmap map[int]map[string][]string, threshold i
 	return nil
 }
 
-func writeDelMap(outfile string, delmap map[int]map[int][]string, threshold int) error {
+func writeDelMap(w io.Writer, delmap map[int]map[int][]string, threshold int) error {
+
+	var err error
 
 	keys := make([]int, 0, len(delmap))
 	for k := range delmap {
@@ -249,14 +238,7 @@ func writeDelMap(outfile string, delmap map[int]map[int][]string, threshold int)
 	}
 	sort.Ints(keys)
 
-	f, err := os.Create(outfile)
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("ref_start\tlength\tsamples\n")
+	_, err = w.Write([]byte("ref_start\tlength\tsamples\n"))
 	if err != nil {
 		return err
 	}
@@ -271,7 +253,7 @@ func writeDelMap(outfile string, delmap map[int]map[int][]string, threshold int)
 			c2 := strconv.Itoa(v)
 			c3 := strings.Join(delmap[k][v], "|")
 
-			_, err = f.WriteString(c1 + "\t" + c2 + "\t" + c3 + "\n")
+			_, err = w.Write([]byte(c1 + "\t" + c2 + "\t" + c3 + "\n"))
 			if err != nil {
 				return err
 			}
@@ -281,7 +263,7 @@ func writeDelMap(outfile string, delmap map[int]map[int][]string, threshold int)
 	return nil
 }
 
-func Indels(samFile string, insOut string, delOut string, threshold int) error {
+func Indels(samFile io.Reader, insOut, delOut io.Writer, threshold int) error {
 
 	fmt.Println("sam indels is deprecated and may be removed in a future version. Please use sam variants instead.")
 

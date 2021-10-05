@@ -2,7 +2,7 @@ package genbank
 
 import (
 	"bufio"
-	"os"
+	"io"
 	"strconv"
 	"strings"
 	"unicode"
@@ -264,17 +264,11 @@ func parseGenbankORIGIN(field genbankField) []byte {
 // ReadGenBank reads a genbank annotation file and returns a struct that contains
 // parsed versions of the fields therein.
 // Not all fields are currently parsed.
-func ReadGenBank(infile string) (Genbank, error) {
+func ReadGenBank(r io.Reader) (Genbank, error) {
 
 	gb := Genbank{}
 
-	f, err := os.Open(infile)
-	if err != nil {
-		return Genbank{}, err
-	}
-	defer f.Close()
-
-	s := bufio.NewScanner(f)
+	s := bufio.NewScanner(r)
 
 	first := true
 	var header string

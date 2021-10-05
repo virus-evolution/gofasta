@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/sam"
 )
 
@@ -37,7 +38,19 @@ var toPairAlignCmd = &cobra.Command{
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = sam.ToPairAlign(samFile, samReference, toPairAlignOutpath, toPairAlignTrim, toPairAlignTrimStart, toPairAlignTrimEnd, toPairAlignOmitReference, toPairAlignSkipInsertions, samThreads)
+		samIn, err := gfio.OpenIn(samFile)
+		if err != nil {
+			return err
+		}
+		defer samIn.Close()
+
+		ref, err := gfio.OpenIn(samReference)
+		if err != nil {
+			return err
+		}
+		defer ref.Close()
+
+		err = sam.ToPairAlign(samIn, ref, toPairAlignOutpath, toPairAlignTrim, toPairAlignTrimStart, toPairAlignTrimEnd, toPairAlignOmitReference, toPairAlignSkipInsertions, samThreads)
 
 		return err
 	},

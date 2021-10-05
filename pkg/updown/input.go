@@ -1,14 +1,13 @@
 package updown
 
 import (
-	"io"
-	"os"
-	"sync"
-	"errors"
-	"strings"
-	"strconv"
-	"runtime"
 	"encoding/csv"
+	"errors"
+	"io"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
 )
@@ -20,7 +19,7 @@ func getAmbArr(s string) ([]int, error) {
 	}
 	ambs := strings.Split(s, "|")
 	A := make([]int, 0)
-	for _, a := range(ambs) {
+	for _, a := range ambs {
 		asplit := strings.Split(a, "-")
 		if len(asplit) == 1 {
 			a1, err := strconv.Atoi(asplit[0])
@@ -56,7 +55,7 @@ func headerEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i, _ := range(a) {
+	for i, _ := range a {
 		if a[i] != b[i] {
 			return false
 		}
@@ -64,18 +63,13 @@ func headerEqual(a, b []string) bool {
 	return true
 }
 
-func readCSVToChan(inFile string, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
-	f, err := os.Open(inFile)
-	if err != nil {
-		cErr<- err
-	}
-	defer f.Close()
+func readCSVToChan(in io.Reader, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
 
 	var snps []string
 	var snpPos []int
 
 	header := true
-	r := csv.NewReader(f)
+	r := csv.NewReader(in)
 
 	for {
 		record, err := r.Read()
@@ -83,27 +77,31 @@ func readCSVToChan(inFile string, cudL chan updownLine, cErr chan error, cReadDo
 			break
 		}
 		if err != nil {
-			cErr<- err
+			cErr <- err
+			return
 		}
 		if header {
-			if ! headerEqual(record, []string{"query","SNPs","ambiguities","SNPcount","ambcount"}) {
-				cErr<- errors.New("bad header when parsing --target csv: is this the output of gofasta updown list?")
+			if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
+				cErr <- errors.New("bad header when parsing --target csv: is this the output of gofasta updown list?")
+				return
 			}
 			header = false
 			continue
 		}
 		a, err := getAmbArr(record[2])
 		if err != nil {
-			cErr<- err
+			cErr <- err
+			return
 		}
 
 		if len(record[1]) > 0 {
 			snps = strings.Split(record[1], "|")
 			snpPos = make([]int, len(snps))
-			for i, snp := range(snps) {
-				snpPos[i], err = strconv.Atoi(snp[1:len(snp) - 1])
+			for i, snp := range snps {
+				snpPos[i], err = strconv.Atoi(snp[1 : len(snp)-1])
 				if err != nil {
-					cErr<- err
+					cErr <- err
+					return
 				}
 			}
 		} else {
@@ -113,22 +111,18 @@ func readCSVToChan(inFile string, cudL chan updownLine, cErr chan error, cReadDo
 
 		amb_count, err := strconv.Atoi(record[4])
 		if err != nil {
-			cErr<- err
+			cErr <- err
+			return
 		}
 
 		udL := updownLine{id: record[0], snps: snps, snpsPos: snpPos, ambs: a, ambCount: amb_count}
-		cudL<- udL
+		cudL <- udL
 	}
 
-	cReadDone<- true
+	cReadDone <- true
 }
 
-func readCSVToList(inFile string) ([]updownLine, error) {
-	f, err := os.Open(inFile)
-	if err != nil {
-		return make([]updownLine, 0), err
-	}
-	defer f.Close()
+func readCSVToList(in io.Reader) ([]updownLine, error) {
 
 	LudL := make([]updownLine, 0)
 
@@ -136,7 +130,7 @@ func readCSVToList(inFile string) ([]updownLine, error) {
 	var snpPos []int
 
 	header := true
-	r := csv.NewReader(f)
+	r := csv.NewReader(in)
 
 	counter := 0
 	for {
@@ -148,7 +142,7 @@ func readCSVToList(inFile string) ([]updownLine, error) {
 			return make([]updownLine, 0), err
 		}
 		if header {
-			if ! headerEqual(record,[]string{"query","SNPs","ambiguities","SNPcount","ambcount"}) {
+			if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
 				return make([]updownLine, 0), errors.New("bad header when parsing --query csv: is this file the output of gofasta updown list?")
 			}
 			header = false
@@ -162,8 +156,8 @@ func readCSVToList(inFile string) ([]updownLine, error) {
 		if len(record[1]) > 0 {
 			snps = strings.Split(record[1], "|")
 			snpPos = make([]int, len(snps))
-			for i, snp := range(snps) {
-				snpPos[i], err = strconv.Atoi(snp[1:len(snp) - 1])
+			for i, snp := range snps {
+				snpPos[i], err = strconv.Atoi(snp[1 : len(snp)-1])
 				if err != nil {
 					return make([]updownLine, 0), err
 				}
@@ -185,7 +179,7 @@ func readCSVToList(inFile string) ([]updownLine, error) {
 	return LudL, nil
 }
 
-func fastaToUDLslice(infile string, refSeq []byte) ([]updownLine, error) {
+func fastaToUDLslice(in io.Reader, refSeq []byte) ([]updownLine, error) {
 
 	var udla []updownLine
 
@@ -197,7 +191,7 @@ func fastaToUDLslice(infile string, refSeq []byte) ([]updownLine, error) {
 	cudLsDone := make(chan bool)
 	cArrayDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(infile, cFR, cInternalErr, cFRDone)
+	go fastaio.ReadEncodeAlignment(in, cFR, cInternalErr, cFRDone)
 
 	var wgudLs sync.WaitGroup
 	wgudLs.Add(1)
@@ -209,14 +203,14 @@ func fastaToUDLslice(infile string, refSeq []byte) ([]updownLine, error) {
 
 	go func() {
 		wgudLs.Wait()
-		cudLsDone<- true
+		cudLsDone <- true
 	}()
 
 	go func() {
-		for udl := range(cudLs) {
+		for udl := range cudLs {
 			udla = append(udla, udl)
 		}
-		cArrayDone<- true
+		cArrayDone <- true
 	}()
 
 	for n := 1; n > 0; {
@@ -255,11 +249,11 @@ func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
 
 	counter := 0
 
-	for input := range(cIn) {
+	for input := range cIn {
 		reorderMap[input.idx] = input
 		if output, ok := reorderMap[counter]; ok {
 
-			cOut<- output
+			cOut <- output
 
 			delete(reorderMap, counter)
 			counter++
@@ -275,16 +269,16 @@ func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
 		}
 		output := reorderMap[counter]
 
-		cOut<- output
+		cOut <- output
 
 		delete(reorderMap, counter)
 		counter++
 	}
 
-	cReorderDone<- true
+	cReorderDone <- true
 }
 
-func readFastaToChan(target string, refSeq []byte, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
+func readFastaToChan(target io.Reader, refSeq []byte, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
 	cInternalErr := make(chan error)
 
 	cFR := make(chan fastaio.EncodedFastaRecord)
@@ -311,13 +305,14 @@ func readFastaToChan(target string, refSeq []byte, cudL chan updownLine, cErr ch
 
 	go func() {
 		wgudLs.Wait()
-		cudLsDone<- true
+		cudLsDone <- true
 	}()
 
 	for n := 1; n > 0; {
 		select {
 		case err := <-cInternalErr:
-			cErr<- err
+			cErr <- err
+			return
 		case <-cFRDone:
 			close(cFR)
 			n--
@@ -327,7 +322,8 @@ func readFastaToChan(target string, refSeq []byte, cudL chan updownLine, cErr ch
 	for n := 1; n > 0; {
 		select {
 		case err := <-cInternalErr:
-			cErr<- err
+			cErr <- err
+			return
 		case <-cudLsDone:
 			close(cReOrder)
 			n--
@@ -337,9 +333,10 @@ func readFastaToChan(target string, refSeq []byte, cudL chan updownLine, cErr ch
 	for n := 1; n > 0; {
 		select {
 		case err := <-cInternalErr:
-			cErr<- err
+			cErr <- err
+			return
 		case <-cReOrderDone:
-			cReadDone<- true
+			cReadDone <- true
 			n--
 		}
 	}

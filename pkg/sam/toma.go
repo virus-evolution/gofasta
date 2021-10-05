@@ -2,7 +2,7 @@ package sam
 
 import (
 	"errors"
-	"os"
+	"io"
 	"sync"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
@@ -82,74 +82,9 @@ func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, 
 	return
 }
 
-// writeAlignmentOut reads fasta records from a channel and writes them to a single
-// outfile, in the order in which they are present in the input file.
-// It passes a true to a done channel when the channel of fasta records is empty
-func writeAlignmentOut(ch chan fastaio.FastaRecord, outfile string, cdone chan bool, cerr chan error) {
-
-	outputMap := make(map[int]fastaio.FastaRecord)
-
-	counter := 0
-
-	var f *os.File
-	var err error
-
-	if outfile != "stdout" {
-		f, err = os.Create(outfile)
-		if err != nil {
-			cerr <- err
-		}
-	} else {
-		f = os.Stdout
-	}
-
-	defer f.Close()
-
-	for FR := range ch {
-
-		outputMap[FR.Idx] = FR
-
-		if fastarecord, ok := outputMap[counter]; ok {
-			_, err = f.WriteString(">" + fastarecord.ID + "\n")
-			if err != nil {
-				cerr <- err
-			}
-			_, err = f.WriteString(fastarecord.Seq + "\n")
-			if err != nil {
-				cerr <- err
-			}
-			delete(outputMap, counter)
-			counter++
-		} else {
-			continue
-		}
-	}
-
-	for n := 1; n > 0; {
-		if len(outputMap) == 0 {
-			break
-		}
-		fastarecord := outputMap[counter]
-		_, err = f.WriteString(">" + fastarecord.ID + "\n")
-		if err != nil {
-			cerr <- err
-		}
-		_, err = f.WriteString(fastarecord.Seq + "\n")
-		if err != nil {
-			cerr <- err
-		}
-		delete(outputMap, counter)
-		counter++
-	}
-
-	cdone <- true
-}
-
 // ToMultiAlign converts a SAM file to a fasta-format alignment
 // Insertions relative to the reference are discarded.
-func ToMultiAlign(infile string, reffile string, outfile string, trim bool, pad bool, trimstart int,
-	trimend int, threads int) error {
-
+func ToMultiAlign(samIn io.Reader, out io.Writer, trim bool, pad bool, trimstart int, trimend int, threads int) error {
 
 	cSR := make(chan samRecords, threads)
 	cReadDone := make(chan bool)
@@ -163,7 +98,7 @@ func ToMultiAlign(infile string, reffile string, outfile string, trim bool, pad 
 
 	cWaitGroupDone := make(chan bool)
 
-	go groupSamRecords(infile, cSH, cSR, cReadDone, cErr)
+	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
 	header := <-cSH
 	refLen := header.Refs()[0].Len()
@@ -173,7 +108,7 @@ func ToMultiAlign(infile string, reffile string, outfile string, trim bool, pad 
 		return err
 	}
 
-	go writeAlignmentOut(cFR, outfile, cWriteDone, cErr)
+	go fastaio.WriteAlignment(cFR, out, cWriteDone, cErr)
 
 	var wg sync.WaitGroup
 	wg.Add(threads)

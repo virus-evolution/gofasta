@@ -90,48 +90,55 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 		}
 	}
 
+	// copy the sequences into new slices
 	refSeqArray := make([][]byte, len(alignedBlock.seqpairArray))
 	queSeqArray := make([][]byte, len(alignedBlock.seqpairArray))
+	for i := range alignedBlock.seqpairArray {
+		refSeqArray[i] = alignedBlock.seqpairArray[i].ref
+		queSeqArray[i] = alignedBlock.seqpairArray[i].query
+	}
 
+	// if there are insertions, we need to modify these new slices
 	if len(insertions) > 0 {
 		sort.Sort(byStart(insertions))
 
+		// if we are going to insert multiple insertions into one pair then we will need to keep track
+		// of the coordinate offset after the first one
+		offsets := make([]int, len(alignedBlock.seqpairArray))
+
+		// for every insertion
 		for _, insertion := range insertions {
+			// this is the pair it is already present in, which we will skip:
 			rowNumber := insertion.rowNumber
 			for j, seqPair := range alignedBlock.seqpairArray {
 				// don't reinsert - the insertion already exists in this one
 				if j == rowNumber {
-					refSeqArray[j] = seqPair.ref
-					queSeqArray[j] = seqPair.query
 					continue
 				}
 
-				// some lines will never get this far
-				if insertion.start > len(seqPair.ref) {
-					refSeqArray[j] = seqPair.ref
-					queSeqArray[j] = seqPair.query
+				// if the insertions starts after the (offset) length of this sequence,
+				// we don't have to do anything to this pair here
+				if insertion.start > len(alignedBlock.seqpairArray[j].ref)-offsets[j] {
 					continue
 				}
 
+				// otherwise, we make a slice of gaps to insert into the slices
 				gaps := make([]byte, insertion.length)
-				for i, _ := range gaps {
-					gaps[i] = '-'
+				for k := range gaps {
+					gaps[k] = '-'
 				}
 
-				refSeqArray[j] = seqPair.ref[:insertion.start]
+				refSeqArray[j] = refSeqArray[j][:insertion.start+offsets[j]]
 				refSeqArray[j] = append(refSeqArray[j], gaps...)
-				refSeqArray[j] = append(refSeqArray[j], seqPair.ref[insertion.start:]...)
+				refSeqArray[j] = append(refSeqArray[j], seqPair.ref[insertion.start+offsets[j]:]...)
 
-				queSeqArray[j] = seqPair.query[:insertion.start]
+				queSeqArray[j] = seqPair.query[:insertion.start+offsets[j]]
 				queSeqArray[j] = append(queSeqArray[j], gaps...)
-				queSeqArray[j] = append(queSeqArray[j], seqPair.query[insertion.start:]...)
-			}
-		}
+				queSeqArray[j] = append(queSeqArray[j], seqPair.query[insertion.start+offsets[j]:]...)
 
-	} else {
-		for i, seqPair := range alignedBlock.seqpairArray {
-			refSeqArray[i] = seqPair.ref
-			queSeqArray[i] = seqPair.query
+				// and we add the relevant offset to account for this insertion in future coordinates
+				offsets[j] += insertion.length
+			}
 		}
 	}
 

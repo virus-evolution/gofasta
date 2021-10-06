@@ -19,13 +19,13 @@ func init() {
 
 	toPairAlignCmd.Flags().StringVarP(&toPairAlignOutpath, "outpath", "o", "", "Output path where fasta files will be written")
 	toPairAlignCmd.Flags().BoolVarP(&toPairAlignOmitReference, "omit-reference", "", false, "Omit the reference sequences from the output alignments")
-	toPairAlignCmd.Flags().BoolVarP(&toPairAlignSkipInsertions, "skip-insertions", "", false, "Skip insertions relative to the reference")
+	toPairAlignCmd.Flags().BoolVarP(&toPairAlignSkipInsertions, "omit-insertions", "", false, "Omit insertions relative to the reference from the output alignments")
 	toPairAlignCmd.Flags().BoolVarP(&toPairAlignTrim, "trim", "", false, "Trim the alignment (to reference coordinates")
 	toPairAlignCmd.Flags().IntVarP(&toPairAlignTrimStart, "trimstart", "", -1, "Start coordinate for trimming (0-based, half open)")
 	toPairAlignCmd.Flags().IntVarP(&toPairAlignTrimEnd, "trimend", "", -1, "End coordinate for trimming (0-based, half open)")
 
 	toPairAlignCmd.Flags().Lookup("omit-reference").NoOptDefVal = "true"
-	toPairAlignCmd.Flags().Lookup("skip-insertions").NoOptDefVal = "true"
+	toPairAlignCmd.Flags().Lookup("omit-insertions").NoOptDefVal = "true"
 
 	toPairAlignCmd.Flags().SortFlags = false
 }

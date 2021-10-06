@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strconv"
 	"unicode"
 	"unicode/utf8"
 
@@ -178,7 +179,7 @@ func getSetFromSlice(s []byte) []byte {
 // has secondary mappings (multiple records/lines) in the SAM file.
 // * If there is more than one alphabetic character at this site, an N is returned.
 // * Alphabetic characters override '-'s and '*'s
-func getNucFromSite(s []byte, qname string) byte {
+func getNucFromSite(s []byte, qname string, pos int) byte {
 
 	check := 0
 
@@ -192,7 +193,7 @@ func getNucFromSite(s []byte, qname string) byte {
 	}
 
 	if check > 1 {
-		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + string(ss) + "\n")
+		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + strconv.Itoa(pos) + ": " + string(ss) + "\n")
 		return 'N'
 	}
 
@@ -217,7 +218,7 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 		for i, _ := range block {
 			site[i] = block[i][j]
 		}
-		nuc := getNucFromSite(site, qname)
+		nuc := getNucFromSite(site, qname, j)
 		seq[j] = nuc
 	}
 

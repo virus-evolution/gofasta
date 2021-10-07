@@ -538,7 +538,7 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 	}
 }
 
-func FormatVariant(v Variant, cErr chan error) string {
+func FormatVariant(v Variant) (string, error) {
 	var s string
 
 	switch v.Changetype {
@@ -551,10 +551,10 @@ func FormatVariant(v Variant, cErr chan error) string {
 	case "aa":
 		s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue+1) + v.QueAl
 	default:
-		cErr <- errors.New("couldn't parse variant type")
+		return "", errors.New("couldn't parse variant type")
 	}
 
-	return s
+	return s, nil
 }
 
 func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
@@ -569,6 +569,7 @@ func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool
 	_, err = w.Write([]byte("query,variants\n"))
 	if err != nil {
 		cErr <- err
+		return
 	}
 
 	for variantLine := range cVariants {
@@ -585,14 +586,21 @@ func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool
 			_, err = w.Write([]byte(VL.Queryname + ","))
 			if err != nil {
 				cErr <- err
+				return
 			}
 			sa = make([]string, 0)
 			for _, v := range VL.Vs {
-				sa = append(sa, FormatVariant(v, cErr))
+				newVar, err := FormatVariant(v)
+				if err != nil {
+					cErr <- err
+					return
+				}
+				sa = append(sa, newVar)
 			}
 			_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
 			if err != nil {
 				cErr <- err
+				return
 			}
 
 			delete(outputMap, counter)
@@ -617,14 +625,21 @@ func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool
 		_, err = w.Write([]byte(VL.Queryname + ","))
 		if err != nil {
 			cErr <- err
+			return
 		}
 		sa = make([]string, 0)
 		for _, v := range VL.Vs {
-			sa = append(sa, FormatVariant(v, cErr))
+			newVar, err := FormatVariant(v)
+			if err != nil {
+				cErr <- err
+				return
+			}
+			sa = append(sa, newVar)
 		}
 		_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
 		if err != nil {
 			cErr <- err
+			return
 		}
 
 		delete(outputMap, counter)

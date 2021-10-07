@@ -2,6 +2,7 @@ package variants
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -61,6 +62,21 @@ func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) erro
 		return err
 	}
 
+	// move the reader back to the beginning of the alignment, because we are scanning through it twice
+	// NB - is there a more elegant way to do this?
+	switch x := msaIn.(type) {
+	case *os.File:
+		_, err = x.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
+	case *bytes.Reader:
+		_, err = x.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
+	}
+
 	if len(ref.Seq) == 0 {
 		EA := encoding.MakeEncodingArray()
 		encodedrefseq := make([]byte, len(gb.ORIGIN))
@@ -68,6 +84,20 @@ func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) erro
 			encodedrefseq[i] = EA[gb.ORIGIN[i]]
 		}
 		ref = fastaio.EncodedFastaRecord{ID: "genbank_source", Seq: encodedrefseq}
+	}
+
+	// move the reader back to the beginning of the genbank file
+	switch y := gbIn.(type) {
+	case *os.File:
+		_, err = y.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
+	case *bytes.Reader:
+		_, err = y.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
 	}
 
 	// get a list of CDS + intergenic regions from the genbank file

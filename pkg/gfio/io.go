@@ -25,7 +25,7 @@ func OpenOut(outFile string) (*os.File, error) {
 	var f *os.File
 
 	if outFile != "stdout" {
-		f, err = os.Open(outFile)
+		f, err = os.Create(outFile)
 		if err != nil {
 			return f, err
 		}

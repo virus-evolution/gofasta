@@ -429,11 +429,11 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 		}
 	}
 
-	if len(neighbours.same.catchment) < sizeArray[0] && len(neighbours.same.catchment) > 0 {
+	if len(neighbours.same.catchment) < sizetotal && len(neighbours.same.catchment) > 0 {
 		rearrangeCatchment(&neighbours.same, len(neighbours.same.catchment))
 	}
 
-	if len(neighbours.up.catchment) < sizeArray[1] && len(neighbours.up.catchment) > 0 {
+	if len(neighbours.up.catchment) < sizetotal && len(neighbours.up.catchment) > 0 {
 		rearrangeCatchment(&neighbours.up, len(neighbours.up.catchment))
 	} else if len(neighbours.up.catchment) == 0 && len(pushup.catchmentMap) > 0 {
 		neighbours.up = pushCatchment2Catchment(pushup)
@@ -441,7 +441,7 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 		os.Stderr.WriteString("dist-up for " + q.id + " has been pushed to: " + strconv.Itoa(pushup.maxDist) + "\n")
 	}
 
-	if len(neighbours.down.catchment) < sizeArray[2] && len(neighbours.down.catchment) > 0 {
+	if len(neighbours.down.catchment) < sizetotal && len(neighbours.down.catchment) > 0 {
 		rearrangeCatchment(&neighbours.down, len(neighbours.down.catchment))
 	} else if len(neighbours.down.catchment) == 0 && len(pushdown.catchmentMap) > 0 {
 		neighbours.down = pushCatchment2Catchment(pushdown)
@@ -449,7 +449,7 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 		os.Stderr.WriteString("dist-down for " + q.id + " has been pushed to: " + strconv.Itoa(pushdown.maxDist) + "\n")
 	}
 
-	if len(neighbours.side.catchment) < sizeArray[3] && len(neighbours.side.catchment) > 0 {
+	if len(neighbours.side.catchment) < sizetotal && len(neighbours.side.catchment) > 0 {
 		rearrangeCatchment(&neighbours.side, len(neighbours.side.catchment))
 	} else if len(neighbours.side.catchment) == 0 && len(pushside.catchmentMap) > 0 {
 		neighbours.side = pushCatchment2Catchment(pushside)
@@ -590,16 +590,16 @@ func findUpDownCatchment(q updownLine, ignore []string, sizeArray [4]int, distAr
 		}
 	}
 
-	if len(neighbours.same.catchment) < sizeArray[0] && len(neighbours.same.catchment) > 0 {
+	if len(neighbours.same.catchment) < sizetotal && len(neighbours.same.catchment) > 0 {
 		rearrangeCatchment(&neighbours.same, len(neighbours.same.catchment))
 	}
-	if len(neighbours.up.catchment) < sizeArray[1] && len(neighbours.up.catchment) > 0 {
+	if len(neighbours.up.catchment) < sizetotal && len(neighbours.up.catchment) > 0 {
 		rearrangeCatchment(&neighbours.up, len(neighbours.up.catchment))
 	}
-	if len(neighbours.down.catchment) < sizeArray[2] && len(neighbours.down.catchment) > 0 {
+	if len(neighbours.down.catchment) < sizetotal && len(neighbours.down.catchment) > 0 {
 		rearrangeCatchment(&neighbours.down, len(neighbours.down.catchment))
 	}
-	if len(neighbours.side.catchment) < sizeArray[3] && len(neighbours.side.catchment) > 0 {
+	if len(neighbours.side.catchment) < sizetotal && len(neighbours.side.catchment) > 0 {
 		rearrangeCatchment(&neighbours.side, len(neighbours.side.catchment))
 	}
 

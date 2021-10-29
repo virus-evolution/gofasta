@@ -11,6 +11,12 @@ func TestClosestN(t *testing.T) {
 ATGATC
 >Target2
 ATGATG
+>Target3
+ATTAGG
+>Target4
+ATTATG
+>Target5
+ATTATT
 `)
 
 	queryData := []byte(
@@ -18,6 +24,8 @@ ATGATG
 ATGATG
 >Query2
 ATGATC
+>Query3
+ATTATT
 `)
 
 	target := bytes.NewReader(targetData)
@@ -34,6 +42,7 @@ ATGATC
 	if string(buf.Bytes()) != `query,closest
 Query1,Target2;Target1
 Query2,Target1;Target2
+Query3,Target5;Target4
 ` {
 		t.Errorf("problem in closest test")
 	}

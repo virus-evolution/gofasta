@@ -10,8 +10,12 @@ func TestClosest(t *testing.T) {
 		`>Target1
 ATGATC
 >Target2
-ATGATG
+WTGATG
 >Target3
+WTTTTC
+>Target4
+ATGATG
+>Target5
 ATTTTC
 `)
 
@@ -35,10 +39,12 @@ ATTTTG
 		t.Error(err)
 	}
 
+	// fmt.Println(string(out.Bytes()))
+
 	if string(out.Bytes()) != `query,closest,SNPdistance,SNPs
-Query1,Target2,0,
+Query1,Target4,0,
 Query2,Target1,0,
-Query3,Target3,1,6GC
+Query3,Target5,1,6GC
 ` {
 		t.Errorf("problem in closest test")
 	}

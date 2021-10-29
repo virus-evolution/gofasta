@@ -7,6 +7,32 @@ import (
 	"github.com/cov-ert/gofasta/pkg/encoding"
 )
 
+func TestGetAlignmentDims(t *testing.T) {
+	alignmentData := []byte(
+		`>Target1
+ATGATC
+>Target2
+ATGATG
+>Target3
+ATTTTC
+`)
+
+	alignment := bytes.NewReader(alignmentData)
+
+	n, l, err := getAlignmentDims(alignment)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if n != 3 {
+		t.Errorf("wrong number of sequences in TestGetAlignmentDims()")
+	}
+
+	if l != 6 {
+		t.Errorf("wrong number of sequences in TestGetAlignmentDims()")
+	}
+}
+
 func TestReadAlignment(t *testing.T) {
 	alignmentData := []byte(
 		`>Target1

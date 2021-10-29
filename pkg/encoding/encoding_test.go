@@ -1,8 +1,8 @@
 package encoding
 
 import (
-	"testing"
 	"strings"
+	"testing"
 )
 
 func intersectionStringArrays(A []string, B []string) []string {
@@ -18,68 +18,7 @@ func intersectionStringArrays(A []string, B []string) []string {
 	return intersection
 }
 
-// tests old encoding using maps
-func TestEncoding(t *testing.T) {
-
-	nucs := []string{"A", "G", "C", "T", "R", "M", "W", "S", "K", "Y", "V", "H", "D", "B", "N", "-", "?"}
-
-	lookupChar := make(map[string][]string)
-
-	lookupChar["A"] = []string{"A"}
-	lookupChar["C"] = []string{"C"}
-	lookupChar["G"] = []string{"G"}
-	lookupChar["T"] = []string{"T"}
-	lookupChar["R"] = []string{"A", "G"}
-	lookupChar["Y"] = []string{"C", "T"}
-	lookupChar["S"] = []string{"G", "C"}
-	lookupChar["W"] = []string{"A", "T"}
-	lookupChar["K"] = []string{"G", "T"}
-	lookupChar["M"] = []string{"A", "C"}
-	lookupChar["B"] = []string{"C", "G", "T"}
-	lookupChar["D"] = []string{"A", "G", "T"}
-	lookupChar["H"] = []string{"A", "C", "T"}
-	lookupChar["V"] = []string{"A", "C", "G"}
-	lookupChar["N"] = []string{"A", "C", "G", "T"}
-	lookupChar["?"] = []string{"A", "C", "G", "T"}
-	lookupChar["-"] = []string{"A", "C", "G", "T"}
-
-	lookupByte := MakeByteDict()
-
-	for i := 0; i < len(nucs); i++ {
-		for j := 0; j < len(nucs); j++ {
-			nuc1 := nucs[i]
-			nuc2 := nucs[j]
-
-			nuc1Chars := lookupChar[nuc1]
-			nuc2Chars := lookupChar[nuc2]
-
-			rune1 := []rune(nuc1)[0]
-			rune2 := []rune(nuc2)[0]
-
-			byte1 := lookupByte[rune1]
-			byte2 := lookupByte[rune2]
-
-			byteDifferent := (byte1 & byte2) < 16
-			byteSame := (byte1&8 == 8) && byte1 == byte2
-
-			nucDifferent := len(intersectionStringArrays(nuc1Chars, nuc2Chars)) == 0
-			nucSame := len(intersectionStringArrays([]string{nuc1}, []string{"A", "C", "G", "T"})) == 1 && nuc1 == nuc2
-
-			test := byteDifferent == nucDifferent && byteSame == nucSame
-
-			if !test {
-				t.Errorf("problem in encoding test: %s %s", nuc1, nuc2)
-			}
-		}
-	}
-}
-
-// tests new encoding using arrays
-func TestEncoding2(t *testing.T) {
-
-	nucs := []byte{'A', 'G', 'C', 'T', 'R', 'M', 'W', 'S', 'K', 'Y', 'V', 'H', 'D', 'B', 'N', '-', '?',
-			'a', 'g', 'c', 't', 'r', 'm', 'w', 's', 'k', 'y', 'v', 'h', 'd', 'b', 'n'}
-
+func makeLookupChar() map[byte][]string {
 	lookupChar := make(map[byte][]string)
 
 	lookupChar['A'] = []string{"A"}
@@ -115,6 +54,17 @@ func TestEncoding2(t *testing.T) {
 	lookupChar['?'] = []string{"A", "C", "G", "T"}
 	lookupChar['-'] = []string{"A", "C", "G", "T"}
 
+	return lookupChar
+}
+
+// tests new encoding using arrays
+func TestEncoding(t *testing.T) {
+
+	nucs := []byte{'A', 'G', 'C', 'T', 'R', 'M', 'W', 'S', 'K', 'Y', 'V', 'H', 'D', 'B', 'N', '-', '?',
+		'a', 'g', 'c', 't', 'r', 'm', 'w', 's', 'k', 'y', 'v', 'h', 'd', 'b', 'n'}
+
+	lookupChar := makeLookupChar()
+
 	lookupByte := MakeEncodingArray()
 
 	for i := 0; i < len(nucs); i++ {
@@ -146,16 +96,46 @@ func TestEncoding2(t *testing.T) {
 // tests new decoding using maps
 func TestDecoding(t *testing.T) {
 	nucs := []byte{'A', 'G', 'C', 'T', 'R', 'M', 'W', 'S', 'K', 'Y', 'V', 'H', 'D', 'B', 'N', '-', '?',
-			'a', 'g', 'c', 't', 'r', 'm', 'w', 's', 'k', 'y', 'v', 'h', 'd', 'b', 'n'}
+		'a', 'g', 'c', 't', 'r', 'm', 'w', 's', 'k', 'y', 'v', 'h', 'd', 'b', 'n'}
 
 	EA := MakeEncodingArray()
 	DA := MakeDecodingArray()
 
-	for _, nuc := range(nucs) {
+	for _, nuc := range nucs {
 		a := EA[nuc]
 		b := DA[a]
 		if strings.ToUpper(string(nuc)) != b {
 			t.Errorf("problem in decoding test: %s", string(nuc))
+		}
+	}
+}
+
+func TestScoring(t *testing.T) {
+	SA := MakeScoreArray()
+	EA := MakeEncodingArray()
+	ESA := MakeEncodedScoreArray()
+
+	lookupChar := makeLookupChar()
+
+	for iupac1, nucs1 := range lookupChar {
+		for iupac2, nucs2 := range lookupChar {
+			score1 := SA[iupac1]
+			score2 := SA[iupac2]
+			if float64(score1/score2) != float64(len(nucs2)/len(nucs1)) {
+				t.Errorf("problem in scoring test")
+			}
+		}
+	}
+
+	for iupac1, nucs1 := range lookupChar {
+		iupac1 = EA[iupac1]
+		for iupac2, nucs2 := range lookupChar {
+			iupac2 = EA[iupac2]
+			score1 := ESA[iupac1]
+			score2 := ESA[iupac2]
+			if float64(score1/score2) != float64(len(nucs2)/len(nucs1)) {
+				t.Errorf("problem in scoring test")
+			}
 		}
 	}
 }

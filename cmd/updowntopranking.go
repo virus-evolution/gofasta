@@ -56,7 +56,7 @@ func init() {
 	toprankingCmd.Flags().IntVarP(&TRdistside, "dist-side", "", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
 
 	toprankingCmd.Flags().Float32VarP(&TRthresholdpair, "threshold-pair", "", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
-	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target must have fewer than this number of ambiguities to be considered")
+	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target can have at most this number of ambiguities to be considered")
 
 	toprankingCmd.Flags().BoolVarP(&TRnofill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
 	toprankingCmd.Flags().IntVarP(&TRdistpush, "dist-push", "", 0, "Push the SNP-distance boundaries for any empty bins to the closest n distances for which there are neighbours, where possible")

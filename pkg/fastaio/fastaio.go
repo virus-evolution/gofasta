@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/cov-ert/gofasta/pkg/encoding"
@@ -28,15 +27,9 @@ type EncodedFastaRecord struct {
 	Idx         int
 }
 
-func getAlignmentDims(infile string) (int, int, error) {
+func getAlignmentDims(f io.Reader) (int, int, error) {
 	n := 0
 	l := 0
-
-	f, err := os.Open(infile)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer f.Close()
 
 	s := bufio.NewScanner(f)
 
@@ -52,7 +45,7 @@ func getAlignmentDims(infile string) (int, int, error) {
 		}
 	}
 
-	err = s.Err()
+	err := s.Err()
 
 	if err != nil {
 		return 0, 0, err

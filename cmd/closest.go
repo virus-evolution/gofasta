@@ -50,19 +50,19 @@ is a ";"-delimited list of neighbours, closest first.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		queryIn, err := gfio.OpenIn(closestQuery)
+		queryIn, err := gfio.OpenIn(*cmd.Flag("query"))
 		if err != nil {
 			return err
 		}
 		defer queryIn.Close()
 
-		targetIn, err := gfio.OpenIn(closestTarget)
+		targetIn, err := gfio.OpenIn(*cmd.Flag("target"))
 		if err != nil {
 			return err
 		}
 		defer targetIn.Close()
 
-		closestOut, err := gfio.OpenOut(closestTarget)
+		closestOut, err := gfio.OpenOut(*cmd.Flag("outfile"))
 		if err != nil {
 			return err
 		}

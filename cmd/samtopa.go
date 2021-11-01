@@ -38,13 +38,13 @@ var toPairAlignCmd = &cobra.Command{
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		samIn, err := gfio.OpenIn(samFile)
+		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
 		if err != nil {
 			return err
 		}
 		defer samIn.Close()
 
-		ref, err := gfio.OpenIn(samReference)
+		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
 		if err != nil {
 			return err
 		}

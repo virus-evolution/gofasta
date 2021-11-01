@@ -46,13 +46,13 @@ the fasta file to stdout, e.g.:
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		samIn, err := gfio.OpenIn(samFile)
+		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
 		if err != nil {
 			return err
 		}
 		defer samIn.Close()
 
-		out, err := gfio.OpenOut(toMultiAlignOutfile)
+		out, err := gfio.OpenOut(*cmd.Flag("fasta-out"))
 		if err != nil {
 			return err
 		}

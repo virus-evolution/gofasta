@@ -36,25 +36,25 @@ the variants to stdout.`,
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		samIn, err := gfio.OpenIn(samFile)
+		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
 		if err != nil {
 			return err
 		}
 		defer samIn.Close()
 
-		ref, err := gfio.OpenIn(samReference)
+		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
 		if err != nil {
 			return err
 		}
 		defer ref.Close()
 
-		genbank, err := gfio.OpenIn(variantGenbankFile)
+		genbank, err := gfio.OpenIn(*cmd.Flag("genbank"))
 		if err != nil {
 			return err
 		}
 		defer genbank.Close()
 
-		out, err := gfio.OpenOut(variantOutfile)
+		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
 		if err != nil {
 			return err
 		}

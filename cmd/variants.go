@@ -42,19 +42,19 @@ nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference a
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		msa, err := gfio.OpenIn(variantsMSA)
+		msa, err := gfio.OpenIn(*cmd.Flag("msa"))
 		if err != nil {
 			return err
 		}
 		defer msa.Close()
 
-		genbank, err := gfio.OpenIn(variantsGenbankFile)
+		genbank, err := gfio.OpenIn(*cmd.Flag("genbank"))
 		if err != nil {
 			return err
 		}
 		defer genbank.Close()
 
-		out, err := gfio.OpenOut(variantsOutfile)
+		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
 		if err != nil {
 			return err
 		}

@@ -1,16 +1,34 @@
 package gfio
 
 import (
+	"errors"
+	"io/fs"
 	"os"
+
+	"github.com/spf13/pflag"
 )
 
-func OpenIn(inFile string) (*os.File, error) {
+// func (e *fs.PathError) Error() string { return e.Op + " " + e.Path + ": " + e.Err.Error() }
+
+func parseInErr(err error, flagString string) error {
+	switch x := err.(type) {
+	case *fs.PathError:
+		return errors.New(x.Op + " " + flagString + " " + x.Path + ": " + x.Err.Error())
+	default:
+		return err
+	}
+}
+
+func OpenIn(flag pflag.Flag) (*os.File, error) {
 	var err error
 	var f *os.File
 
+	inFile := flag.Value.String()
+	flagString := "--" + flag.Name + " / -" + flag.Shorthand
+
 	if inFile != "stdin" {
-		f, err = os.Open(inFile)
-		if err != nil {
+		if f, err = os.Open(inFile); err != nil {
+			err = parseInErr(err, flagString)
 			return f, err
 		}
 	} else {
@@ -20,9 +38,11 @@ func OpenIn(inFile string) (*os.File, error) {
 	return f, nil
 }
 
-func OpenOut(outFile string) (*os.File, error) {
+func OpenOut(flag pflag.Flag) (*os.File, error) {
 	var err error
 	var f *os.File
+
+	outFile := flag.Value.String()
 
 	if outFile != "stdout" {
 		f, err = os.Create(outFile)

@@ -146,31 +146,25 @@ You can combine the two types of flag (size and dist), to return only the closes
 			}
 		}
 
-		query, err := gfio.OpenIn(TRquery)
+		query, err := gfio.OpenIn(*cmd.Flag("query"))
 		if err != nil {
 			return err
 		}
 		defer query.Close()
 
-		target, err := gfio.OpenIn(TRtarget)
+		target, err := gfio.OpenIn(*cmd.Flag("target"))
 		if err != nil {
 			return err
 		}
 		defer target.Close()
 
-		ref, err := gfio.OpenIn(udReference)
+		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
 		if err != nil {
 			return err
 		}
 		defer ref.Close()
 
-		ignore, err := gfio.OpenIn(TRignore)
-		if err != nil {
-			return err
-		}
-		defer ignore.Close()
-
-		out, err := gfio.OpenOut(TRoutfile)
+		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
 		if err != nil {
 			return err
 		}

@@ -38,19 +38,19 @@ from stdin and write the snps file to stdout, e.g. you could do this:
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		query, err := gfio.OpenIn(snpsQuery)
+		query, err := gfio.OpenIn(*cmd.Flag("query"))
 		if err != nil {
 			return err
 		}
 		defer query.Close()
 
-		ref, err := gfio.OpenIn(snpsReference)
+		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
 		if err != nil {
 			return err
 		}
 		defer ref.Close()
 
-		out, err := gfio.OpenIn(snpsOutfile)
+		out, err := gfio.OpenIn(*cmd.Flag("outfile"))
 		if err != nil {
 			return err
 		}

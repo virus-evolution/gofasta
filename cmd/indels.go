@@ -43,19 +43,19 @@ Example usage:
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		samIn, err := gfio.OpenIn(samFile)
+		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
 		if err != nil {
 			return err
 		}
 		defer samIn.Close()
 
-		insOut, err := gfio.OpenOut(indelsInsOut)
+		insOut, err := gfio.OpenOut(*cmd.Flag("insertions-out"))
 		if err != nil {
 			return err
 		}
 		defer insOut.Close()
 
-		delOut, err := gfio.OpenOut(indelsDelOut)
+		delOut, err := gfio.OpenOut(*cmd.Flag("deletions-out"))
 		if err != nil {
 			return err
 		}

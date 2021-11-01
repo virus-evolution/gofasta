@@ -20,7 +20,7 @@ Or you can get them from Conda:
 
 `conda install bioconda::gofasta`
 
-You can also build the current contents of this repository if you have go installed:
+You can also build the current contents of this repository if you have Go installed:
 
 ```
 git clone github.com/cov-ert/gofasta

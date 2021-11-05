@@ -24,7 +24,14 @@ func OpenIn(flag pflag.Flag) (*os.File, error) {
 	var f *os.File
 
 	inFile := flag.Value.String()
-	flagString := "--" + flag.Name + " / -" + flag.Shorthand
+	var flagString string
+
+	switch len(flag.Shorthand) {
+	case 0:
+		flagString = "--" + flag.Name
+	default:
+		flagString = "-" + flag.Shorthand + " / --" + flag.Name
+	}
 
 	if inFile != "stdin" {
 		if f, err = os.Open(inFile); err != nil {

@@ -23,7 +23,7 @@ func TestOpenIn(t *testing.T) {
 	Cmd.PersistentFlags().Set("reference", "not/a/file.whatever")
 
 	_, err := OpenIn(*Cmd.Flag("reference"))
-	if err.Error() != errors.New("open"+" "+"--reference / -r"+" "+"not/a/file.whatever"+": "+"no such file or directory").Error() {
+	if err.Error() != errors.New("open -r / --reference not/a/file.whatever: no such file or directory").Error() {
 		t.Error(err)
 	}
 }

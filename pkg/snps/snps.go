@@ -3,6 +3,7 @@ package snps
 import (
 	"io"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -91,8 +92,66 @@ func writeOutput(w io.Writer, cSNPs chan snpLine, cErr chan error, cWriteDone ch
 	cWriteDone <- true
 }
 
+// aggregateWriteOutput aggregates the SNPs that are present above a certain threshold, and
+// writes their frequencies out
+func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cErr chan error, cWriteDone chan bool) {
+
+	propMap := make(map[string]float64)
+
+	var err error
+
+	_, err = w.Write([]byte("SNP,proportion\n"))
+	if err != nil {
+		cErr <- err
+	}
+
+	counter := 0.0
+
+	for snpLine := range cSNPs {
+		counter++
+		for _, snp := range snpLine.snps {
+			if _, ok := propMap[snp]; ok {
+				propMap[snp]++
+			} else {
+				propMap[snp] = 1.0
+			}
+		}
+	}
+
+	order := make([]string, 0)
+	for k, _ := range propMap {
+		order = append(order, k)
+	}
+
+	sort.SliceStable(order, func(i, j int) bool {
+		pos_i, err := strconv.Atoi(order[i][1 : len(order[i])-1])
+		if err != nil {
+			cErr <- err
+		}
+		pos_j, err := strconv.Atoi(order[j][1 : len(order[j])-1])
+		if err != nil {
+			cErr <- err
+		}
+		alt_i := order[i][len(order[i])-1]
+		alt_j := order[j][len(order[j])-1]
+		return pos_i < pos_j || (pos_i == pos_j && alt_i < alt_j)
+	})
+
+	for _, snp := range order {
+		if propMap[snp]/counter < threshold {
+			continue
+		}
+		_, err = w.Write([]byte(snp + "," + strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n"))
+		if err != nil {
+			cErr <- err
+		}
+	}
+
+	cWriteDone <- true
+}
+
 // SNPs annotates snps in a fasta-format alignment with respect to a reference sequence
-func SNPs(ref, alignment io.Reader, out io.Writer) error {
+func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold float64, w io.Writer) error {
 
 	cErr := make(chan error)
 
@@ -107,7 +166,7 @@ func SNPs(ref, alignment io.Reader, out io.Writer) error {
 
 	cWriteDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(ref, cRef, cErr, cRefDone)
+	go fastaio.ReadEncodeAlignment(ref, hardGaps, cRef, cErr, cRefDone)
 
 	var refSeq []byte
 
@@ -123,9 +182,14 @@ func SNPs(ref, alignment io.Reader, out io.Writer) error {
 		}
 	}
 
-	go fastaio.ReadEncodeAlignment(alignment, cFR, cErr, cFRDone)
+	go fastaio.ReadEncodeAlignment(alignment, hardGaps, cFR, cErr, cFRDone)
 
-	go writeOutput(out, cSNPs, cErr, cWriteDone)
+	switch aggregate {
+	case true:
+		go aggregateWriteOutput(w, threshold, cSNPs, cErr, cWriteDone)
+	case false:
+		go writeOutput(w, cSNPs, cErr, cWriteDone)
+	}
 
 	var wgSNPs sync.WaitGroup
 	wgSNPs.Add(runtime.NumCPU())

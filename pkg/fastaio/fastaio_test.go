@@ -105,7 +105,7 @@ ATTTTC
 
 	out := new(bytes.Buffer)
 
-	go ReadEncodeAlignment(alignment, cFR, cErr, cReadDone)
+	go ReadEncodeAlignment(alignment, false, cFR, cErr, cReadDone)
 
 	go func() {
 		for n := 1; n > 0; {
@@ -153,7 +153,7 @@ ATTTTC
 	alignment := bytes.NewReader(alignmentData)
 	out := new(bytes.Buffer)
 
-	EFRs, err := ReadEncodeAlignmentToList(alignment)
+	EFRs, err := ReadEncodeAlignmentToList(alignment, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -180,68 +180,68 @@ ATTTTC
 
 }
 
-func TestReadEncodeScoreAlignment(t *testing.T) {
-	alignmentData := []byte(
-		`>Target1
-ATGATN
->Target2
-ATGANN
->Target3
-ATTR-N
-`)
+// func TestReadEncodeScoreAlignment(t *testing.T) {
+// 	alignmentData := []byte(
+// 		`>Target1
+// ATGATN
+// >Target2
+// ATGANN
+// >Target3
+// ATTR-N
+// `)
 
-	alignment := bytes.NewReader(alignmentData)
+// 	alignment := bytes.NewReader(alignmentData)
 
-	cErr := make(chan error)
-	cFR := make(chan EncodedFastaRecord)
-	cReadDone := make(chan bool)
+// 	cErr := make(chan error)
+// 	cFR := make(chan EncodedFastaRecord)
+// 	cReadDone := make(chan bool)
 
-	alOut := new(bytes.Buffer)
-	scoreOut := make([]int64, 0)
+// 	alOut := new(bytes.Buffer)
+// 	scoreOut := make([]int64, 0)
 
-	go ReadEncodeScoreAlignment(alignment, cFR, cErr, cReadDone)
+// 	go ReadEncodeScoreAlignment(alignment, cFR, cErr, cReadDone)
 
-	go func() {
-		for n := 1; n > 0; {
-			select {
-			case err := <-cErr:
-				t.Error(err)
-			case <-cReadDone:
-				close(cFR)
-			}
-		}
-	}()
+// 	go func() {
+// 		for n := 1; n > 0; {
+// 			select {
+// 			case err := <-cErr:
+// 				t.Error(err)
+// 			case <-cReadDone:
+// 				close(cFR)
+// 			}
+// 		}
+// 	}()
 
-	DA := encoding.MakeDecodingArray()
+// 	DA := encoding.MakeDecodingArray()
 
-	for FR := range cFR {
-		alOut.Write([]byte(">" + FR.ID + "\n"))
-		for _, nuc := range FR.Seq {
-			alOut.Write([]byte(DA[nuc]))
-		}
-		alOut.Write([]byte("\n"))
+// 	for FR := range cFR {
+// 		alOut.Write([]byte(">" + FR.ID + "\n"))
+// 		for _, nuc := range FR.Seq {
+// 			alOut.Write([]byte(DA[nuc]))
+// 		}
+// 		alOut.Write([]byte("\n"))
 
-		scoreOut = append(scoreOut, FR.Score)
-	}
+// 		scoreOut = append(scoreOut, FR.Score)
+// 	}
 
-	if string(alOut.Bytes()) != `>Target1
-ATGATN
->Target2
-ATGANN
->Target3
-ATTR-N
-` {
-		t.Errorf("problem in TestReadEncodeAlignment() (alignment)")
-	}
+// 	if string(alOut.Bytes()) != `>Target1
+// ATGATN
+// >Target2
+// ATGANN
+// >Target3
+// ATTR-N
+// ` {
+// 		t.Errorf("problem in TestReadEncodeAlignment() (alignment)")
+// 	}
 
-	test := true
-	for i := range scoreOut {
-		if scoreOut[i] != []int64{63, 54, 48}[i] {
-			test = false
-			break
-		}
-	}
-	if !test {
-		t.Errorf("problem in TestReadEncodeAlignment() (score)")
-	}
-}
+// 	test := true
+// 	for i := range scoreOut {
+// 		if scoreOut[i] != []int64{63, 54, 48}[i] {
+// 			test = false
+// 			break
+// 		}
+// 	}
+// 	if !test {
+// 		t.Errorf("problem in TestReadEncodeAlignment() (score)")
+// 	}
+// }

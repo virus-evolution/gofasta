@@ -185,7 +185,7 @@ func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cWriteDone := make(chan bool)
 
-	temp, err := fastaio.ReadEncodeAlignmentToList(reference)
+	temp, err := fastaio.ReadEncodeAlignmentToList(reference, false)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func List(reference, alignment io.Reader, out io.Writer) error {
 		}
 	}
 
-	go fastaio.ReadEncodeAlignment(alignment, cFR, cErr, cFRDone)
+	go fastaio.ReadEncodeAlignment(alignment, false, cFR, cErr, cFRDone)
 
 	go writeOutput(out, cudLs, cErr, cWriteDone)
 

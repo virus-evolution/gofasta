@@ -166,7 +166,7 @@ func Closest(query, target io.Reader, out io.Writer, threads int) error {
 		runtime.GOMAXPROCS(threads)
 	}
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(query)
+	queries, err := fastaio.ReadEncodeAlignmentToList(query, false)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func Closest(query, target io.Reader, out io.Writer, threads int) error {
 
 	cResults := make(chan resultsStruct)
 
-	go fastaio.ReadEncodeAlignment(target, cTEFR, cErr, cTEFRdone)
+	go fastaio.ReadEncodeAlignment(target, false, cTEFR, cErr, cTEFRdone)
 
 	var wgScore sync.WaitGroup
 	wgScore.Add(threads)

@@ -46,6 +46,52 @@ func MakeEncodingArray() [256]byte {
 	return byteArray
 }
 
+// makeEncodingArrayHard gaps is as MakeEncodingArray but with '-'
+// set to EP's original code (4 - character is not completely unknown,
+// character represents NONE of ACTG)
+func MakeEncodingArrayHardGaps() [256]byte {
+	var byteArray [256]byte
+
+	for i := 0; i < 256; i++ {
+		byteArray[i] = 0
+	}
+
+	byteArray['A'] = 136
+	byteArray['a'] = 136
+	byteArray['G'] = 72
+	byteArray['g'] = 72
+	byteArray['C'] = 40
+	byteArray['c'] = 40
+	byteArray['T'] = 24
+	byteArray['t'] = 24
+	byteArray['R'] = 192
+	byteArray['r'] = 192
+	byteArray['M'] = 160
+	byteArray['m'] = 160
+	byteArray['W'] = 144
+	byteArray['w'] = 144
+	byteArray['S'] = 96
+	byteArray['s'] = 96
+	byteArray['K'] = 80
+	byteArray['k'] = 80
+	byteArray['Y'] = 48
+	byteArray['y'] = 48
+	byteArray['V'] = 224
+	byteArray['v'] = 224
+	byteArray['H'] = 176
+	byteArray['h'] = 176
+	byteArray['D'] = 208
+	byteArray['d'] = 208
+	byteArray['B'] = 112
+	byteArray['b'] = 112
+	byteArray['N'] = 240
+	byteArray['n'] = 240
+	byteArray['-'] = 4
+	byteArray['?'] = 242
+
+	return byteArray
+}
+
 // MakeScoreArray makes an array that maps (the byte value of) IUPAC nucleotide
 // characters (which are the arrays indices) to a score for how ambiguous that
 // nucleotide is. The score is caculated as:
@@ -149,6 +195,7 @@ func MakeDecodingArray() [256]string {
 	byteArray[208] = "D"
 	byteArray[112] = "B"
 	byteArray[240] = "N"
+	byteArray[4] = "-"
 	byteArray[244] = "-"
 	byteArray[242] = "?"
 

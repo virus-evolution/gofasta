@@ -896,7 +896,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer,
 
 	var refSeq []byte
 	if q_in_type == "fasta" || t_in_type == "fasta" {
-		temp, err := fastaio.ReadEncodeAlignmentToList(reference)
+		temp, err := fastaio.ReadEncodeAlignmentToList(reference, false)
 		if err != nil {
 			return err
 		}

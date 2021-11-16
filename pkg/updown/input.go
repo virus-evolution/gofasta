@@ -191,7 +191,7 @@ func fastaToUDLslice(in io.Reader, refSeq []byte) ([]updownLine, error) {
 	cudLsDone := make(chan bool)
 	cArrayDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(in, cFR, cInternalErr, cFRDone)
+	go fastaio.ReadEncodeAlignment(in, false, cFR, cInternalErr, cFRDone)
 
 	var wgudLs sync.WaitGroup
 	wgudLs.Add(1)
@@ -289,7 +289,7 @@ func readFastaToChan(target io.Reader, refSeq []byte, cudL chan updownLine, cErr
 
 	cudLsDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(target, cFR, cInternalErr, cFRDone)
+	go fastaio.ReadEncodeAlignment(target, false, cFR, cInternalErr, cFRDone)
 
 	var wgudLs sync.WaitGroup
 	wgudLs.Add(runtime.NumCPU())

@@ -119,7 +119,7 @@ func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) erro
 
 	go WriteVariants(out, cVariants, cWriteDone, cErr)
 
-	go fastaio.ReadEncodeAlignment(msaIn, cMSA, cErr, cMSADone)
+	go fastaio.ReadEncodeAlignment(msaIn, false, cMSA, cErr, cMSADone)
 
 	var wgVariants sync.WaitGroup
 	wgVariants.Add(runtime.NumCPU())

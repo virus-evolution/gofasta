@@ -160,7 +160,7 @@ func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads
 		runtime.GOMAXPROCS(threads)
 	}
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(query)
+	queries, err := fastaio.ReadEncodeAlignmentToList(query, false)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads
 
 	cResults := make(chan catchmentStruct)
 
-	go fastaio.ReadEncodeAlignment(target, cTEFR, cErr, cTEFRdone)
+	go fastaio.ReadEncodeAlignment(target, false, cTEFR, cErr, cTEFRdone)
 
 	var wgScore sync.WaitGroup
 	wgScore.Add(threads)

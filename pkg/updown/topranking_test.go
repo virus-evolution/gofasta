@@ -58,8 +58,6 @@ ATGCTT
 		t.Error(err)
 	}
 
-	// fmt.Println(string(out.Bytes()))
-
 	desiredResult := `query,closestsame,closestup,closestdown,closestside
 Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2
 `
@@ -95,8 +93,6 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2
 	if err != nil {
 		t.Error(err)
 	}
-
-	// fmt.Println(string(out.Bytes()))
 
 	if string(out.Bytes()) != desiredResult {
 		t.Errorf("problem in TestTopRanking1(csv)")
@@ -156,8 +152,6 @@ ATGCTT
 		t.Error(err)
 	}
 
-	// fmt.Println(string(out.Bytes()))
-
 	desiredResult := `query,closestsame,closestup,closestdown,closestside
 Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2
 `
@@ -194,8 +188,6 @@ Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2
 	if err != nil {
 		t.Error(err)
 	}
-
-	// fmt.Println(string(out.Bytes()))
 
 	if string(out.Bytes()) != desiredResult {
 		t.Errorf("problem in TestTopRanking2(csv)")
@@ -255,8 +247,6 @@ ATGCTT
 		t.Error(err)
 	}
 
-	// fmt.Println(string(out.Bytes()))
-
 	desiredResult := `query,closestsame,closestup,closestdown,closestside
 Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2;TargetSide1
 `
@@ -293,8 +283,6 @@ Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2;TargetSide1
 	if err != nil {
 		t.Error(err)
 	}
-
-	// fmt.Println(string(out.Bytes()))
 
 	if string(out.Bytes()) != desiredResult {
 		t.Errorf("problem in TestTopRanking3(csv)")
@@ -356,8 +344,6 @@ ATNATC
 		t.Error(err)
 	}
 
-	// fmt.Println(string(out.Bytes()))
-
 	desiredResult := `query,closestsame,closestup,closestdown,closestside
 Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide3;TargetSide1
 `
@@ -394,8 +380,6 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide3;TargetSide1
 	if err != nil {
 		t.Error(err)
 	}
-
-	// fmt.Println(string(out.Bytes()))
 
 	if string(out.Bytes()) != desiredResult {
 		t.Errorf("problem in TestTopRanking4(csv)")
@@ -457,8 +441,6 @@ ATNATC
 		t.Error(err)
 	}
 
-	// fmt.Println(string(out.Bytes()))
-
 	desiredResult := `query,closestsame,closestup,closestdown,closestside
 Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide1
 `
@@ -496,9 +478,197 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide1
 		t.Error(err)
 	}
 
-	// fmt.Println(string(out.Bytes()))
-
 	if string(out.Bytes()) != desiredResult {
 		t.Errorf("problem in TestTopRanking5(csv)")
+	}
+}
+
+func TestTopRankingDist2(t *testing.T) {
+	refData := []byte(`>ref
+ATGATG
+`)
+	queryData := []byte(
+		`>Query1
+ATTATT
+`)
+
+	targetData := []byte(`>TargetUp1_dist2
+ATGATG
+>TargetSame1_dist0
+ATTATT
+>TargetDown1_dist1
+ATTACT
+>TargetUp2_dist1
+ATGATT
+>TargetSide1_dist6
+CCCCCC
+>TargetSide2_2
+ATGCTT
+`)
+	ref := bytes.NewReader(refData)
+	query := bytes.NewReader(queryData)
+	target := bytes.NewReader(targetData)
+	out := new(bytes.Buffer)
+
+	qtype := "fasta"
+	ttype := "fasta"
+	ignoreArray := make([]string, 0)
+	TRsizetotal := 0
+	TRsizeup := 0
+	TRsizedown := 0
+	TRsizeside := 0
+	TRsizesame := 0
+	TRdistall := 0
+	TRdistup := 1
+	TRdistdown := 1
+	TRdistside := 1
+	TRthresholdpair := float32(0.1)
+	TRthresholdtarget := 10000
+	TRnofill := false
+	TRdistpush := 0
+
+	err := TopRanking(query, target, ref, out,
+		qtype, ttype, ignoreArray,
+		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
+		TRdistall, TRdistup, TRdistdown, TRdistside,
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+	if err != nil {
+		t.Error(err)
+	}
+
+	desiredResult := `query,closestsame,closestup,closestdown,closestside
+Query1,TargetSame1_dist0,TargetUp2_dist1,TargetDown1_dist1,
+`
+	if string(out.Bytes()) != desiredResult {
+		t.Errorf("problem in TestTopRankingDist2(fasta)")
+	}
+
+	ref = bytes.NewReader(refData)
+	query = bytes.NewReader(queryData)
+	queryList := new(bytes.Buffer)
+	err = List(ref, query, queryList)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ref = bytes.NewReader(refData)
+	target = bytes.NewReader(targetData)
+	targetList := new(bytes.Buffer)
+	err = List(ref, target, targetList)
+	if err != nil {
+		t.Error(err)
+	}
+
+	qtype = "csv"
+	ttype = "csv"
+	out = new(bytes.Buffer)
+
+	err = TopRanking(queryList, targetList, ref, out,
+		qtype, ttype, ignoreArray,
+		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
+		TRdistall, TRdistup, TRdistdown, TRdistside,
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if string(out.Bytes()) != desiredResult {
+		t.Errorf("problem in TestTopRankingDist2(csv)")
+	}
+}
+
+func TestTopRankingDist3(t *testing.T) {
+	refData := []byte(`>ref
+ATGATG
+`)
+	queryData := []byte(
+		`>Query1
+ATTATT
+`)
+
+	targetData := []byte(`>TargetUp1_dist2
+ATGATG
+>TargetSame1_dist0
+ATTATT
+>TargetDown1_dist1
+ATTACT
+>TargetUp2_dist1
+ATGATT
+>TargetSide1_dist6
+CCCCCC
+>TargetSide2_2
+ATGCTT
+>TargetSide3_dist3
+GTGCTT
+`)
+	ref := bytes.NewReader(refData)
+	query := bytes.NewReader(queryData)
+	target := bytes.NewReader(targetData)
+	out := new(bytes.Buffer)
+
+	qtype := "fasta"
+	ttype := "fasta"
+	ignoreArray := make([]string, 0)
+	TRsizetotal := 0
+	TRsizeup := 0
+	TRsizedown := 0
+	TRsizeside := 0
+	TRsizesame := 0
+	TRdistall := 0
+	TRdistup := 2
+	TRdistdown := 1
+	TRdistside := 1
+	TRthresholdpair := float32(0.1)
+	TRthresholdtarget := 10000
+	TRnofill := false
+	TRdistpush := 2
+
+	err := TopRanking(query, target, ref, out,
+		qtype, ttype, ignoreArray,
+		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
+		TRdistall, TRdistup, TRdistdown, TRdistside,
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+	if err != nil {
+		t.Error(err)
+	}
+
+	desiredResult := `query,closestsame,closestup,closestdown,closestside
+Query1,TargetSame1_dist0,TargetUp2_dist1;TargetUp1_dist2,TargetDown1_dist1,TargetSide2_2;TargetSide3_dist3
+`
+	if string(out.Bytes()) != desiredResult {
+		t.Errorf("problem in TestTopRankingDist3(fasta)")
+	}
+
+	ref = bytes.NewReader(refData)
+	query = bytes.NewReader(queryData)
+	queryList := new(bytes.Buffer)
+	err = List(ref, query, queryList)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ref = bytes.NewReader(refData)
+	target = bytes.NewReader(targetData)
+	targetList := new(bytes.Buffer)
+	err = List(ref, target, targetList)
+	if err != nil {
+		t.Error(err)
+	}
+
+	qtype = "csv"
+	ttype = "csv"
+	out = new(bytes.Buffer)
+
+	err = TopRanking(queryList, targetList, ref, out,
+		qtype, ttype, ignoreArray,
+		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
+		TRdistall, TRdistup, TRdistdown, TRdistside,
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if string(out.Bytes()) != desiredResult {
+		t.Errorf("problem in TestTopRankingDist3(csv)")
 	}
 }

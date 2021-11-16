@@ -40,7 +40,7 @@ Example usage:
 
 reference.fasta and alignment.fasta must be the same length.
 
-With the default settings he output is a csv-format file with one line per query sequence, and two columns:
+With the default settings the output is a csv-format file with one line per query sequence, and two columns:
 'query' and 'SNPs', the second of which is a "|"-delimited list of snps in that query.
 
 If you set --aggregate (and optionally a --threshold) it will return the SNPs present in the entire sample

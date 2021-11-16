@@ -183,6 +183,15 @@ func TestDecoding(t *testing.T) {
 			t.Errorf("problem in decoding test: %s", string(nuc))
 		}
 	}
+
+	EA = MakeEncodingArrayHardGaps()
+	for _, nuc := range nucs {
+		a := EA[nuc]
+		b := DA[a]
+		if strings.ToUpper(string(nuc)) != b {
+			t.Errorf("problem in decoding test: %s", string(nuc))
+		}
+	}
 }
 
 func TestScoring(t *testing.T) {

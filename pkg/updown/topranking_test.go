@@ -596,10 +596,10 @@ ATTACT
 ATGATT
 >TargetSide1_dist6
 CCCCCC
->TargetSide2_2
-ATGCTT
 >TargetSide3_dist3
 GTGCTT
+>TargetSide2_dist2
+ATGCTT
 `)
 	ref := bytes.NewReader(refData)
 	query := bytes.NewReader(queryData)
@@ -633,7 +633,7 @@ GTGCTT
 	}
 
 	desiredResult := `query,closestsame,closestup,closestdown,closestside
-Query1,TargetSame1_dist0,TargetUp2_dist1;TargetUp1_dist2,TargetDown1_dist1,TargetSide2_2;TargetSide3_dist3
+Query1,TargetSame1_dist0,TargetUp2_dist1;TargetUp1_dist2,TargetDown1_dist1,TargetSide2_dist2;TargetSide3_dist3
 `
 	if string(out.Bytes()) != desiredResult {
 		t.Errorf("problem in TestTopRankingDist3(fasta)")

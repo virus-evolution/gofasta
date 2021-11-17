@@ -15,18 +15,18 @@ var variantsOutfile string
 func init() {
 	rootCmd.AddCommand(variantsCmd)
 
-	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "stdin", "multiple sequence alignment in fasta format")
-	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "r", "", "the name of the reference sequence in the msa")
-	variantsCmd.Flags().StringVarP(&variantsGenbankFile, "genbank", "", "", "genbank format annotation")
-	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "name of the file of variants to write")
+	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "stdin", "Multiple sequence alignment in fasta format")
+	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "r", "", "The name of the reference sequence in the msa")
+	variantsCmd.Flags().StringVarP(&variantsGenbankFile, "genbank", "", "", "Genbank format annotation")
+	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "Name of the file of variants to write")
 
 	variantsCmd.Flags().SortFlags = false
 }
 
 var variantsCmd = &cobra.Command{
 	Use:   "variants",
-	Short: "find mutations relative to a reference in a multiple sequence alignment",
-	Long: `find mutations relative to a reference in a multiple sequence alignment
+	Short: "find mutations relative to a reference from a multiple sequence alignment in fasta format",
+	Long: `find mutations relative to a reference from a multiple sequence alignment in fasta format
 
 Example usage:
 
@@ -39,6 +39,9 @@ ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in ref
 del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
 aa:s:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
 nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
+
+If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
+the variants to stdout.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 

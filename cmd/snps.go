@@ -20,9 +20,9 @@ func init() {
 	snpCmd.Flags().StringVarP(&snpsReference, "reference", "r", "", "Reference sequence, in fasta format")
 	snpCmd.Flags().StringVarP(&snpsQuery, "query", "q", "stdin", "Alignment of sequences to find snps in, in fasta format")
 	snpCmd.Flags().StringVarP(&snpsOutfile, "outfile", "o", "stdout", "Output to write")
-	snpCmd.Flags().BoolVarP(&hardGaps, "hard-gaps", "", false, "don't treat alignment gaps as missing data")
-	snpCmd.Flags().BoolVarP(&aggregate, "aggregate", "", false, "report the proportions of each change")
-	snpCmd.Flags().Float64VarP(&thresh, "threshold", "", 0.0, "if --aggregate, only report snps with a freq greater than or equal to this value")
+	snpCmd.Flags().BoolVarP(&hardGaps, "hard-gaps", "", false, "Don't treat alignment gaps as missing data")
+	snpCmd.Flags().BoolVarP(&aggregate, "aggregate", "", false, "Report the proportions of each change")
+	snpCmd.Flags().Float64VarP(&thresh, "threshold", "", 0.0, "If --aggregate, only report snps with a freq greater than or equal to this value")
 
 	snpCmd.Flags().Lookup("hard-gaps").NoOptDefVal = "true"
 	snpCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
@@ -48,7 +48,7 @@ If you set --aggregate (and optionally a --threshold) it will return the SNPs pr
 
 Setting --hard-gaps treats alignment gaps as different from {ATGC}.
 
-If query and  outfile are not specified, the behaviour is to read the query alignment
+If query and outfile are not specified, the behaviour is to read the query alignment
 from stdin and write the snps file to stdout, e.g. you could do this:
 	cat alignment.fasta | gofasta snps -r reference.fasta > snps.csv`,
 

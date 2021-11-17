@@ -18,7 +18,7 @@ func init() {
 
 	toMultiAlignCmd.Flags().StringVarP(&toMultiAlignOutfile, "fasta-out", "o", "stdout", "Where to write the alignment")
 	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignTrim, "trim", "", false, "Trim the alignment")
-	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignPad, "pad", "", false, "If trim, replace the trimmed regions with Ns")
+	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignPad, "pad", "", false, "If --trim, replace the trimmed regions with Ns, else replace external deletions with Ns")
 	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignTrimStart, "trimstart", "", -1, "Start coordinate for trimming (0-based, half open)")
 	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignTrimEnd, "trimend", "", -1, "End coordinate for trimming (0-based, half open)")
 
@@ -42,7 +42,7 @@ If you want, you can trim (and optionally pad) the output alignment to coordinat
 
 If input and output files are not specified, the behaviour is to read the sam file from stdin and write
 the fasta file to stdout, e.g.:
-	minimap2 -a -x asm5 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta`,
+	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta`,
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 

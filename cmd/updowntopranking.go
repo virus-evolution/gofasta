@@ -92,8 +92,9 @@ The program will aim to provide the sum of these numbers in total in the output,
 by increasing the count of the other bins where possible, unless --no-fill.
 
 You can also filter on SNP-distance instead of returning the closest n sequences. Use the --dist flags to do this. If --dist-push 
-is invoked, the program will push the SNP-distance boundaries for any empty bins until it finds a neighbour, and then it will
-return all the neighbours at that distance in that bin, and print what it's done to stderr.
+is invoked with an integer (n) argument, the program can push the SNP-distance boundaries for any empty bins to cover the sequences
+that are the closest n SNP-distances away, and then it will return all the neighbours at those distances in that bin, 
+and print what it's done to stderr.
 
 You can combine the two types of flag (size and dist), to return only the closest n sequences under a set distance.
 `,

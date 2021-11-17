@@ -29,13 +29,12 @@ Example usage:
 
 	gofasta updown list -r reference.fasta -q alignment.fasta -o mutationlist.csv
 
-Non-ATGC nucleotides are not recommended in the --reference, and --reference and --query should
+Non-ATGC nucleotides are not recommended in the --reference, and --reference and --query must
 be aligned to the same thing.
 
 --outfile is a CSV-format file with the columns: query,SNPs,ambiguities,SNPcount,ambcount. There is one row
 for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to --reference. ambiguities is
 a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (anything that isn't ATGC).
-
 `,
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {

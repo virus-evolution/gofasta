@@ -21,15 +21,19 @@ func init() {
 
 var variantCmd = &cobra.Command{
 	Use:   "variants",
-	Short: "Call variants between ref and query from a SAM file",
-	Long: `Call variants between a reference sequence and query sequences aligned in sam format
+	Short: "find mutations relative to a reference from an alignment in sam format",
+	Long: `find mutations relative to a reference from an alignment in sam format
 
 Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -g annotation.gb -o variants.csv
 
-The output is a csv-format file with one line per query sequence, and two columns: 'query' and
-'variants', the second of which is a "|"-delimited list of amino acid changes and synonymous SNPs
-in that query relative to the reference sequence specified using --reference/-r.
+Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide change that
+isn't in a codon that is represented by an amino acid change). The formats are:
+
+ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in reference coordinates
+del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
+aa:s:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
+nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
 
 If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
 the variants to stdout.`,

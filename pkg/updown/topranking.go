@@ -87,7 +87,7 @@ func isSiteAmb(pos int, a []int) bool {
 // distance is -1 if the pair fails the ambiguity threshold test.
 func whichWay(q, t updownLine, thresh float32) (int, int) {
 
-	// table has 4 items: number of Q SNPs; no. QT SMPs; no. T SNPs; no of consequential ambiguous sites for this pair
+	// table has 4 items: number of Q SNPs; no. QT SNPs; no. T SNPs; no of consequential ambiguous sites for this pair
 	var table [4]int
 
 	// d is an array of unique SNP positions to get distance from

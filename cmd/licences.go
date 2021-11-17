@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"fmt"
+
+	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -11,9 +12,9 @@ func init() {
 
 var licenceCmd = &cobra.Command{
 	Use:   "licences",
-	Short: "print licence information",
-	Long:  `print licence information`,
-	Run: func(cmd *cobra.Command, args []string)  {
+	Short: "Print licence information",
+	Long:  `Print licence information`,
+	Run: func(cmd *cobra.Command, args []string) {
 
 		frontmatter := `
 gofasta is distributed under the MIT licence

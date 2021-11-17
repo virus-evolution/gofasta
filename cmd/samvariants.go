@@ -21,8 +21,8 @@ func init() {
 
 var variantCmd = &cobra.Command{
 	Use:   "variants",
-	Short: "find mutations relative to a reference from an alignment in sam format",
-	Long: `find mutations relative to a reference from an alignment in sam format
+	Short: "Find mutations relative to a reference from an alignment in sam format",
+	Long: `Find mutations relative to a reference from an alignment in sam format
 
 Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -g annotation.gb -o variants.csv

@@ -22,8 +22,8 @@ func init() {
 
 var updownListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "generate input CSV files for gofasta updown topranking",
-	Long: `generate input CSV files for gofasta updown topranking
+	Short: "Generate input CSV files for gofasta updown topranking",
+	Long: `Generate input CSV files for gofasta updown topranking
 
 Example usage:
 

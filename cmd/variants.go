@@ -25,8 +25,8 @@ func init() {
 
 var variantsCmd = &cobra.Command{
 	Use:   "variants",
-	Short: "find mutations relative to a reference from a multiple sequence alignment in fasta format",
-	Long: `find mutations relative to a reference from a multiple sequence alignment in fasta format
+	Short: "Find mutations relative to a reference from a multiple sequence alignment in fasta format",
+	Long: `Find mutations relative to a reference from a multiple sequence alignment in fasta format
 
 Example usage:
 

@@ -69,8 +69,8 @@ func init() {
 
 var toprankingCmd = &cobra.Command{
 	Use:   "topranking",
-	Short: "get pseudo-tree-aware catchments for query sequences from alignments",
-	Long: `get pseudo-tree-aware catchments for query sequences from alignments
+	Short: "Get pseudo-tree-aware catchments for query sequences from alignments",
+	Long: `Get pseudo-tree-aware catchments for query sequences from alignments
 
 Example usage:
 	gofasta updown topranking -q smallquery.fasta -r WH04.fasta -t mutationlist.csv --size-total 1000 -o catchment.csv

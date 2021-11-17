@@ -4,33 +4,28 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cov-ert/gofasta/pkg/gfio"
-	"github.com/cov-ert/gofasta/pkg/variants"
+	"github.com/cov-ert/gofasta/pkg/sam"
 )
 
-var variantsMSA string
-var variantsReference string
-var variantsGenbankFile string
-var variantsOutfile string
+var variantGenbankFile string
+var variantOutfile string
 
 func init() {
-	rootCmd.AddCommand(variantsCmd)
+	samCmd.AddCommand(variantCmd)
 
-	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "stdin", "Multiple sequence alignment in fasta format")
-	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "r", "", "The name of the reference sequence in the msa")
-	variantsCmd.Flags().StringVarP(&variantsGenbankFile, "genbank", "", "", "Genbank format annotation")
-	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "Name of the file of variants to write")
+	variantCmd.Flags().StringVarP(&variantGenbankFile, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
+	variantCmd.Flags().StringVarP(&variantOutfile, "outfile", "o", "stdout", "Where to write the variants")
 
-	variantsCmd.Flags().SortFlags = false
+	variantCmd.Flags().SortFlags = false
 }
 
-var variantsCmd = &cobra.Command{
+var variantCmd = &cobra.Command{
 	Use:   "variants",
-	Short: "Find mutations relative to a reference from a multiple sequence alignment in fasta format",
-	Long: `Find mutations relative to a reference from a multiple sequence alignment in fasta format
+	Short: "Find mutations relative to a reference from an alignment in sam format",
+	Long: `Find mutations relative to a reference from an alignment in sam format
 
 Example usage:
-
-	./gofasta variants --msa alignment.fasta --genbank MN908947.gb --reference MN908947.3 > variants.csv
+	gofasta sam variants -s aligned.sam -r reference.fasta -g annotation.gb -o variants.csv
 
 Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide change that
 isn't in a codon that is represented by an amino acid change). The formats are:
@@ -41,15 +36,21 @@ aa:s:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the
 nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
 
 If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
-the variants to stdout.
-`,
+the variants to stdout.`,
+
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		msa, err := gfio.OpenIn(*cmd.Flag("msa"))
+		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
 		if err != nil {
 			return err
 		}
-		defer msa.Close()
+		defer samIn.Close()
+
+		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
+		if err != nil {
+			return err
+		}
+		defer ref.Close()
 
 		genbank, err := gfio.OpenIn(*cmd.Flag("genbank"))
 		if err != nil {
@@ -63,8 +64,8 @@ the variants to stdout.
 		}
 		defer out.Close()
 
-		err = variants.Variants(msa, variantsReference, genbank, out)
+		err = sam.Variants(samIn, ref, genbank, out, samThreads)
 
-		return
+		return err
 	},
 }

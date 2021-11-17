@@ -1,13 +1,14 @@
 package closest
 
 import (
-	"os"
-	"fmt"
-	"sort"
-	"sync"
 	"errors"
+	"fmt"
+	"io"
+	"os"
 	"runtime"
+	"sort"
 	"strings"
+	"sync"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
 )
@@ -23,20 +24,20 @@ import (
 // }
 
 type catchmentStruct struct {
-	qname string
-	qidx int
-	catchment []resultsStruct
-	furthestDistance float64 // this is distance for the least close of the current set of neighbours in catchment
-	furthestCompleteness int64 // this is completeness for the least close of the current set of neighbours in catchment
+	qname                string
+	qidx                 int
+	catchment            []resultsStruct
+	furthestDistance     float64 // this is distance for the least close of the current set of neighbours in catchment
+	furthestCompleteness int64   // this is completeness for the least close of the current set of neighbours in catchment
 }
 
 func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 	sort.SliceStable(nS.catchment, func(i, j int) bool {
-		return nS.catchment[i].distance < nS.catchment[j].distance || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].completeness > nS.catchment[j].completeness )
+		return nS.catchment[i].distance < nS.catchment[j].distance || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].completeness > nS.catchment[j].completeness)
 	})
 	nS.catchment = nS.catchment[0:catchmentSize]
-	nS.furthestDistance = nS.catchment[catchmentSize - 1].distance
-	nS.furthestCompleteness = nS.catchment[catchmentSize - 1].completeness
+	nS.furthestDistance = nS.catchment[catchmentSize-1].distance
+	nS.furthestCompleteness = nS.catchment[catchmentSize-1].completeness
 }
 
 func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct) {
@@ -50,15 +51,15 @@ func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan 
 	var d int64
 	var distance float64
 
-	for target := range(cIn) {
+	for target := range cIn {
 		n = 0
 		d = 0
-		for i, tNuc := range(target.Seq) {
+		for i, tNuc := range target.Seq {
 			if (query.Seq[i] & tNuc) < 16 {
 				n += 1
 				d += 1
 			}
-			if (query.Seq[i] & 8 == 8) && query.Seq[i] == tNuc {
+			if (query.Seq[i]&8 == 8) && query.Seq[i] == tNuc {
 				d += 1
 			}
 		}
@@ -91,7 +92,7 @@ func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan 
 		rearrangeCatchment(&neighbours, len(neighbours.catchment))
 	}
 
-	cOut<- neighbours
+	cOut <- neighbours
 }
 
 func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct, cErr chan error, cSplitDone chan bool) {
@@ -101,67 +102,57 @@ func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn ch
 	// make an array of channels, one for each query
 	QChanArray := make([]chan fastaio.EncodedFastaRecord, nQ)
 	for i := 0; i < nQ; i++ {
-	   QChanArray[i] = make(chan fastaio.EncodedFastaRecord)
+		QChanArray[i] = make(chan fastaio.EncodedFastaRecord)
 	}
 
-	for i, q := range(queries) {
+	for i, q := range queries {
 		go findClosestN(q, catchmentSize, QChanArray[i], cOut)
 	}
 
 	targetCounter := 0
-	for EFR := range(cIn) {
+	for EFR := range cIn {
 		if targetCounter == 0 {
 			if len(EFR.Seq) != len(queries[0].Seq) {
-				cErr<- errors.New("query and target alignments are not the same width")
+				cErr <- errors.New("query and target alignments are not the same width")
 			}
 		}
 		targetCounter++
 
-		for i, _ := range(QChanArray) {
-			QChanArray[i]<- EFR
+		for i, _ := range QChanArray {
+			QChanArray[i] <- EFR
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", targetCounter)
 
-	for i, _ := range(QChanArray) {
+	for i, _ := range QChanArray {
 		close(QChanArray[i])
 	}
 
-	cSplitDone<- true
+	cSplitDone <- true
 }
 
-func writeClosestN(results []catchmentStruct, filepath string) error {
+func writeClosestN(results []catchmentStruct, w io.Writer) error {
 
 	var err error
-	f := os.Stdout
 
-	if filepath != "stdout" {
-		f, err = os.Create(filepath)
-		if err != nil {
-			return err
-		}
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("query,closest\n")
+	_, err = w.Write([]byte("query,closest\n"))
 	if err != nil {
 		return err
 	}
 
 	for _, result := range results {
 		temp := make([]string, 0)
-		for _, hit := range(result.catchment) {
+		for _, hit := range result.catchment {
 			temp = append(temp, hit.tname)
 		}
-		f.WriteString(result.qname + "," + strings.Join(temp, ";") + "\n")
+		w.Write([]byte(result.qname + "," + strings.Join(temp, ";") + "\n"))
 	}
 
 	return nil
 }
 
-func ClosestN(catchmentSize int, queryFile string, targetFile string, outFile string, threads int) error {
+func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads int) error {
 
 	if threads == 0 {
 		threads = runtime.NumCPU()
@@ -169,7 +160,7 @@ func ClosestN(catchmentSize int, queryFile string, targetFile string, outFile st
 		runtime.GOMAXPROCS(threads)
 	}
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(queryFile)
+	queries, err := fastaio.ReadEncodeAlignmentToList(query, false)
 	if err != nil {
 		return err
 	}
@@ -190,7 +181,7 @@ func ClosestN(catchmentSize int, queryFile string, targetFile string, outFile st
 
 	cResults := make(chan catchmentStruct)
 
-	go fastaio.ReadEncodeAlignment(targetFile, cTEFR, cErr, cTEFRdone)
+	go fastaio.ReadEncodeAlignment(target, false, cTEFR, cErr, cTEFRdone)
 
 	var wgScore sync.WaitGroup
 	wgScore.Add(threads)
@@ -206,7 +197,7 @@ func ClosestN(catchmentSize int, queryFile string, targetFile string, outFile st
 
 	go func() {
 		wgScore.Wait()
-		cTEFRscoreddone<- true
+		cTEFRscoreddone <- true
 	}()
 
 	for n := 1; n > 0; {
@@ -243,7 +234,7 @@ func ClosestN(catchmentSize int, queryFile string, targetFile string, outFile st
 		QResultsArray[result.qidx] = result
 	}
 
-	err = writeClosestN(QResultsArray, outFile)
+	err = writeClosestN(QResultsArray, out)
 	if err != nil {
 		return err
 	}

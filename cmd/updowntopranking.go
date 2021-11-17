@@ -1,8 +1,14 @@
 package cmd
 
 import (
+	"bufio"
+	"errors"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/updown"
 )
 
@@ -24,7 +30,7 @@ var TRdistup int
 var TRdistdown int
 var TRdistside int
 
-var TRdistpush bool
+var TRdistpush int
 
 var TRthresholdpair float32
 var TRthresholdtarget int
@@ -50,21 +56,21 @@ func init() {
 	toprankingCmd.Flags().IntVarP(&TRdistside, "dist-side", "", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
 
 	toprankingCmd.Flags().Float32VarP(&TRthresholdpair, "threshold-pair", "", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
-	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target must have fewer than this number of ambiguities to be considered")
+	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target can have at most this number of ambiguities to be considered")
 
 	toprankingCmd.Flags().BoolVarP(&TRnofill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
-	toprankingCmd.Flags().BoolVarP(&TRdistpush, "dist-push", "", false, "Push the SNP-distance boundaries for any empty bins to the closest distance for which there are neighbours, where possible")
+	toprankingCmd.Flags().IntVarP(&TRdistpush, "dist-push", "", 0, "Push the SNP-distance boundaries for any empty bins to the closest n distances for which there are neighbours, where possible")
 
 	toprankingCmd.Flags().Lookup("no-fill").NoOptDefVal = "true"
-	toprankingCmd.Flags().Lookup("dist-push").NoOptDefVal = "true"
+	toprankingCmd.Flags().Lookup("dist-push").NoOptDefVal = "1"
 
 	toprankingCmd.Flags().SortFlags = false
 }
 
 var toprankingCmd = &cobra.Command{
 	Use:   "topranking",
-	Short: "get pseudo-tree-aware catchments for query sequences from alignments",
-	Long: `get pseudo-tree-aware catchments for query sequences from alignments
+	Short: "Get pseudo-tree-aware catchments for query sequences from alignments",
+	Long: `Get pseudo-tree-aware catchments for query sequences from alignments
 
 Example usage:
 	gofasta updown topranking -q smallquery.fasta -r WH04.fasta -t mutationlist.csv --size-total 1000 -o catchment.csv
@@ -86,14 +92,87 @@ The program will aim to provide the sum of these numbers in total in the output,
 by increasing the count of the other bins where possible, unless --no-fill.
 
 You can also filter on SNP-distance instead of returning the closest n sequences. Use the --dist flags to do this. If --dist-push 
-is invoked, the program will push the SNP-distance boundaries for any empty bins until it finds a neighbour, and then it will
-return all the neighbours at that distance in that bin, and print what it's done to stderr.
+is invoked with an integer (n) argument, the program can push the SNP-distance boundaries for any empty bins to cover the sequences
+that are the closest n SNP-distances away, and then it will return all the neighbours at those distances in that bin, 
+and print what it's done to stderr.
 
 You can combine the two types of flag (size and dist), to return only the closest n sequences under a set distance.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = updown.TopRanking(TRquery, TRtarget, TRoutfile, udReference, TRignore,
+		var qtype string
+		var ttype string
+
+		switch filepath.Ext(TRquery) {
+		case ".csv":
+			qtype = "csv"
+		case ".fasta":
+			qtype = "fasta"
+		case ".fa":
+			qtype = "fasta"
+		default:
+			return errors.New("couldn't tell if --query was a .csv or a .fasta file")
+		}
+
+		switch filepath.Ext(TRtarget) {
+		case ".csv":
+			ttype = "csv"
+		case ".fasta":
+			ttype = "fasta"
+		case ".fa":
+			ttype = "fasta"
+		default:
+			return errors.New("couldn't tell if --target was a .csv or a .fasta file")
+		}
+
+		if (qtype == "fasta" || ttype == "fasta") && len(udReference) == 0 {
+			return errors.New("if your either of your input files are fastas, you must provide a --reference")
+		}
+
+		// targets to ignore (potentially):
+		ignoreArray := make([]string, 0)
+		if len(TRignore) != 0 {
+			f, err := os.Open(TRignore)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			s := bufio.NewScanner(f)
+			for s.Scan() {
+				ignoreArray = append(ignoreArray, s.Text())
+			}
+			err = s.Err()
+			if err != nil {
+				return err
+			}
+		}
+
+		query, err := gfio.OpenIn(*cmd.Flag("query"))
+		if err != nil {
+			return err
+		}
+		defer query.Close()
+
+		target, err := gfio.OpenIn(*cmd.Flag("target"))
+		if err != nil {
+			return err
+		}
+		defer target.Close()
+
+		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
+		if err != nil {
+			return err
+		}
+		defer ref.Close()
+
+		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		err = updown.TopRanking(query, target, ref, out,
+			qtype, ttype, ignoreArray,
 			TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 			TRdistall, TRdistup, TRdistdown, TRdistside,
 			TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)

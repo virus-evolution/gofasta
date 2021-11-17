@@ -12,7 +12,7 @@ var (
 		Use:     "gofasta",
 		Short:   "some functions for working with alignments",
 		Long:    `some functions for working with alignments`,
-		Version: "0.0.5",
+		Version: "0.0.6",
 	}
 )
 

@@ -1,38 +1,39 @@
 package closest
 
 import (
-	"os"
-	"fmt"
-	"sync"
 	"errors"
+	"fmt"
+	"io"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/fastaio"
 	"github.com/cov-ert/gofasta/pkg/encoding"
+	"github.com/cov-ert/gofasta/pkg/fastaio"
 )
 
 type resultsStruct struct {
-	qname string
-	qidx int
-	tname string
+	qname        string
+	qidx         int
+	tname        string
 	completeness int64
-	distance float64
-	snps []string
+	distance     float64
+	snps         []string
 }
 
 func scoreEncodedAlignment(cIn chan fastaio.EncodedFastaRecord, cOut chan fastaio.EncodedFastaRecord) {
 	scoring := encoding.MakeEncodedScoreArray()
 	var score int64
 
-	for EFR := range(cIn) {
+	for EFR := range cIn {
 		score = 0
-		for _, nuc := range(EFR.Seq) {
+		for _, nuc := range EFR.Seq {
 			score += scoring[nuc]
 		}
 		EFR.Score = score
-		cOut<- EFR
+		cOut <- EFR
 	}
 
 	return
@@ -50,15 +51,15 @@ func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFasta
 
 	decoding := encoding.MakeDecodingArray()
 
-	for target := range(cIn) {
+	for target := range cIn {
 		n = 0
 		d = 0
-		for i, tNuc := range(target.Seq) {
+		for i, tNuc := range target.Seq {
 			if (query.Seq[i] & tNuc) < 16 {
 				n += 1
 				d += 1
 			}
-			if (query.Seq[i] & 8 == 8) && query.Seq[i] == tNuc {
+			if (query.Seq[i]&8 == 8) && query.Seq[i] == tNuc {
 				d += 1
 			}
 		}
@@ -66,9 +67,9 @@ func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFasta
 
 		if first {
 			snps = make([]string, 0)
-			for i, tNuc := range(target.Seq) {
+			for i, tNuc := range target.Seq {
 				if (query.Seq[i] & tNuc) < 16 {
-					snps = append(snps,strconv.Itoa(i + 1) + decoding[query.Seq[i]] + decoding[tNuc])
+					snps = append(snps, strconv.Itoa(i+1)+decoding[query.Seq[i]]+decoding[tNuc])
 				}
 			}
 			closest = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance, snps: snps}
@@ -78,9 +79,9 @@ func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFasta
 
 		if distance < closest.distance {
 			snps = make([]string, 0)
-			for i, tNuc := range(target.Seq) {
+			for i, tNuc := range target.Seq {
 				if (query.Seq[i] & tNuc) < 16 {
-					snps = append(snps,strconv.Itoa(i + 1) + decoding[query.Seq[i]] + decoding[tNuc])
+					snps = append(snps, strconv.Itoa(i+1)+decoding[query.Seq[i]]+decoding[tNuc])
 				}
 			}
 			closest = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance, snps: snps}
@@ -88,9 +89,9 @@ func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFasta
 		} else if distance == closest.distance {
 			if target.Score > closest.completeness {
 				snps = make([]string, 0)
-				for i, tNuc := range(target.Seq) {
+				for i, tNuc := range target.Seq {
 					if (query.Seq[i] & tNuc) < 16 {
-						snps = append(snps,strconv.Itoa(i + 1) + decoding[query.Seq[i]] + decoding[tNuc])
+						snps = append(snps, strconv.Itoa(i+1)+decoding[query.Seq[i]]+decoding[tNuc])
 					}
 				}
 				closest = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance, snps: snps}
@@ -101,7 +102,7 @@ func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFasta
 	closest.qname = query.ID
 	closest.qidx = query.Idx
 
-	cOut<- closest
+	cOut <- closest
 }
 
 func splitInput(queries []fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFastaRecord, cOut chan resultsStruct, cErr chan error, cSplitDone chan bool) {
@@ -111,63 +112,53 @@ func splitInput(queries []fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFa
 	// make an array of channels, one for each query
 	QChanArray := make([]chan fastaio.EncodedFastaRecord, nQ)
 	for i := 0; i < nQ; i++ {
-	   QChanArray[i] = make(chan fastaio.EncodedFastaRecord)
+		QChanArray[i] = make(chan fastaio.EncodedFastaRecord)
 	}
 
-	for i, q := range(queries) {
+	for i, q := range queries {
 		go findClosest(q, QChanArray[i], cOut)
 	}
 
 	targetCounter := 0
-	for EFR := range(cIn) {
+	for EFR := range cIn {
 		if targetCounter == 0 {
 			if len(EFR.Seq) != len(queries[0].Seq) {
-				cErr<- errors.New("query and target alignments are not the same width")
+				cErr <- errors.New("query and target alignments are not the same width")
 			}
 		}
 		targetCounter++
 
-		for i, _ := range(QChanArray) {
-			QChanArray[i]<- EFR
+		for i, _ := range QChanArray {
+			QChanArray[i] <- EFR
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", targetCounter)
 
-	for i, _ := range(QChanArray) {
+	for i, _ := range QChanArray {
 		close(QChanArray[i])
 	}
 
-	cSplitDone<- true
+	cSplitDone <- true
 }
 
-func writeClosest(results []resultsStruct, filepath string) error {
+func writeClosest(results []resultsStruct, w io.Writer) error {
 
 	var err error
-	f := os.Stdout
 
-	if filepath != "stdout" {
-		f, err = os.Create(filepath)
-		if err != nil {
-			return err
-		}
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("query,closest,SNPdistance,SNPs\n")
+	_, err = w.Write([]byte("query,closest,SNPdistance,SNPs\n"))
 	if err != nil {
 		return err
 	}
 
 	for _, result := range results {
-		f.WriteString(result.qname + "," + result.tname + "," + strconv.Itoa(len(result.snps)) + "," + strings.Join(result.snps, ";") + "\n")
+		w.Write([]byte(result.qname + "," + result.tname + "," + strconv.Itoa(len(result.snps)) + "," + strings.Join(result.snps, ";") + "\n"))
 	}
 
 	return nil
 }
 
-func Closest(queryFile string, targetFile string, outFile string, threads int) error {
+func Closest(query, target io.Reader, out io.Writer, threads int) error {
 
 	if threads == 0 {
 		threads = runtime.NumCPU()
@@ -175,7 +166,7 @@ func Closest(queryFile string, targetFile string, outFile string, threads int) e
 		runtime.GOMAXPROCS(threads)
 	}
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(queryFile)
+	queries, err := fastaio.ReadEncodeAlignmentToList(query, false)
 	if err != nil {
 		return err
 	}
@@ -196,7 +187,7 @@ func Closest(queryFile string, targetFile string, outFile string, threads int) e
 
 	cResults := make(chan resultsStruct)
 
-	go fastaio.ReadEncodeAlignment(targetFile, cTEFR, cErr, cTEFRdone)
+	go fastaio.ReadEncodeAlignment(target, false, cTEFR, cErr, cTEFRdone)
 
 	var wgScore sync.WaitGroup
 	wgScore.Add(threads)
@@ -212,7 +203,7 @@ func Closest(queryFile string, targetFile string, outFile string, threads int) e
 
 	go func() {
 		wgScore.Wait()
-		cTEFRscoreddone<- true
+		cTEFRscoreddone <- true
 	}()
 
 	for n := 1; n > 0; {
@@ -249,7 +240,7 @@ func Closest(queryFile string, targetFile string, outFile string, threads int) e
 		QResultsArray[result.qidx] = result
 	}
 
-	err = writeClosest(QResultsArray, outFile)
+	err = writeClosest(QResultsArray, out)
 	if err != nil {
 		return err
 	}

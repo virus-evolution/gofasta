@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cov-ert/gofasta/pkg/closest"
+	"github.com/cov-ert/gofasta/pkg/gfio"
 )
 
 var closestThreads int
@@ -25,7 +26,7 @@ func init() {
 var closestCmd = &cobra.Command{
 	Use:   "closest",
 	Short: "Find the closest sequence(s) to a query by raw distance",
-	Long:  `Find the closest sequence(s) to a query by raw distance
+	Long: `Find the closest sequence(s) to a query by raw distance
 
 The usecase is imagined to be a small number of query sequences, whose nearest neighbours
 need to be found amongst a large number of target sequences. The query alignment is read
@@ -49,10 +50,28 @@ is a ";"-delimited list of neighbours, closest first.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
+		queryIn, err := gfio.OpenIn(*cmd.Flag("query"))
+		if err != nil {
+			return err
+		}
+		defer queryIn.Close()
+
+		targetIn, err := gfio.OpenIn(*cmd.Flag("target"))
+		if err != nil {
+			return err
+		}
+		defer targetIn.Close()
+
+		closestOut, err := gfio.OpenOut(*cmd.Flag("outfile"))
+		if err != nil {
+			return err
+		}
+		defer closestOut.Close()
+
 		if closestN > 0 {
-			err = closest.ClosestN(closestN, closestQuery, closestTarget, closestOutfile, closestThreads)
+			err = closest.ClosestN(closestN, queryIn, targetIn, closestOut, closestThreads)
 		} else {
-			err = closest.Closest(closestQuery, closestTarget, closestOutfile, closestThreads)
+			err = closest.Closest(queryIn, targetIn, closestOut, closestThreads)
 		}
 
 		return err

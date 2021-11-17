@@ -2,7 +2,8 @@ package genbank
 
 import (
 	"bufio"
-	"os"
+	"io"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -11,31 +12,46 @@ import (
 
 // Genbank is a master struct containing all the info from a single genbank record
 type Genbank struct {
-	LOCUS struct {Name string; Length int; Type string; Division string; Date string} // NOT implemented
+	LOCUS struct {
+		Name     string
+		Length   int
+		Type     string
+		Division string
+		Date     string
+	} // NOT implemented
 	DEFINITION string // NOT implemented
-	ACCESSION string // NOT implemented
-	VERSION  string // NOT implemented
-	KEYWORDS string // NOT implemented
-	SOURCE struct {Source string; Organism string} // NOT implemented
-	REFERENCE struct {Authors string; Title string; Journal string; Pubmed string; Remark string} // NOT implemented
-	COMMENT string // NOT implemented
+	ACCESSION  string // NOT implemented
+	VERSION    string // NOT implemented
+	KEYWORDS   string // NOT implemented
+	SOURCE     struct {
+		Source   string
+		Organism string
+	} // NOT implemented
+	REFERENCE struct {
+		Authors string
+		Title   string
+		Journal string
+		Pubmed  string
+		Remark  string
+	} // NOT implemented
+	COMMENT  string           // NOT implemented
 	FEATURES []GenbankFeature // implemented
-	ORIGIN []byte  // implemented
+	ORIGIN   []byte           // implemented
 }
 
 // genbankField is a utility struct for moving main toplevel genbank FIELDS +
 // their associated lines around through channels, etc.
 type genbankField struct {
 	header string
-	lines []string
+	lines  []string
 }
 
 // GenbankFeature is a sub-struct that contains information about one feature
 // under the genbank FEATURES section
 type GenbankFeature struct {
 	Feature string
-	Pos string
-	Info map[string]string
+	Pos     string
+	Info    map[string]string
 }
 
 // TO DO make this work on a pointer to a map instead of making copies
@@ -61,7 +77,7 @@ func isFeatureLine(line string, quoteClosed bool) bool {
 }
 
 // get the FEATURES info
-func parseGenbankFEATURES(field genbankField) ([]GenbankFeature) {
+func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 	rawLines := field.lines
 
@@ -75,7 +91,7 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature) {
 	var valueBuffer []rune
 	var isKey bool
 
-	for linecounter, line := range(rawLines) {
+	for linecounter, line := range rawLines {
 
 		newFeature := isFeatureLine(line, quoteClosed)
 
@@ -103,7 +119,7 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature) {
 
 			quoteClosed = true
 
-			for _, character := range(strings.TrimSpace(line)[1:]) {
+			for _, character := range strings.TrimSpace(line)[1:] {
 
 				if character == '=' {
 					isKey = false
@@ -114,18 +130,18 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature) {
 					keyBuffer = append(keyBuffer, character)
 				} else {
 					if character == '"' {
-						quoteClosed = ! quoteClosed
+						quoteClosed = !quoteClosed
 						continue
 					}
 					valueBuffer = append(valueBuffer, character)
 				}
 			}
 
-		} else if ! quoteClosed {
+		} else if !quoteClosed {
 
-			for _, character := range(strings.TrimSpace(line)) {
+			for _, character := range strings.TrimSpace(line) {
 				if character == '"' {
-					quoteClosed = ! quoteClosed
+					quoteClosed = !quoteClosed
 					continue
 				}
 
@@ -143,7 +159,7 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature) {
 
 			isKey = true
 
-			for _, character := range(strings.TrimSpace(line)[1:]) {
+			for _, character := range strings.TrimSpace(line)[1:] {
 
 				if character == '=' {
 					isKey = false
@@ -154,7 +170,7 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature) {
 					keyBuffer = append(keyBuffer, character)
 				} else {
 					if character == '"' {
-						quoteClosed = ! quoteClosed
+						quoteClosed = !quoteClosed
 						continue
 					}
 					valueBuffer = append(valueBuffer, character)
@@ -195,15 +211,47 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature) {
 	return features
 }
 
+func ParsePositions(position string) ([]int, error) {
+	var A []int
+	if position[0:4] == "join" {
+		A = make([]int, 0)
+		position = strings.TrimLeft(position, "join(")
+		position = strings.TrimRight(position, ")")
+		ranges := strings.Split(position, ",")
+		for _, x := range ranges {
+			y := strings.Split(x, "..")
+			for _, z := range y {
+				temp, err := strconv.Atoi(z)
+				if err != nil {
+					return []int{}, err
+				}
+				A = append(A, temp)
+			}
+		}
+	} else {
+		A = make([]int, 0)
+		y := strings.Split(position, "..")
+		for _, z := range y {
+			temp, err := strconv.Atoi(z)
+			if err != nil {
+				return []int{}, err
+			}
+			A = append(A, temp)
+		}
+	}
+
+	return A, nil
+}
+
 // get the ORIGIN info
-func parseGenbankORIGIN(field genbankField) ([]byte) {
+func parseGenbankORIGIN(field genbankField) []byte {
 
 	rawLines := field.lines
 
 	seq := make([]byte, 0)
 
-	for _, line := range(rawLines) {
-		for _, character := range(line) {
+	for _, line := range rawLines {
+		for _, character := range line {
 			if unicode.IsLetter(character) {
 				seq = append(seq, []byte(string(character))...)
 			}
@@ -216,17 +264,11 @@ func parseGenbankORIGIN(field genbankField) ([]byte) {
 // ReadGenBank reads a genbank annotation file and returns a struct that contains
 // parsed versions of the fields therein.
 // Not all fields are currently parsed.
-func ReadGenBank(infile string) (Genbank, error) {
+func ReadGenBank(r io.Reader) (Genbank, error) {
 
 	gb := Genbank{}
 
-	f, err := os.Open(infile)
-	if err != nil {
-		return Genbank{}, err
-	}
-	defer f.Close()
-
-	s := bufio.NewScanner(f)
+	s := bufio.NewScanner(r)
 
 	first := true
 	var header string
@@ -242,7 +284,7 @@ func ReadGenBank(infile string) (Genbank, error) {
 
 		r, _ := utf8.DecodeRune([]byte{line[0]})
 
-		if unicode.IsUpper(r){
+		if unicode.IsUpper(r) {
 			// fmt.Println(line)
 			if first {
 				header = strings.Fields(line)[0]

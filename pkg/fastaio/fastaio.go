@@ -1,11 +1,12 @@
 package fastaio
 
 import (
-	"os"
-	"fmt"
 	"bufio"
 	"errors"
+	"fmt"
+	"io"
 	"strings"
+
 	"github.com/cov-ert/gofasta/pkg/encoding"
 )
 
@@ -14,7 +15,7 @@ type FastaRecord struct {
 	ID          string
 	Description string
 	Seq         string
-	Idx	    int
+	Idx         int
 }
 
 // EncodedFastaRecord is a struct for one Fasta record
@@ -22,19 +23,13 @@ type EncodedFastaRecord struct {
 	ID          string
 	Description string
 	Seq         []byte
-	Score	int64 // this is for e.g., genome completeness
-	Idx int
+	Score       int64 // this is for e.g., genome completeness
+	Idx         int
 }
 
-func getAlignmentDims(infile string) (int, int, error) {
+func getAlignmentDims(f io.Reader) (int, int, error) {
 	n := 0
 	l := 0
-
-	f, err := os.Open(infile)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer f.Close()
 
 	s := bufio.NewScanner(f)
 
@@ -50,7 +45,7 @@ func getAlignmentDims(infile string) (int, int, error) {
 		}
 	}
 
-	err = s.Err()
+	err := s.Err()
 
 	if err != nil {
 		return 0, 0, err
@@ -61,17 +56,12 @@ func getAlignmentDims(infile string) (int, int, error) {
 
 // ReadAlignment reads an alignment in fasta format to a channel
 // of FastaRecord structs
-func ReadAlignment(infile string, chnl chan FastaRecord, chnlerr chan error, cdone chan bool) {
+func ReadAlignment(f io.Reader, chnl chan FastaRecord, chnlerr chan error, cdone chan bool) {
 
-	f, err := os.Open(infile)
-
-	if err != nil {
-		chnlerr <- err
-	}
-
-	defer f.Close()
-
+	var err error
 	s := bufio.NewScanner(f)
+
+	counter := 0
 
 	first := true
 
@@ -86,6 +76,7 @@ func ReadAlignment(infile string, chnl chan FastaRecord, chnlerr chan error, cdo
 
 			if string(line[0]) != ">" {
 				chnlerr <- errors.New("badly formatted fasta file")
+				return
 			}
 
 			description = line[1:]
@@ -95,8 +86,9 @@ func ReadAlignment(infile string, chnl chan FastaRecord, chnlerr chan error, cdo
 
 		} else if string(line[0]) == ">" {
 
-			fr := FastaRecord{ID: id, Description: description, Seq: seqBuffer}
+			fr := FastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 			chnl <- fr
+			counter++
 
 			description = line[1:]
 			id = strings.Fields(description)[0]
@@ -108,98 +100,143 @@ func ReadAlignment(infile string, chnl chan FastaRecord, chnlerr chan error, cdo
 
 	}
 
-	fr := FastaRecord{ID: id, Description: description, Seq: seqBuffer}
+	fr := FastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 	chnl <- fr
 
 	err = s.Err()
 	if err != nil {
 		chnlerr <- err
+		return
 	}
 
 	cdone <- true
 }
 
-// PopulateByteArrayGetNames reads a fasta format alignment into an array of
-// uint8 representations of nucleotides, and gets the names of the fasta records
-// at the same time.
-func PopulateByteArrayGetNames(infile string) ([][]uint8, []string, error) {
-	height, width, err := getAlignmentDims(infile)
+// writeAlignmentOut reads fasta records from a channel and writes them to a single
+// outfile, in the order in which they are present in the input file.
+// It passes a true to a done channel when the channel of fasta records is empty
+func WriteAlignment(ch chan FastaRecord, w io.Writer, cdone chan bool, cerr chan error) {
 
-	if err != nil {
-		return [][]uint8{}, []string{}, err
-	}
+	outputMap := make(map[int]FastaRecord)
 
-	IDs := make([]string, 0)
+	counter := 0
 
-	A := make([][]uint8, height)
-	for i := 0; i < height; i++ {
-		A[i] = make([]uint8, width)
-	}
+	var err error
 
-	byteDict := encoding.MakeByteDict()
+	for FR := range ch {
 
-	c := make(chan FastaRecord)
-	cerr := make(chan error)
-	cdone := make(chan bool)
+		outputMap[FR.Idx] = FR
 
-	go ReadAlignment(infile, c, cerr, cdone)
-
-	i := 0
-
-	for n := 1; n > 0; {
-		select {
-
-		case err := <-cerr:
-			return [][]uint8{}, []string{}, err
-
-		case record := <-c:
-
-			IDs = append(IDs, record.ID)
-
-			if len(record.Seq) != width {
-				return [][]uint8{}, []string{}, errors.New("different length sequences in input file: is this an alignment?")
+		if fastarecord, ok := outputMap[counter]; ok {
+			_, err = w.Write([]byte(">" + fastarecord.ID + "\n"))
+			if err != nil {
+				cerr <- err
 			}
-
-			for j, nuc := range record.Seq {
-
-				if val, ok := byteDict[nuc]; ok {
-					A[i][j] = val
-
-				} else {
-					return [][]uint8{}, []string{}, fmt.Errorf("invalid nucleotide in fasta file (%s)", string(nuc))
-				}
+			_, err = w.Write([]byte(fastarecord.Seq + "\n"))
+			if err != nil {
+				cerr <- err
 			}
-
-			i++
-
-		case <-cdone:
-			n--
+			delete(outputMap, counter)
+			counter++
+		} else {
+			continue
 		}
 	}
 
-	return A, IDs, nil
+	for n := 1; n > 0; {
+		if len(outputMap) == 0 {
+			break
+		}
+		fastarecord := outputMap[counter]
+		_, err = w.Write([]byte(">" + fastarecord.ID + "\n"))
+		if err != nil {
+			cerr <- err
+		}
+		_, err = w.Write([]byte(fastarecord.Seq + "\n"))
+		if err != nil {
+			cerr <- err
+		}
+		delete(outputMap, counter)
+		counter++
+	}
+
+	cdone <- true
 }
 
+// // PopulateByteArrayGetNames reads a fasta format alignment into an array of
+// // uint8 representations of nucleotides, and gets the names of the fasta records
+// // at the same time.
+// func PopulateByteArrayGetNames(infile string) ([][]uint8, []string, error) {
+// 	height, width, err := getAlignmentDims(infile)
+
+// 	if err != nil {
+// 		return [][]uint8{}, []string{}, err
+// 	}
+
+// 	IDs := make([]string, 0)
+
+// 	A := make([][]uint8, height)
+// 	for i := 0; i < height; i++ {
+// 		A[i] = make([]uint8, width)
+// 	}
+
+// 	byteDict := encoding.MakeByteDict()
+
+// 	c := make(chan FastaRecord)
+// 	cerr := make(chan error)
+// 	cdone := make(chan bool)
+
+// 	go ReadAlignment(infile, c, cerr, cdone)
+
+// 	i := 0
+
+// 	for n := 1; n > 0; {
+// 		select {
+
+// 		case err := <-cerr:
+// 			return [][]uint8{}, []string{}, err
+
+// 		case record := <-c:
+
+// 			IDs = append(IDs, record.ID)
+
+// 			if len(record.Seq) != width {
+// 				return [][]uint8{}, []string{}, errors.New("different length sequences in input file: is this an alignment?")
+// 			}
+
+// 			for j, nuc := range record.Seq {
+
+// 				if val, ok := byteDict[nuc]; ok {
+// 					A[i][j] = val
+
+// 				} else {
+// 					return [][]uint8{}, []string{}, fmt.Errorf("invalid nucleotide in fasta file (%s)", string(nuc))
+// 				}
+// 			}
+
+// 			i++
+
+// 		case <-cdone:
+// 			n--
+// 		}
+// 	}
+
+// 	return A, IDs, nil
+// }
 
 // ReadEncodeAlignment reads an alignment in fasta format to a channel
 // of encodedFastaRecord structs - converting sequence to EP's bitwise coding scheme
-func ReadEncodeAlignment(inFile string, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
+func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
 
 	var err error
-	var f *os.File
 
-	if inFile != "stdin" {
-		f, err = os.Open(inFile)
-		if err != nil {
-			cErr <- err
-		}
-	} else {
-		f = os.Stdin
+	var coding [256]byte
+	switch hardGaps {
+	case true:
+		coding = encoding.MakeEncodingArrayHardGaps()
+	case false:
+		coding = encoding.MakeEncodingArray()
 	}
-
-	defer f.Close()
-
-	coding := encoding.MakeEncodingArray()
 
 	s := bufio.NewScanner(f)
 
@@ -235,7 +272,8 @@ func ReadEncodeAlignment(inFile string, chnl chan EncodedFastaRecord, cErr chan 
 			if counter == 0 {
 				width = len(seqBuffer)
 			} else if len(seqBuffer) != width {
-				cErr<- errors.New("different length sequences in input file: is this an alignment?")
+				cErr <- errors.New("different length sequences in input file: is this an alignment?")
+				return
 			}
 
 			fr = EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
@@ -248,10 +286,11 @@ func ReadEncodeAlignment(inFile string, chnl chan EncodedFastaRecord, cErr chan 
 
 		} else {
 			encodedLine := make([]byte, len(line))
-			for i := range(line) {
+			for i := range line {
 				nuc = coding[line[i]]
 				if nuc == 0 {
-					cErr<- fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
+					cErr <- fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
+					return
 				}
 				encodedLine[i] = nuc
 			}
@@ -265,30 +304,25 @@ func ReadEncodeAlignment(inFile string, chnl chan EncodedFastaRecord, cErr chan 
 	err = s.Err()
 	if err != nil {
 		cErr <- err
+		return
 	}
 
 	cDone <- true
 }
 
-func ReadEncodeAlignmentToList(inFile string) ([]EncodedFastaRecord, error) {
+func ReadEncodeAlignmentToList(f io.Reader, hardGaps bool) ([]EncodedFastaRecord, error) {
 
 	var err error
-	var f *os.File
-
-	if inFile != "stdin" {
-		f, err = os.Open(inFile)
-		if err != nil {
-			return []EncodedFastaRecord{}, err
-		}
-	} else {
-		f = os.Stdin
-	}
-
-	defer f.Close()
 
 	records := make([]EncodedFastaRecord, 0)
 
-	coding := encoding.MakeEncodingArray()
+	var coding [256]byte
+	switch hardGaps {
+	case true:
+		coding = encoding.MakeEncodingArrayHardGaps()
+	case false:
+		coding = encoding.MakeEncodingArray()
+	}
 
 	s := bufio.NewScanner(f)
 
@@ -335,7 +369,7 @@ func ReadEncodeAlignmentToList(inFile string) ([]EncodedFastaRecord, error) {
 
 		} else {
 			encodedLine := make([]byte, len(line))
-			for i := range(line) {
+			for i := range line {
 				nuc = coding[line[i]]
 				if nuc == 0 {
 					return []EncodedFastaRecord{}, fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
@@ -357,92 +391,82 @@ func ReadEncodeAlignmentToList(inFile string) ([]EncodedFastaRecord, error) {
 	return records, nil
 }
 
-func ReadEncodeScoreAlignment(inFile string, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
+// func ReadEncodeScoreAlignment(f io.Reader, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
 
-	var err error
-	var f *os.File
+// 	var err error
 
-	if inFile != "stdin" {
-		f, err = os.Open(inFile)
-		if err != nil {
-			cErr <- err
-		}
-	} else {
-		f = os.Stdin
-	}
+// 	coding := encoding.MakeEncodingArray()
+// 	scoring := encoding.MakeScoreArray()
 
-	defer f.Close()
+// 	s := bufio.NewScanner(f)
 
-	coding := encoding.MakeEncodingArray()
-	scoring := encoding.MakeScoreArray()
+// 	first := true
 
-	s := bufio.NewScanner(f)
+// 	var id string
+// 	var description string
+// 	var seqBuffer []byte
+// 	var line []byte
+// 	var nuc byte
+// 	var score int64
+// 	var width int
 
-	first := true
+// 	counter := 0
 
-	var id string
-	var description string
-	var seqBuffer []byte
-	var line []byte
-	var nuc byte
-	var score int64
-	var width int
+// 	for s.Scan() {
+// 		line = s.Bytes()
 
-	counter := 0
+// 		if first {
 
-	for s.Scan() {
-		line = s.Bytes()
+// 			if line[0] != '>' {
+// 				cErr <- errors.New("badly formatted fasta file")
+// 			}
 
-		if first {
+// 			description = string(line[1:])
+// 			id = strings.Fields(description)[0]
 
-			if line[0] != '>' {
-				cErr <- errors.New("badly formatted fasta file")
-			}
+// 			first = false
 
-			description = string(line[1:])
-			id = strings.Fields(description)[0]
+// 		} else if line[0] == '>' {
 
-			first = false
+// 			if counter == 0 {
+// 				width = len(seqBuffer)
+// 			} else if len(seqBuffer) != width {
+// 				cErr <- errors.New("different length sequences in input file: is this an alignment?")
+// 				return
+// 			}
 
-		} else if line[0] == '>' {
+// 			fr := EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Score: score, Idx: counter}
+// 			chnl <- fr
+// 			counter++
 
-			if counter == 0 {
-				width = len(seqBuffer)
-			} else if len(seqBuffer) != width {
-				cErr<- errors.New("different length sequences in input file: is this an alignment?")
-			}
+// 			description = string(line[1:])
+// 			id = strings.Fields(description)[0]
+// 			seqBuffer = make([]byte, 0)
+// 			score = 0
 
-			fr := EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Score: score, Idx: counter}
-			chnl <- fr
-			counter++
+// 		} else {
+// 			encodedLine := make([]byte, len(line))
+// 			for i := range line {
+// 				nuc = coding[line[i]]
+// 				if nuc == 0 {
+// 					cErr <- fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
+// 				}
+// 				encodedLine[i] = nuc
 
-			description = string(line[1:])
-			id = strings.Fields(description)[0]
-			seqBuffer = make([]byte, 0)
-			score = 0
+// 				score += scoring[line[i]]
+// 			}
+// 			seqBuffer = append(seqBuffer, encodedLine...)
+// 		}
+// 	}
 
-		} else {
-			encodedLine := make([]byte, len(line))
-			for i := range(line) {
-				nuc = coding[line[i]]
-				if nuc == 0 {
-					cErr<- fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
-				}
-				encodedLine[i] = nuc
+// 	fr := EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Score: score, Idx: counter}
+// 	chnl <- fr
 
-				score += scoring[line[i]]
-			}
-			seqBuffer = append(seqBuffer, encodedLine...)
-		}
-	}
+// 	err = s.Err()
+// 	if err != nil {
+// 		cErr <- err
+// 		return
+// 	}
 
-	fr := EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Score: score, Idx: counter}
-	chnl <- fr
-
-	err = s.Err()
-	if err != nil {
-		cErr <- err
-	}
-
-	cDone <- true
-}
+// 	cDone <- true
+// }

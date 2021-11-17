@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/cov-ert/gofasta/pkg/gfio"
 	"github.com/cov-ert/gofasta/pkg/sam"
 )
 
@@ -23,7 +24,7 @@ func init() {
 var indelCmd = &cobra.Command{
 	Use:   "indels",
 	Short: "Parse a SAM file for raw indel information",
-	Long:  `Parse a SAM file for raw indel information
+	Long: `Parse a SAM file for raw indel information
 
 Parse a sam file for raw insertion and deletion information stored in the CIGAR. No attempt
 is made to consolidate indels within one query sequence's sam lines, so there may be some conflict.
@@ -42,7 +43,25 @@ Example usage:
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		err = sam.Indels(samFile, indelsInsOut, indelsDelOut, indelsThreshold)
+		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
+		if err != nil {
+			return err
+		}
+		defer samIn.Close()
+
+		insOut, err := gfio.OpenOut(*cmd.Flag("insertions-out"))
+		if err != nil {
+			return err
+		}
+		defer insOut.Close()
+
+		delOut, err := gfio.OpenOut(*cmd.Flag("deletions-out"))
+		if err != nil {
+			return err
+		}
+		defer delOut.Close()
+
+		err = sam.Indels(samIn, insOut, delOut, indelsThreshold)
 
 		return
 	},

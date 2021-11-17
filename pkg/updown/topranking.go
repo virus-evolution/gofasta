@@ -1,11 +1,10 @@
 package updown
 
 import (
-	"bufio"
 	"errors"
+	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -84,11 +83,11 @@ func isSiteAmb(pos int, a []int) bool {
 	return false
 }
 
-// whichWay returns direction values of 0,1,2,3 = same,up,down,side respectively + SNP distance
+// whichWay returns direction values of 0,1,2,3 = same,up,down,side respectively + SNP distance.
 // distance is -1 if the pair fails the ambiguity threshold test.
 func whichWay(q, t updownLine, thresh float32) (int, int) {
 
-	// table has 4 items: number of Q SNPs; no. QT SMPs; no. T SNPs; no of consequential ambiguous sites for this pair
+	// table has 4 items: number of Q SNPs; no. QT SNPs; no. T SNPs; no of consequential ambiguous sites for this pair
 	var table [4]int
 
 	// d is an array of unique SNP positions to get distance from
@@ -170,13 +169,13 @@ type updownCatchmentSubStruct struct {
 }
 
 type updownCatchmentStruct struct {
-	qname        string
-	qidx         int
-	same         updownCatchmentSubStruct
-	up           updownCatchmentSubStruct
-	down         updownCatchmentSubStruct
-	side         updownCatchmentSubStruct
-	minDistArray [4]int
+	qname string
+	qidx  int
+	same  updownCatchmentSubStruct
+	up    updownCatchmentSubStruct
+	down  updownCatchmentSubStruct
+	side  updownCatchmentSubStruct
+	// minDistArray [4]int
 }
 
 func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
@@ -188,6 +187,53 @@ func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
 	nS.minAmbig = nS.catchment[catchmentSize-1].ambCount
 }
 
+type pushCatchmentSubStruct struct {
+	catchmentMap map[int][]resultsStruct
+	nDists       int
+	maxDist      int
+}
+
+func getMaxKey(m map[int][]resultsStruct) int {
+	max := 0
+	for k := range m {
+		if k > max {
+			max = k
+		}
+	}
+	return max
+}
+
+func refactorPushCatchment(pC *pushCatchmentSubStruct, rS resultsStruct, nodeDistance int) {
+	if _, ok := pC.catchmentMap[rS.distance]; ok {
+		// if this sequence's distance is already present, then add to it
+		pC.catchmentMap[rS.distance] = append(pC.catchmentMap[rS.distance], rS)
+	} else if len(pC.catchmentMap) == nodeDistance {
+		// if it isn't, and the map is at capacity, delete the farthest sequences
+		// and add this one  elsewhere
+		maxKey := getMaxKey(pC.catchmentMap)
+		delete(pC.catchmentMap, maxKey)
+		pC.catchmentMap[rS.distance] = []resultsStruct{rS}
+		pC.maxDist = getMaxKey(pC.catchmentMap)
+		pC.nDists = len(pC.catchmentMap)
+	} else {
+		// otherwise the map isn't at capacity and we can add this sequence with impunity
+		pC.catchmentMap[rS.distance] = []resultsStruct{rS}
+		pC.maxDist = getMaxKey(pC.catchmentMap)
+		pC.nDists = len(pC.catchmentMap)
+	}
+}
+
+func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct {
+	uC := updownCatchmentSubStruct{}
+	uC.catchment = make([]resultsStruct, 0)
+	for _, v := range pC.catchmentMap {
+		for _, r := range v {
+			uC.catchment = append(uC.catchment, r)
+		}
+	}
+	return uC
+}
+
 func stringInArray(s string, sa []string) bool {
 	for i := range sa {
 		if s == sa[i] {
@@ -197,7 +243,7 @@ func stringInArray(s string, sa []string) bool {
 	return false
 }
 
-func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4]int, distArray [4]int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
+func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4]int, distArray [4]int, pushDist int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
 
 	neighbours := updownCatchmentStruct{qname: q.id, qidx: q.idx}
 	neighbours.same = updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)}
@@ -223,13 +269,13 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 		sizetotal = sum4(sizeArray)
 	}
 
-	// keep track of the minimum distance in each direction
-	minDistArray := [4]int{math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32}
+	// // keep track of the minimum distance in each direction
+	// minDistArray := [4]int{math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32}
 
-	// and set up some extra slices of structs for the queries that are the min dist away
-	pushup := make([]resultsStruct, 0)
-	pushdown := make([]resultsStruct, 0)
-	pushside := make([]resultsStruct, 0)
+	// and set up some extra structs for the queries that are the min dist(s) away
+	pushup := pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct), nDists: 0}
+	pushdown := pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct), nDists: 0}
+	pushside := pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct), nDists: 0}
 	var rspush resultsStruct
 
 	// then we iterate over all the targets
@@ -251,10 +297,10 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 			continue
 		}
 
-		// if the distance is too big, also skip it (for now)
-		if distance > distArray[direction] && distance > minDistArray[direction] {
-			continue
-		}
+		// // if the distance is too big, also skip it
+		// if distance > distArray[direction] && distance > minDistArray[direction] {
+		// 	continue
+		// }
 
 		switch direction {
 		case 0: // same
@@ -350,80 +396,65 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 		case 1: // up
 			// we only care if there is nothing in the main catchment:
 			if len(neighbours.up.catchment) == 0 {
-				// the results struct:
-				rspush = resultsStruct{tname: target.id, ambCount: target.ambCount, distance: distance}
 				// is the distance lower:
-				if distance < minDistArray[direction] {
-					// set the new minimum distance
-					minDistArray[direction] = distance
-					// reset the results slice to be just this new target
-					pushup = []resultsStruct{rspush}
-				} else if distance == minDistArray[direction] { // if the distance is the same as the current closest:
-					// we add this target to the results slice
-					pushup = append(pushup, rspush)
+				if distance <= pushup.maxDist || pushup.nDists < pushDist {
+					// the results struct:
+					rspush = resultsStruct{tname: target.id, ambCount: target.ambCount, distance: distance}
+					// slot it in:
+					refactorPushCatchment(&pushup, rspush, pushDist)
 				}
 			}
 		case 2: // down
 			// we only care if there is nothing in the main catchment:
 			if len(neighbours.down.catchment) == 0 {
-				// the results struct:
-				rspush = resultsStruct{tname: target.id, ambCount: target.ambCount, distance: distance}
 				// is the distance lower:
-				if distance < minDistArray[direction] {
-					// set the new minimum distance
-					minDistArray[direction] = distance
-					// reset the results slice to be just this new target
-					pushdown = []resultsStruct{rspush}
-				} else if distance == minDistArray[direction] { // if the distance is the same as the current closest:
-					// we add this target to the results slice
-					pushdown = append(pushdown, rspush)
+				if distance <= pushdown.maxDist || pushdown.nDists < pushDist {
+					// the results struct:
+					rspush = resultsStruct{tname: target.id, ambCount: target.ambCount, distance: distance}
+					// slot it in:
+					refactorPushCatchment(&pushdown, rspush, pushDist)
 				}
 			}
 		case 3: // side
 			// we only care if there is nothing in the main catchment:
 			if len(neighbours.side.catchment) == 0 {
-				// the results struct:
-				rspush = resultsStruct{tname: target.id, ambCount: target.ambCount, distance: distance}
 				// is the distance lower:
-				if distance < minDistArray[direction] {
-					// set the new minimum distance
-					minDistArray[direction] = distance
-					// reset the results slice to be just this new target
-					pushside = []resultsStruct{rspush}
-				} else if distance == minDistArray[direction] { // if the distance is the same as the current closest:
-					// we add this target to the results slice
-					pushside = append(pushside, rspush)
+				if distance <= pushside.maxDist || pushside.nDists < pushDist {
+					// the results struct:
+					rspush = resultsStruct{tname: target.id, ambCount: target.ambCount, distance: distance}
+					// slot it in:
+					refactorPushCatchment(&pushside, rspush, pushDist)
 				}
 			}
 		}
 	}
 
-	if len(neighbours.same.catchment) < sizeArray[0] && len(neighbours.same.catchment) > 0 {
+	if len(neighbours.same.catchment) < sizetotal && len(neighbours.same.catchment) > 0 {
 		rearrangeCatchment(&neighbours.same, len(neighbours.same.catchment))
 	}
 
-	if len(neighbours.up.catchment) < sizeArray[1] && len(neighbours.up.catchment) > 0 {
+	if len(neighbours.up.catchment) < sizetotal && len(neighbours.up.catchment) > 0 {
 		rearrangeCatchment(&neighbours.up, len(neighbours.up.catchment))
-	} else if len(neighbours.up.catchment) == 0 && len(pushup) > 0 {
-		neighbours.up.catchment = pushup
+	} else if len(neighbours.up.catchment) == 0 && len(pushup.catchmentMap) > 0 {
+		neighbours.up = pushCatchment2Catchment(pushup)
 		rearrangeCatchment(&neighbours.up, len(neighbours.up.catchment))
-		os.Stderr.WriteString("dist-up for " + q.id + " has been pushed to: " + strconv.Itoa(minDistArray[1]) + "\n")
+		os.Stderr.WriteString("dist-up for " + q.id + " has been pushed to: " + strconv.Itoa(pushup.maxDist) + "\n")
 	}
 
-	if len(neighbours.down.catchment) < sizeArray[2] && len(neighbours.down.catchment) > 0 {
+	if len(neighbours.down.catchment) < sizetotal && len(neighbours.down.catchment) > 0 {
 		rearrangeCatchment(&neighbours.down, len(neighbours.down.catchment))
-	} else if len(neighbours.down.catchment) == 0 && len(pushdown) > 0 {
-		neighbours.down.catchment = pushdown
+	} else if len(neighbours.down.catchment) == 0 && len(pushdown.catchmentMap) > 0 {
+		neighbours.down = pushCatchment2Catchment(pushdown)
 		rearrangeCatchment(&neighbours.down, len(neighbours.down.catchment))
-		os.Stderr.WriteString("dist-down for " + q.id + " has been pushed to: " + strconv.Itoa(minDistArray[2]) + "\n")
+		os.Stderr.WriteString("dist-down for " + q.id + " has been pushed to: " + strconv.Itoa(pushdown.maxDist) + "\n")
 	}
 
-	if len(neighbours.side.catchment) < sizeArray[3] && len(neighbours.side.catchment) > 0 {
+	if len(neighbours.side.catchment) < sizetotal && len(neighbours.side.catchment) > 0 {
 		rearrangeCatchment(&neighbours.side, len(neighbours.side.catchment))
-	} else if len(neighbours.side.catchment) == 0 && len(pushside) > 0 {
-		neighbours.side.catchment = pushside
+	} else if len(neighbours.side.catchment) == 0 && len(pushside.catchmentMap) > 0 {
+		neighbours.side = pushCatchment2Catchment(pushside)
 		rearrangeCatchment(&neighbours.side, len(neighbours.side.catchment))
-		os.Stderr.WriteString("dist-side for " + q.id + " has been pushed to: " + strconv.Itoa(minDistArray[3]) + "\n")
+		os.Stderr.WriteString("dist-side for " + q.id + " has been pushed to: " + strconv.Itoa(pushside.maxDist) + "\n")
 	}
 
 	cOut <- neighbours
@@ -559,16 +590,16 @@ func findUpDownCatchment(q updownLine, ignore []string, sizeArray [4]int, distAr
 		}
 	}
 
-	if len(neighbours.same.catchment) < sizeArray[0] && len(neighbours.same.catchment) > 0 {
+	if len(neighbours.same.catchment) < sizetotal && len(neighbours.same.catchment) > 0 {
 		rearrangeCatchment(&neighbours.same, len(neighbours.same.catchment))
 	}
-	if len(neighbours.up.catchment) < sizeArray[1] && len(neighbours.up.catchment) > 0 {
+	if len(neighbours.up.catchment) < sizetotal && len(neighbours.up.catchment) > 0 {
 		rearrangeCatchment(&neighbours.up, len(neighbours.up.catchment))
 	}
-	if len(neighbours.down.catchment) < sizeArray[2] && len(neighbours.down.catchment) > 0 {
+	if len(neighbours.down.catchment) < sizetotal && len(neighbours.down.catchment) > 0 {
 		rearrangeCatchment(&neighbours.down, len(neighbours.down.catchment))
 	}
-	if len(neighbours.side.catchment) < sizeArray[3] && len(neighbours.side.catchment) > 0 {
+	if len(neighbours.side.catchment) < sizetotal && len(neighbours.side.catchment) > 0 {
 		rearrangeCatchment(&neighbours.side, len(neighbours.side.catchment))
 	}
 
@@ -576,7 +607,7 @@ func findUpDownCatchment(q updownLine, ignore []string, sizeArray [4]int, distAr
 }
 
 func splitInput(queries []updownLine, ignore []string, sizeArray [4]int, distArray [4]int, threshpair float32, threshtarg int,
-	pushDistance bool, cIn chan updownLine, cOut chan updownCatchmentStruct, cErr chan error, cSplitDone chan bool) {
+	pushDistance int, cIn chan updownLine, cOut chan updownCatchmentStruct, cErr chan error, cSplitDone chan bool) {
 
 	nQ := len(queries)
 
@@ -587,10 +618,9 @@ func splitInput(queries []updownLine, ignore []string, sizeArray [4]int, distArr
 	}
 
 	for i, q := range queries {
-		// go findUpDownCatchment(q, sizetotal, threshsnp, QChanArray[i], cOut)
-		switch pushDistance {
-		case true:
-			go findUpDownCatchmentPushDistance(q, ignore, sizeArray, distArray, threshpair, QChanArray[i], cOut)
+		switch {
+		case pushDistance > 0:
+			go findUpDownCatchmentPushDistance(q, ignore, sizeArray, distArray, pushDistance, threshpair, QChanArray[i], cOut)
 		default:
 			go findUpDownCatchment(q, ignore, sizeArray, distArray, threshpair, QChanArray[i], cOut)
 		}
@@ -671,26 +701,15 @@ func balance(sizetotal int, sizeIdeal [4]int, sizeObserved [4]int, nofill bool) 
 	return size
 }
 
-func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeArray [4]int, nofill bool) error {
-	// write to stdout for now...
+func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct, sizeArray [4]int, nofill bool) error {
 
 	var err error
-	f := os.Stdout
-
-	if fileOut != "stdout" {
-		f, err = os.Create(fileOut)
-		if err != nil {
-			return err
-		}
-	}
-
-	defer f.Close()
 
 	var temp []string
 	var size [4]int
 	var sizeObserved [4]int
 
-	_, err = f.WriteString("query,closestsame,closestup,closestdown,closestside\n")
+	_, err = w.Write([]byte("query,closestsame,closestup,closestdown,closestside\n"))
 	if err != nil {
 		return err
 	}
@@ -717,7 +736,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		sizeObserved[3] = len(result.side.catchment)
 		size = balance(sizetotal, sizeArray, sizeObserved, nofill)
 
-		_, err = f.WriteString(result.qname + ",")
+		_, err = w.Write([]byte(result.qname + ","))
 		if err != nil {
 			return err
 		}
@@ -726,7 +745,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.same.catchment[0:size[0]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + ",")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
 		if err != nil {
 			return err
 		}
@@ -735,7 +754,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.up.catchment[0:size[1]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + ",")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
 		if err != nil {
 			return err
 		}
@@ -744,7 +763,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.down.catchment[0:size[2]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + ",")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
 		if err != nil {
 			return err
 		}
@@ -753,7 +772,7 @@ func writeUpDownCatchment(fileOut string, results []updownCatchmentStruct, sizeA
 		for _, hit := range result.side.catchment[0:size[3]] {
 			temp = append(temp, hit.tname)
 		}
-		_, err = f.WriteString(strings.Join(temp, ";") + "\n")
+		_, err = w.Write([]byte(strings.Join(temp, ";") + "\n"))
 		if err != nil {
 			return err
 		}
@@ -771,41 +790,11 @@ func allZero(s []int) bool {
 	return true
 }
 
-func checkArgs(query string, target string, reference string,
-	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
-	distall int, distup int, distdown int, distside int) ([4]int, [4]int, string, string, error) {
-
-	var qtype string
-	var ttype string
-
-	switch filepath.Ext(query) {
-	case ".csv":
-		qtype = "csv"
-	case ".fasta":
-		qtype = "fasta"
-	case ".fa":
-		qtype = "fasta"
-	default:
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("couldn't tell if --query was a .csv or a .fasta file")
-	}
-
-	switch filepath.Ext(target) {
-	case ".csv":
-		ttype = "csv"
-	case ".fasta":
-		ttype = "fasta"
-	case ".fa":
-		ttype = "fasta"
-	default:
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("couldn't tell if --target was a .csv or a .fasta file")
-	}
-
-	if (qtype == "fasta" || ttype == "fasta") && len(reference) == 0 {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("if your either of your input files are fastas, you must provide a --reference")
-	}
+func checkArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
+	distall int, distup int, distdown int, distside int) ([4]int, [4]int, error) {
 
 	if sizetotal == 0 && allZero([]int{sizeup, sizedown, sizeside, sizesame}) && allZero([]int{distup, distdown, distside, distall}) {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New(`
+		return [4]int{}, [4]int{}, errors.New(`
 Please provide values to either --size-total,
 or all or some of --size-up, --size-down, --size-side and --size-same,
 
@@ -818,7 +807,7 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 	}
 
 	if sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame}) {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
+		return [4]int{}, [4]int{}, errors.New("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
 	}
 
 	// bucket sizes for same,up,down,side,total respectively
@@ -853,7 +842,7 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 	}
 
 	if distall != 0 && !allZero([]int{distup, distdown, distside}) {
-		return [4]int{}, [4]int{}, qtype, ttype, errors.New("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
+		return [4]int{}, [4]int{}, errors.New("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
 	}
 
 	var distArray [4]int
@@ -876,7 +865,7 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 		distArray[3] = math.MaxInt32
 	}
 
-	return sizeArray, distArray, qtype, ttype, nil
+	return sizeArray, distArray, nil
 }
 
 func sum4(a [4]int) int {
@@ -887,12 +876,13 @@ func sum4(a [4]int) int {
 	return t
 }
 
-func TopRanking(query string, target string, outfile string, reference string, ignoreFile string,
+func TopRanking(query, target, reference io.Reader, out io.Writer,
+	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
-	threshpair float32, threshtarg int, nofill bool, pushdist bool) error {
+	threshpair float32, threshtarg int, nofill bool, pushdist int) error {
 
-	sizeArray, distArray, q_in_type, t_in_type, err := checkArgs(query, target, reference, sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside)
+	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside)
 	if err != nil {
 		switch {
 		case err.Error() == "warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same":
@@ -906,7 +896,7 @@ func TopRanking(query string, target string, outfile string, reference string, i
 
 	var refSeq []byte
 	if q_in_type == "fasta" || t_in_type == "fasta" {
-		temp, err := fastaio.ReadEncodeAlignmentToList(reference)
+		temp, err := fastaio.ReadEncodeAlignmentToList(reference, false)
 		if err != nil {
 			return err
 		}
@@ -933,24 +923,6 @@ func TopRanking(query string, target string, outfile string, reference string, i
 
 	}
 
-	// targets to ignore (potentially):
-	ignore := make([]string, 0)
-	if len(ignoreFile) != 0 {
-		f, err := os.Open(ignoreFile)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		s := bufio.NewScanner(f)
-		for s.Scan() {
-			ignore = append(ignore, s.Text())
-		}
-		err = s.Err()
-		if err != nil {
-			return err
-		}
-	}
-
 	nQ := len(queries)
 	QResultsArray := make([]updownCatchmentStruct, nQ)
 
@@ -967,7 +939,7 @@ func TopRanking(query string, target string, outfile string, reference string, i
 		go readFastaToChan(target, refSeq, cudL, cErr, cReadDone)
 	}
 
-	go splitInput(queries, ignore,
+	go splitInput(queries, ignoreArray,
 		sizeArray, distArray, threshpair, threshtarg, pushdist,
 		cudL, cResults, cErr, cSplitDone)
 
@@ -995,7 +967,7 @@ func TopRanking(query string, target string, outfile string, reference string, i
 		QResultsArray[result.qidx] = result
 	}
 
-	err = writeUpDownCatchment(outfile, QResultsArray, sizeArray, nofill)
+	err = writeUpDownCatchment(out, QResultsArray, sizeArray, nofill)
 	if err != nil {
 		return err
 	}

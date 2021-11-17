@@ -6,17 +6,16 @@ import (
 
 var udReference string
 
-
 func init() {
 	rootCmd.AddCommand(updownCmd)
 
-	updownCmd.PersistentFlags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format")
+	updownCmd.PersistentFlags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format, which is treated as the root of the imaginary tree")
 }
 
 var updownCmd = &cobra.Command{
 	Use:   "updown",
-	Short: "get pseudo-tree-aware catchments for query sequences from alignments",
-	Long:  `get pseudo-tree-aware catchments for query sequences from alignments`,
+	Short: "Get pseudo-tree-aware catchments for query sequences from alignments",
+	Long:  `Get pseudo-tree-aware catchments for query sequences from alignments`,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 

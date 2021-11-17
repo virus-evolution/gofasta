@@ -1,21 +1,22 @@
 package snps
 
 import (
-	"os"
-	"sync"
+	"io"
 	"runtime"
-	"strings"
+	"sort"
 	"strconv"
+	"strings"
+	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/fastaio"
 	"github.com/cov-ert/gofasta/pkg/encoding"
+	"github.com/cov-ert/gofasta/pkg/fastaio"
 )
 
 // snpLine is a struct for one Fasta record's SNPs
 type snpLine struct {
 	queryname string
-	snps []string
-	idx int
+	snps      []string
+	idx       int
 }
 
 // getSNPs gets the SNPs between the reference and each Fasta record at a time
@@ -23,19 +24,19 @@ func getSNPs(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cSNPs chan snpL
 
 	DA := encoding.MakeDecodingArray()
 
-	for FR := range(cFR) {
+	for FR := range cFR {
 		SL := snpLine{}
 		SL.queryname = FR.ID
 		SL.idx = FR.Idx
 		SNPs := make([]string, 0)
-		for i, nuc := range(FR.Seq) {
+		for i, nuc := range FR.Seq {
 			if (refSeq[i] & nuc) < 16 {
-				snpLine := DA[refSeq[i]] + strconv.Itoa(i + 1) + DA[nuc]
+				snpLine := DA[refSeq[i]] + strconv.Itoa(i+1) + DA[nuc]
 				SNPs = append(SNPs, snpLine)
 			}
 		}
 		SL.snps = SNPs
-		cSNPs<- SL
+		cSNPs <- SL
 	}
 
 	return
@@ -43,38 +44,28 @@ func getSNPs(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cSNPs chan snpL
 
 // writeOutput writes the output to stdout or a file as it arrives.
 // It uses a map to write things in the same order as they are in the input file.
-func writeOutput(outFile string, cSNPs chan snpLine, cErr chan error, cWriteDone chan bool) {
+func writeOutput(w io.Writer, cSNPs chan snpLine, cErr chan error, cWriteDone chan bool) {
 
 	outputMap := make(map[int]snpLine)
 
 	counter := 0
 
-	var f *os.File
 	var err error
 
-	if outFile != "stdout" {
-		f, err = os.Create(outFile)
-		if err != nil {
-			cErr <- err
-		}
-	} else {
-		f = os.Stdout
-	}
-
-	defer f.Close()
-
-	_, err = f.WriteString("query,SNPs\n")
+	_, err = w.Write([]byte("query,SNPs\n"))
 	if err != nil {
 		cErr <- err
+		return
 	}
 
 	for snpLine := range cSNPs {
 		outputMap[snpLine.idx] = snpLine
 
 		if SL, ok := outputMap[counter]; ok {
-			_, err := f.WriteString(SL.queryname + "," + strings.Join(SL.snps, "|") + "\n")
+			_, err := w.Write([]byte(SL.queryname + "," + strings.Join(SL.snps, "|") + "\n"))
 			if err != nil {
 				cErr <- err
+				return
 			}
 			delete(outputMap, counter)
 			counter++
@@ -89,9 +80,10 @@ func writeOutput(outFile string, cSNPs chan snpLine, cErr chan error, cWriteDone
 			break
 		}
 		SL := outputMap[counter]
-		_, err := f.WriteString(SL.queryname + "," + strings.Join(SL.snps, "|") + "\n")
+		_, err := w.Write([]byte(SL.queryname + "," + strings.Join(SL.snps, "|") + "\n"))
 		if err != nil {
 			cErr <- err
+			return
 		}
 		delete(outputMap, counter)
 		counter++
@@ -100,8 +92,66 @@ func writeOutput(outFile string, cSNPs chan snpLine, cErr chan error, cWriteDone
 	cWriteDone <- true
 }
 
+// aggregateWriteOutput aggregates the SNPs that are present above a certain threshold, and
+// writes their frequencies out
+func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cErr chan error, cWriteDone chan bool) {
+
+	propMap := make(map[string]float64)
+
+	var err error
+
+	_, err = w.Write([]byte("SNP,proportion\n"))
+	if err != nil {
+		cErr <- err
+	}
+
+	counter := 0.0
+
+	for snpLine := range cSNPs {
+		counter++
+		for _, snp := range snpLine.snps {
+			if _, ok := propMap[snp]; ok {
+				propMap[snp]++
+			} else {
+				propMap[snp] = 1.0
+			}
+		}
+	}
+
+	order := make([]string, 0)
+	for k, _ := range propMap {
+		order = append(order, k)
+	}
+
+	sort.SliceStable(order, func(i, j int) bool {
+		pos_i, err := strconv.Atoi(order[i][1 : len(order[i])-1])
+		if err != nil {
+			cErr <- err
+		}
+		pos_j, err := strconv.Atoi(order[j][1 : len(order[j])-1])
+		if err != nil {
+			cErr <- err
+		}
+		alt_i := order[i][len(order[i])-1]
+		alt_j := order[j][len(order[j])-1]
+		return pos_i < pos_j || (pos_i == pos_j && alt_i < alt_j)
+	})
+
+	for _, snp := range order {
+		if propMap[snp]/counter < threshold {
+			continue
+		}
+		_, err = w.Write([]byte(snp + "," + strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n"))
+		if err != nil {
+			cErr <- err
+		}
+	}
+
+	cWriteDone <- true
+}
+
 // SNPs annotates snps in a fasta-format alignment with respect to a reference sequence
-func SNPs(referenceFile string, alignmentFile string, outFile string) error {
+func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold float64, w io.Writer) error {
 
 	cErr := make(chan error)
 
@@ -116,7 +166,7 @@ func SNPs(referenceFile string, alignmentFile string, outFile string) error {
 
 	cWriteDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(referenceFile, cRef, cErr, cRefDone)
+	go fastaio.ReadEncodeAlignment(ref, hardGaps, cRef, cErr, cRefDone)
 
 	var refSeq []byte
 
@@ -132,9 +182,14 @@ func SNPs(referenceFile string, alignmentFile string, outFile string) error {
 		}
 	}
 
-	go fastaio.ReadEncodeAlignment(alignmentFile, cFR, cErr, cFRDone)
+	go fastaio.ReadEncodeAlignment(alignment, hardGaps, cFR, cErr, cFRDone)
 
-	go writeOutput(outFile, cSNPs, cErr, cWriteDone)
+	switch aggregate {
+	case true:
+		go aggregateWriteOutput(w, threshold, cSNPs, cErr, cWriteDone)
+	case false:
+		go writeOutput(w, cSNPs, cErr, cWriteDone)
+	}
 
 	var wgSNPs sync.WaitGroup
 	wgSNPs.Add(runtime.NumCPU())
@@ -148,7 +203,7 @@ func SNPs(referenceFile string, alignmentFile string, outFile string) error {
 
 	go func() {
 		wgSNPs.Wait()
-		cSNPsDone<- true
+		cSNPsDone <- true
 	}()
 
 	for n := 1; n > 0; {

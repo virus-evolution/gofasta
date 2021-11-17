@@ -1,32 +1,31 @@
 package sam
 
 import (
+	"errors"
 	"fmt"
-	"sync"
-	"sort"
+	"io"
 	"os"
 	"path"
+	"sort"
 	"strings"
-	"strconv"
+	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/genbank"
 	"github.com/cov-ert/gofasta/pkg/fastaio"
 
 	biogosam "github.com/biogo/hts/sam"
 )
 
-
 // alignPair is a struct for storing an aligned ref + query sequence pair
 type alignPair struct {
-	ref []byte
-	query []byte
-	refname string
-	queryname string
-	descriptor string
+	ref          []byte
+	query        []byte
+	refname      string
+	queryname    string
+	descriptor   string
 	featPosArray []int // parsed start/end positions of feature from annotation (can be >length(2) if Join())
-	featType string
-	featName string
-	idx int // for retaining input order in the output
+	featType     string
+	featName     string
+	idx          int // for retaining input order in the output
 }
 
 // for passing groups of alignPairs around with an index which is used to retain input
@@ -38,8 +37,8 @@ type alignPairs struct {
 
 // store some information about a single insertion from cigars in a block of SAM records
 type insertionOccurence struct {
-	start int
-	length int
+	start     int
+	length    int
 	rowNumber int
 }
 
@@ -49,11 +48,10 @@ func (a byStart) Len() int           { return len(a) }
 func (a byStart) Less(i, j int) bool { return a[i].start < a[j].start }
 func (a byStart) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-
 type alignedBlockInfo struct {
-	seqpairArray []alignPair // an array of ref + query seqs from primary + secondary mappings
-	cigarArray []biogosam.Cigar // the cigars for each mapping in seqpairArray
-	posArray []int // the start POS from the sam file for each mapping in seqpairArray
+	seqpairArray []alignPair      // an array of ref + query seqs from primary + secondary mappings
+	cigarArray   []biogosam.Cigar // the cigars for each mapping in seqpairArray
+	posArray     []int            // the start POS from the sam file for each mapping in seqpairArray
 }
 
 func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
@@ -69,11 +67,11 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 
 	insertions := make([]insertionOccurence, 0)
 
-	for i, cigar := range(alignedBlock.cigarArray) {
+	for i, cigar := range alignedBlock.cigarArray {
 
 		pos := alignedBlock.posArray[i]
 
-		for _, op := range(cigar) {
+		for _, op := range cigar {
 			// populate orderedInsertions here...
 
 			// fmt.Println(op.Type())
@@ -92,61 +90,68 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 		}
 	}
 
+	// copy the sequences into new slices
 	refSeqArray := make([][]byte, len(alignedBlock.seqpairArray))
 	queSeqArray := make([][]byte, len(alignedBlock.seqpairArray))
+	for i := range alignedBlock.seqpairArray {
+		refSeqArray[i] = alignedBlock.seqpairArray[i].ref
+		queSeqArray[i] = alignedBlock.seqpairArray[i].query
+	}
 
+	// if there are insertions, we need to modify these new slices
 	if len(insertions) > 0 {
 		sort.Sort(byStart(insertions))
 
-		for _, insertion := range(insertions) {
+		// if we are going to insert multiple insertions into one pair then we will need to keep track
+		// of the coordinate offset after the first one
+		offsets := make([]int, len(alignedBlock.seqpairArray))
+
+		// for every insertion
+		for _, insertion := range insertions {
+			// this is the pair it is already present in, which we will skip:
 			rowNumber := insertion.rowNumber
-			for j, seqPair := range(alignedBlock.seqpairArray) {
+			for j, seqPair := range alignedBlock.seqpairArray {
 				// don't reinsert - the insertion already exists in this one
 				if j == rowNumber {
-					refSeqArray[j] = seqPair.ref
-					queSeqArray[j] = seqPair.query
 					continue
 				}
 
-				// some lines will never get this far
-				if insertion.start > len(seqPair.ref) {
-					refSeqArray[j] = seqPair.ref
-					queSeqArray[j] = seqPair.query
+				// if the insertions starts after the (offset) length of this sequence,
+				// we don't have to do anything to this pair here
+				if insertion.start > len(alignedBlock.seqpairArray[j].ref)-offsets[j] {
 					continue
 				}
 
+				// otherwise, we make a slice of gaps to insert into the slices
 				gaps := make([]byte, insertion.length)
-				for i, _ := range gaps {
-					gaps[i] = '-'
+				for k := range gaps {
+					gaps[k] = '-'
 				}
 
-				refSeqArray[j] = seqPair.ref[:insertion.start]
+				refSeqArray[j] = refSeqArray[j][:insertion.start+offsets[j]]
 				refSeqArray[j] = append(refSeqArray[j], gaps...)
-				refSeqArray[j] = append(refSeqArray[j], seqPair.ref[insertion.start:]...)
+				refSeqArray[j] = append(refSeqArray[j], seqPair.ref[insertion.start+offsets[j]:]...)
 
-				queSeqArray[j] = seqPair.query[:insertion.start]
+				queSeqArray[j] = seqPair.query[:insertion.start+offsets[j]]
 				queSeqArray[j] = append(queSeqArray[j], gaps...)
-				queSeqArray[j] = append(queSeqArray[j], seqPair.query[insertion.start:]...)
-			}
-		}
+				queSeqArray[j] = append(queSeqArray[j], seqPair.query[insertion.start+offsets[j]:]...)
 
-	} else {
-		for i, seqPair := range(alignedBlock.seqpairArray) {
-			refSeqArray[i] = seqPair.ref
-			queSeqArray[i] = seqPair.query
+				// and we add the relevant offset to account for this insertion in future coordinates
+				offsets[j] += insertion.length
+			}
 		}
 	}
 
 	max := 0
 
-	for _, line := range(refSeqArray){
+	for _, line := range refSeqArray {
 		if len(line) > max {
 			max = len(line)
 		}
 	}
 
 	RBlock := make([][]byte, 0)
-	for _, line := range(refSeqArray){
+	for _, line := range refSeqArray {
 		if len(line) < max {
 			diff := max - len(line)
 			stars := make([]byte, diff)
@@ -162,7 +167,7 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 	R := checkAndGetFlattenedSeq(RBlock, "reference")
 
 	QBlock := make([][]byte, 0)
-	for _, line := range(queSeqArray){
+	for _, line := range queSeqArray {
 		if len(line) < max {
 			diff := max - len(line)
 			stars := make([]byte, diff)
@@ -179,18 +184,18 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 	// extend the alignment to the ref length + the total number of
 	// insertions relative to the reference...
 	totalInsertionLength := 0
-	for _, I := range(insertions) {
+	for _, I := range insertions {
 		totalInsertionLength += I.length
 	}
 
-	if len(R) < totalInsertionLength + len(ref) {
+	if len(R) < totalInsertionLength+len(ref) {
 		diff := (totalInsertionLength + len(ref)) - len(R)
 		extendRight := make([]byte, diff)
-		for i, _ := range(extendRight) {
+		for i, _ := range extendRight {
 			extendRight[i] = '*'
 		}
 		Q = append(Q, extendRight...)
-		R = append(R, ref[len(ref) - diff:]...)
+		R = append(R, ref[len(ref)-diff:]...)
 	}
 
 	Q = swapInNs(Q)
@@ -204,7 +209,7 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 // to each other - insertions in the query can be represented or not.
 func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr chan error, ref []byte, omitIns bool) {
 
-	for group := range(cSR) {
+	for group := range cSR {
 
 		// seqs is an array of seqs, one item for each line in the
 		// block of sam lines for one query
@@ -217,13 +222,12 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 		// might not use this:
 		Q := make([][]byte, 0)
 
-
 		if !omitIns {
 			// populate it
-			for _, line := range(group.records) {
+			for _, line := range group.records {
 				seq, refseq, err := getOneLinePlusRef(line, ref, !omitIns)
 				if err != nil {
-					cErr<- err
+					cErr <- err
 				}
 				seqs = append(seqs, alignPair{ref: refseq, query: seq, queryname: line.Name})
 				cigars = append(cigars, line.Cigar)
@@ -238,15 +242,15 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 			pair.refname = string(group.records[0].Ref.Name())
 			pair.queryname = group.records[0].Name
 			pair.idx = group.idx
-			cPair<- pair
+			cPair <- pair
 
 		} else {
 			qname := group.records[0].Name
 
-			for _, line := range(group.records) {
+			for _, line := range group.records {
 				seq, _, err := getOneLinePlusRef(line, ref, !omitIns)
 				if err != nil {
-					cErr<- err
+					cErr <- err
 				}
 				Q = append(Q, seq)
 			}
@@ -258,233 +262,194 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 			pair.refname = string(group.records[0].Ref.Name())
 			pair.idx = group.idx
 
-			cPair<- pair
+			cPair <- pair
 		}
 	}
 
 	return
 }
 
-func parsePositions(position string) ([]int, error) {
-	var A []int
-	if position[0:4] == "join" {
-		A = make([]int, 0)
-		position = strings.TrimLeft(position, "join(")
-		position = strings.TrimRight(position, ")")
-		ranges := strings.Split(position, ",")
-		for _, x := range(ranges) {
-			y := strings.Split(x, "..")
-			for _, z := range(y) {
-				temp, err := strconv.Atoi(z)
-				if err != nil {
-					return []int{}, err
-				}
-				A = append(A, temp)
-			}
-		}
-	} else {
-		A = make([]int, 0)
-		y := strings.Split(position, "..")
-		for _, z := range(y) {
-			temp, err := strconv.Atoi(z)
-			if err != nil {
-				return []int{}, err
-			}
-			A = append(A, temp)
-		}
-	}
+// func getFeaturesFromAnnotation(gb genbank.Genbank, annotation string) []genbank.GenbankFeature {
 
-	return A, nil
-}
+// 	FEATS := make([]genbank.GenbankFeature, 0)
 
-func getFeaturesFromAnnotation(gb genbank.Genbank, annotation string) []genbank.GenbankFeature {
+// 	for _, F := range gb.FEATURES {
+// 		if F.Feature == annotation {
+// 			FEATS = append(FEATS, F)
+// 		}
+// 	}
 
-	FEATS := make([]genbank.GenbankFeature, 0)
+// 	return FEATS
+// }
 
-	for _, F := range(gb.FEATURES) {
-		if F.Feature == annotation {
-			FEATS = append(FEATS, F)
-		}
-	}
+// func getRefAdjustedPositions(seq []byte) []int {
+// 	idx := make([]int, len(seq))
+// 	pos := 0
+// 	for i, nuc := range seq {
+// 		if nuc != '-' {
+// 			pos += 1
+// 		}
+// 		idx[i] = pos
+// 	}
 
-	return FEATS
-}
+// 	return idx
+// }
 
-func getRefAdjustedPositions(seq []byte) []int {
-	idx := make([]int, len(seq))
-	pos := 0
-	for i, nuc := range(seq) {
+// func findOffsetPos(i int, a []int) int {
+// 	var pos int
+// 	for j, x := range a {
+// 		if x == i {
+// 			pos = j
+// 			break
+// 		}
+// 	}
+// 	return pos
+// }
+
+func getOffset(refseq []byte) []int {
+	// we make an array of integers to offset the positions by.
+	// this should be the same length as a degapped refseq?
+	degappedLen := 0
+	for _, nuc := range refseq {
+		// if there is no alignment gap at this site, ++
 		if nuc != '-' {
-			pos +=1
-		}
-		idx[i] = pos
-	}
-
-	return idx
-}
-
-func findOffsetPos(i int, a []int) int {
-	var pos int
-	for j, x := range(a) {
-		if x == i {
-			pos = j
-			break
+			degappedLen++
 		}
 	}
-	return pos
+	// if there are no alignment gaps, we can return a slice of 0s
+	if degappedLen == len(refseq) {
+		return make([]int, len(refseq), len(refseq))
+	}
+
+	// otherwise, we get one offset:
+	// 1) offsetRefCoord = the number of bases to add to convert each position to msa coordinates
+	gapsum := 0
+	offsetRefCoord := make([]int, degappedLen)
+	for i, nuc := range refseq {
+		if nuc == '-' {
+			gapsum++
+			continue
+		}
+		offsetRefCoord[i-gapsum] = gapsum
+	}
+
+	return offsetRefCoord
 }
 
 // TODO - allow multiple feature types in features []genbank.GenbankFeature
-func parseAlignmentByAnnotation(features []genbank.GenbankFeature, cPairIn chan alignPair, cPairOut chan alignPairs, cErr chan error) {
+func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair, cErr chan error) {
 
-	// if no feature is specified on the command line:
-	if len(features) == 0 {
-		for pair := range(cPairIn) {
+	// if no feature is specified on the command line, we take the whole sequence:
+	if !trim {
+		for pair := range cPairIn {
 			pair.descriptor = pair.queryname
-			cPairOut<- alignPairs{aps: []alignPair{pair}, idx: pair.idx}
+			cPairOut <- pair
 		}
-	// if one feature is specified on the command line:
+		// if one feature is specified on the command line:
 	} else {
-		ftype := features[0].Feature
+		for pair := range cPairIn {
 
-		var anno string
+			offsetRefCoord := getOffset(pair.ref)
 
-		if ftype == "CDS" || ftype == "gene" {
-			anno = "gene"
-		}
+			adjTrimStart := trimStart + offsetRefCoord[trimStart]
+			adjTrimEnd := trimEnd + offsetRefCoord[trimEnd]
 
-		if ftype == "source" {
-			anno = "organism"
-		}
+			pair.query = pair.query[adjTrimStart:adjTrimEnd]
+			pair.ref = pair.ref[adjTrimStart:adjTrimEnd]
 
-		for pair := range(cPairIn) {
-
-			A := alignPairs{idx: pair.idx}
-
-			idx := getRefAdjustedPositions(pair.ref)
-
-			for _, feature := range(features) {
-
-				subPair := alignPair{}
-
-				subPair.refname = pair.refname
-				subPair.queryname = pair.queryname
-				subPair.featType = feature.Feature
-				subPair.featName = feature.Info[anno]
-				subPair.descriptor = pair.queryname + "." + feature.Feature + "." + strings.ReplaceAll(feature.Info[anno], " ", "_")
-
-				positions, err := parsePositions(feature.Pos)
-				if err != nil {
-					cErr<- err
-				}
-
-				subPair.featPosArray = positions
-
-				var newRef []byte
-				var newQue []byte
-
-				if len(positions) / 2 > 1 {
-					for i := 0; i < len(positions); i += 2 {
-						start := findOffsetPos(positions[i], idx)
-						stop := findOffsetPos(positions[i + 1], idx) + 1
-						newRef = append(newRef, pair.ref[start:stop]...)
-						newQue = append(newQue, pair.query[start:stop]...)
-					}
-					subPair.ref = newRef
-					subPair.query = newQue
-				} else {
-					start := findOffsetPos(positions[0], idx)
-					stop := findOffsetPos(positions[1], idx) + 1
-					newRef = pair.ref[start:stop]
-					newQue = pair.query[start:stop]
-					subPair.ref = newRef
-					subPair.query = newQue
-				}
-
-				A.aps = append(A.aps, subPair)
-			}
-
-			cPairOut<- A
+			cPairOut <- pair
 		}
 	}
-
-	return
 }
 
-func writePairwiseAlignment(p string, cPair chan alignPairs, cWriteDone chan bool, cErr chan error, omitRef bool) {
+func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
 
 	_ = path.Join()
 
 	var err error
 
 	if p == "stdout" {
-		for array := range cPair {
-			for _, AP := range(array.aps) {
-				if ! omitRef {
-					_, err = fmt.Fprintln(os.Stdout, ">" + AP.refname)
-					if err != nil {
-						cErr <- err
-					}
-					_, err = fmt.Fprintln(os.Stdout, string(AP.ref))
-					if err != nil {
-						cErr <- err
-					}
-				}
-				_, err = fmt.Fprintln(os.Stdout, ">" + AP.queryname)
+		for AP := range cPair {
+			if !omitRef {
+				_, err = fmt.Fprintln(os.Stdout, ">"+AP.refname)
 				if err != nil {
 					cErr <- err
 				}
-				_, err = fmt.Fprintln(os.Stdout, string(AP.query))
+				_, err = fmt.Fprintln(os.Stdout, string(AP.ref))
 				if err != nil {
 					cErr <- err
 				}
+			}
+			_, err = fmt.Fprintln(os.Stdout, ">"+AP.queryname)
+			if err != nil {
+				cErr <- err
+			}
+			_, err = fmt.Fprintln(os.Stdout, string(AP.query))
+			if err != nil {
+				cErr <- err
 			}
 		}
 	} else {
 		os.MkdirAll(p, 0755)
 
-		for array := range cPair {
-			for _, AP := range(array.aps) {
-				des := strings.ReplaceAll(AP.descriptor, "/", "_")
-				des = strings.ReplaceAll(des, "|", "_")
-				f, err := os.Create(path.Join(p, des + ".fasta"))
-				if err != nil {
-					cErr <- err
-				}
-				if ! omitRef {
-					_, err = f.WriteString(">" + AP.refname + "\n")
-					if err != nil {
-						cErr <- err
-					}
-					_, err = f.WriteString(string(AP.ref) + "\n")
-					if err != nil {
-						cErr <- err
-					}
-				}
-				_, err = f.WriteString(">" + AP.queryname + "\n")
-				if err != nil {
-					cErr <- err
-				}
-				_, err = f.WriteString(string(AP.query) + "\n")
-				if err != nil {
-					cErr <- err
-				}
-				f.Close()
+		for AP := range cPair {
+			// forward slashes are illegal in unix filenames (so is ascii NUL ?)
+			des := strings.ReplaceAll(AP.queryname, "/", "_")
+			// unix filenames must be <= 255 chars, (account for ".fasta")
+			if len(des) > 249 {
+				fmt.Fprintf(os.Stderr, "Filename too long, truncating \"%s\" to: \"%s\"\n", des, des[0:249])
+				des = des[0:249]
 			}
+			f, err := os.Create(path.Join(p, des+".fasta"))
+			if err != nil {
+				cErr <- err
+			}
+			if !omitRef {
+				_, err = f.WriteString(">" + AP.refname + "\n")
+				if err != nil {
+					cErr <- err
+				}
+				_, err = f.WriteString(string(AP.ref) + "\n")
+				if err != nil {
+					cErr <- err
+				}
+			}
+			_, err = f.WriteString(">" + AP.queryname + "\n")
+			if err != nil {
+				cErr <- err
+			}
+			_, err = f.WriteString(string(AP.query) + "\n")
+			if err != nil {
+				cErr <- err
+			}
+			f.Close()
 		}
 	}
-	cWriteDone<- true
+	cWriteDone <- true
+}
+
+// sanity checks the trimming and padding arguments (given the length of the ref seq)
+func checkArgsPairAlign(refLen int, trim bool, trimstart int, trimend int) error {
+
+	if trim {
+		if trimstart > refLen-2 || trimstart < 1 {
+			return errors.New("error parsing trimming coordinates: check or include --trimstart")
+		}
+		if trimend > refLen-1 || trimend < 1 {
+			return errors.New("error parsing trimming coordinates: check or include --trimend")
+		}
+		if trimstart >= trimend {
+			return errors.New("error parsing trimming coordinates: check trimstart and trimend")
+		}
+	}
+
+	return nil
 }
 
 // ToPairAlign converts a SAM file into pairwise fasta-format alignments
 // optionally including the reference, optionally split by annotations,
 // optionally skipping insertions relative to the reference
-func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat string, outpath string, omitRef bool, omitIns bool, threads int) error {
-
-	gb, err := genbank.ReadGenBank(genbankFile)
-	if err != nil {
-		return err
-	}
+func ToPairAlign(samIn, ref io.Reader, outpath string, trim bool, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
 	// NB probably uncomment the below and use it for checks (e.g. for
 	// reference length)
@@ -500,7 +465,7 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 	cRef := make(chan fastaio.FastaRecord)
 	cRefDone := make(chan bool)
 
-	go fastaio.ReadAlignment(referenceFile, cRef, cErr, cRefDone)
+	go fastaio.ReadAlignment(ref, cRef, cErr, cRefDone)
 
 	var refSeq string
 	// var refName string
@@ -518,31 +483,33 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 		}
 	}
 
-	// fmt.Println(refSeq)
-	// fmt.Println()
+	err := checkArgsPairAlign(len(refSeq), trim, trimStart, trimEnd)
+	if err != nil {
+		return err
+	}
 
 	cSR := make(chan samRecords, threads)
 	cSH := make(chan biogosam.Header)
 
 	cPairAlign := make(chan alignPair)
-	cPairParse := make(chan alignPairs)
+	cPairTrim := make(chan alignPair)
 
 	cReadDone := make(chan bool)
 	cAlignWaitGroupDone := make(chan bool)
-	cParseWaitGroupDone := make(chan bool)
+	cTrimWaitGroupDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go groupSamRecords(samFile, cSH, cSR, cReadDone, cErr)
+	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
 	_ = <-cSH
 
-	go writePairwiseAlignment(outpath, cPairParse, cWriteDone, cErr, omitRef)
+	go writePairwiseAlignment(outpath, cPairTrim, cWriteDone, cErr, omitRef)
 
 	var wgAlign sync.WaitGroup
 	wgAlign.Add(threads)
 
-	var wgParse sync.WaitGroup
-	wgParse.Add(threads)
+	var wgTrim sync.WaitGroup
+	wgTrim.Add(threads)
 
 	for n := 0; n < threads; n++ {
 		go func() {
@@ -551,23 +518,21 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 		}()
 	}
 
-	features := getFeaturesFromAnnotation(gb, feat)
-
 	for n := 0; n < threads; n++ {
 		go func() {
-			parseAlignmentByAnnotation(features, cPairAlign, cPairParse, cErr)
-			wgParse.Done()
+			trimAlignment(trim, trimStart, trimEnd, cPairAlign, cPairTrim, cErr)
+			wgTrim.Done()
 		}()
 	}
 
 	go func() {
 		wgAlign.Wait()
-		cAlignWaitGroupDone<- true
+		cAlignWaitGroupDone <- true
 	}()
 
 	go func() {
-		wgParse.Wait()
-		cParseWaitGroupDone<- true
+		wgTrim.Wait()
+		cTrimWaitGroupDone <- true
 	}()
 
 	for n := 1; n > 0; {
@@ -595,8 +560,8 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 		select {
 		case err := <-cErr:
 			return err
-		case <-cParseWaitGroupDone:
-			close(cPairParse)
+		case <-cTrimWaitGroupDone:
+			close(cPairTrim)
 			n--
 		}
 	}
@@ -609,9 +574,6 @@ func ToPairAlign(samFile string, referenceFile string, genbankFile string, feat 
 			n--
 		}
 	}
-
-	// fmt.Println(gb)
-	// fmt.Println(samHeader)
 
 	return nil
 }

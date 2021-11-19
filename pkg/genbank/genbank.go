@@ -1,3 +1,6 @@
+/*
+Package genbank provides functionality for reading genbank flat format files
+*/
 package genbank
 
 import (
@@ -7,7 +10,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-	// "fmt"
 )
 
 // Genbank is a master struct containing all the info from a single genbank record

@@ -1,3 +1,7 @@
+/*
+Package closest provides routines to find the closest sequences
+to a set of query sequences, by genetic distance
+*/
 package closest
 
 import (

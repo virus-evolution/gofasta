@@ -1,3 +1,10 @@
+/*
+Package encoding provides mappings between character representations of nucleotides
+and bitwise encodings, for fast sequence comparison.
+
+The coding scheme is Emmanual Paradis' design, which is described here:
+http://ape-package.ird.fr/misc/BitLevelCodingScheme.html
+*/
 package encoding
 
 // MakeEncodingArray returns an array whose indices are the byte representations

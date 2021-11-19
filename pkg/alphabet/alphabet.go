@@ -1,3 +1,5 @@
+// Package alphabet provides mappings between codons and
+// amino acids
 package alphabet
 
 // MakeCodonDict returns a map from codon (string) to amino acid code (string)

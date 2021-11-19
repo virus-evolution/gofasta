@@ -1,3 +1,8 @@
+/*
+Package gfio provides io functionality, including to/from stdin/stderr,
+and helpful error messages when used in combination with bad filepaths
+from commandline options
+*/
 package gfio
 
 import (

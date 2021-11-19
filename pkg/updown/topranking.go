@@ -1,3 +1,11 @@
+/*
+Package updown implements functions that leverage pseudo-tree aware
+snp-distances between sequences. It relies on there being a suitable
+sequence that one can use to represent the "root" (ancestor) of a
+hypothetical phylogenetic tree, and for the distance between relevant
+sequences to be small enough that maximum parsimony is a reasonable
+assumption.
+*/
 package updown
 
 import (

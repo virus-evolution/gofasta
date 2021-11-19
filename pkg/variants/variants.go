@@ -1,3 +1,8 @@
+/*
+Package variants implements functionality to annotate mutations relative
+to a reference sequence for all records in a multiple sequence alignment
+(in fasta format).
+*/
 package variants
 
 import (

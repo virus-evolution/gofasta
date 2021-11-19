@@ -1,3 +1,7 @@
+/*
+Package fastaio provides functions for reading and writing
+fasta format files
+*/
 package fastaio
 
 import (

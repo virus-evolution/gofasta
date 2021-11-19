@@ -1,3 +1,7 @@
+/*
+Package snps implements functions to call nucleotide changes between each sequence
+in a fasta format alignment and a reference sequence.
+*/
 package snps
 
 import (

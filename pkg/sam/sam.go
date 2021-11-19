@@ -1,3 +1,12 @@
+/*
+Package sam provides functionality to handle sam format files.
+
+It was written to process pairwise alignments between assembled SARS-CoV-2
+genomes from minimap2.
+
+Its main purpose is to generate fasta format alignments. It also has a routine
+to list mutations between pairs of sequences.
+*/
 package sam
 
 import (

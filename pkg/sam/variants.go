@@ -13,6 +13,8 @@ import (
 	"github.com/cov-ert/gofasta/pkg/variants"
 )
 
+// Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons represented by an amino acid change)
+// mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a genbank flat file
 func Variants(samIn, ref, gb io.Reader, out io.Writer, threads int) error {
 
 	cErr := make(chan error)
@@ -134,6 +136,8 @@ func Variants(samIn, ref, gb io.Reader, out io.Writer, threads int) error {
 	return nil
 }
 
+// getVariantsSam gets the mutations for each pairwise alignment from a channel at a time, and passes them to a channel
+// of annotated variants, given an array of annotated genome regions
 func getVariantsSam(regions []variants.Region, cAlignPair chan alignPair, cVariants chan variants.AnnoStructs, cErr chan error) {
 
 	EA := encoding.MakeEncodingArray()

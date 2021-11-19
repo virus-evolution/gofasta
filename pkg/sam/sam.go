@@ -234,7 +234,7 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 	return seq
 }
 
-// getSeqFromBlock wraps the above functions to get a sequence from one query's
+// getSeqFromBlock wraps the other functions in this file to get a sequence from one query's
 // SAM records - if there is only one line (only a primary mapping) it
 // returns that aligned sequence without needing to do any flattening
 func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
@@ -343,7 +343,7 @@ func swapInGapsNs(seq []byte) []byte {
 // 	return header, nil
 // }
 
-// groupSamRecords yields blocks of SAM records that correspond to the same query
+// groupSamRecords yields blocks of sam records that correspond to the same query
 // sequence (to a channel)
 func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samRecords, cdone chan bool, cerr chan error) {
 

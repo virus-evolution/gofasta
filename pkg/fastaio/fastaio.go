@@ -31,6 +31,8 @@ type EncodedFastaRecord struct {
 	Idx         int
 }
 
+// getAlignmentDims gets the dimensions (i.e. the number of sequences and the width of the alignment
+// in numner of nucleotides) of an alignment in fasta format
 func getAlignmentDims(f io.Reader) (int, int, error) {
 	n := 0
 	l := 0
@@ -58,8 +60,7 @@ func getAlignmentDims(f io.Reader) (int, int, error) {
 	return n, l, err
 }
 
-// ReadAlignment reads an alignment in fasta format to a channel
-// of FastaRecord structs
+// ReadAlignment reads an alignment in fasta format to a channel of FastaRecord structs
 func ReadAlignment(f io.Reader, chnl chan FastaRecord, chnlerr chan error, cdone chan bool) {
 
 	var err error
@@ -116,8 +117,8 @@ func ReadAlignment(f io.Reader, chnl chan FastaRecord, chnlerr chan error, cdone
 	cdone <- true
 }
 
-// writeAlignmentOut reads fasta records from a channel and writes them to a single
-// outfile, in the order in which they are present in the input file.
+// WriteAlignment reads fasta records from a channel and writes them to file or stdout,
+// in the order in which they are present in the input file.
 // It passes a true to a done channel when the channel of fasta records is empty
 func WriteAlignment(ch chan FastaRecord, w io.Writer, cdone chan bool, cerr chan error) {
 
@@ -229,7 +230,7 @@ func WriteAlignment(ch chan FastaRecord, w io.Writer, cdone chan bool, cerr chan
 // }
 
 // ReadEncodeAlignment reads an alignment in fasta format to a channel
-// of encodedFastaRecord structs - converting sequence to EP's bitwise coding scheme
+// of EncodedFastaRecord structs - converting sequence to EP's bitwise coding scheme
 func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
 
 	var err error
@@ -314,6 +315,8 @@ func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecor
 	cDone <- true
 }
 
+// ReadEncodeAlignmentToList is as ReadEncodeAlignment but returns an array of EncodedFastaRecords instead
+// of passing each EncodedFastaRecord to a channel
 func ReadEncodeAlignmentToList(f io.Reader, hardGaps bool) ([]EncodedFastaRecord, error) {
 
 	var err error

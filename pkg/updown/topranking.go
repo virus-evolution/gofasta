@@ -56,6 +56,8 @@ Table of relationships
 
 */
 
+// index returns the index of a query string in an array of target strings, if it exists,
+// else it returns -1
 func index(vs []string, t string) int {
 	for i, v := range vs {
 		if v == t {
@@ -65,10 +67,13 @@ func index(vs []string, t string) int {
 	return -1
 }
 
+// snpOverlap asks if one snp is present in an array of snps
 func snpOverlap(vs []string, t string) bool {
 	return index(vs, t) >= 0
 }
 
+// indexInt returns the index of a query integer in an array of target integers, if it exists,
+// else it returns -1
 func indexInt(vs []int, t int) int {
 	for i, v := range vs {
 		if v == t {
@@ -78,10 +83,13 @@ func indexInt(vs []int, t int) int {
 	return -1
 }
 
+// posOverlap asks if one position is present in an array of positions
 func posOverlap(vs []int, t int) bool {
 	return indexInt(vs, t) >= 0
 }
 
+// isSiteAmb asks if a position is within an ambiguity tract, given an array of pairs of start-stop coordinates
+// of such tracts
 func isSiteAmb(pos int, a []int) bool {
 	for i := 0; i < len(a); i += 2 {
 		if pos >= a[i] && pos <= a[i+1] {
@@ -162,6 +170,8 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 	return direction, distance
 }
 
+// a resultsStruct contains information about the relationship between one query and one target. The
+// most important field is distance, which is snp distance between target and query
 type resultsStruct struct {
 	qname    string
 	qidx     int
@@ -170,12 +180,16 @@ type resultsStruct struct {
 	ambCount int
 }
 
+// an updownCatchmentSubStruct contains an array of resultsStructs which are the current closest neighbours of one query
+// in one direction. The fields maxDist and minAmbig are used when deciding whether or not the next target should replace
+// the last item in catchment
 type updownCatchmentSubStruct struct {
 	catchment []resultsStruct
 	maxDist   int
 	minAmbig  int
 }
 
+// an updownCatchmentStruct contains the current lists of targets in each direction for one query sequence
 type updownCatchmentStruct struct {
 	qname string
 	qidx  int
@@ -186,6 +200,9 @@ type updownCatchmentStruct struct {
 	// minDistArray [4]int
 }
 
+// rearrangeCatchment sorts the catchment slice in an updownCatchmentSubStruct, pops the last item from it, and updates
+// the distance and ambiguity fields in preparation for deciding what to do with the next target. It should only be
+// called when the updownCatchmentSubStruct is over its capacity (catchmentSize)
 func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
 	sort.SliceStable(nS.catchment, func(i, j int) bool {
 		return nS.catchment[i].distance < nS.catchment[j].distance || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].ambCount < nS.catchment[j].ambCount)
@@ -195,12 +212,17 @@ func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
 	nS.minAmbig = nS.catchment[catchmentSize-1].ambCount
 }
 
+// a pushCatchmentSubStruct is used to keep a record of the targets at different snp distances away, in case there are no
+// targets under/at the threshold distance defined on the command line and the user wants to expand the search to encompass
+// the closest sequences in any particular direction. catchmentMap is a map with snp-distances as keys, and arrays of
+// resultsStructs as values
 type pushCatchmentSubStruct struct {
 	catchmentMap map[int][]resultsStruct
 	nDists       int
 	maxDist      int
 }
 
+// getMaxKey gets the largest value key from a map whose keys are snp-distances
 func getMaxKey(m map[int][]resultsStruct) int {
 	max := 0
 	for k := range m {
@@ -211,6 +233,9 @@ func getMaxKey(m map[int][]resultsStruct) int {
 	return max
 }
 
+// refactorPushCatchment is like rearrangeCatchment but for pushCatchmentSubStructs. It either adds targets to snp distances that
+// already exist, or adds new snp distances if they don't and the map isn't at capacity, or if it is but the new snp distance is
+// lower than any that already exist. In the latter case, it deletes the key and value associated with the further snp distance
 func refactorPushCatchment(pC *pushCatchmentSubStruct, rS resultsStruct, nodeDistance int) {
 	if _, ok := pC.catchmentMap[rS.distance]; ok {
 		// if this sequence's distance is already present, then add to it
@@ -231,6 +256,7 @@ func refactorPushCatchment(pC *pushCatchmentSubStruct, rS resultsStruct, nodeDis
 	}
 }
 
+// pushCatchment2Catchment converts a pushCatchmentSubStruct to an updownCatchmentSubStruct
 func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct {
 	uC := updownCatchmentSubStruct{}
 	uC.catchment = make([]resultsStruct, 0)
@@ -242,6 +268,7 @@ func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct
 	return uC
 }
 
+// stringInArray returns true/false s is present in the slice sa
 func stringInArray(s string, sa []string) bool {
 	for i := range sa {
 		if s == sa[i] {
@@ -251,6 +278,9 @@ func stringInArray(s string, sa []string) bool {
 	return false
 }
 
+// findUpDownCatchmentPushDistance does all the work for one query, by iterating over targets as they arrive and assigning then to
+// the correct bins based on the results of whichWay. It maintains a set of pushCatchmentSubStructs in case the bins are empty under
+// the user-defined snp distance thresholds from the command line, to push the distances out to.
 func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4]int, distArray [4]int, pushDist int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
 
 	neighbours := updownCatchmentStruct{qname: q.id, qidx: q.idx}
@@ -468,6 +498,9 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 	cOut <- neighbours
 }
 
+// findUpDownCatchment does all the work for one query, by iterating over targets as they arrive and assigning then to
+// the correct bins based on the results of whichWay. It can't do any pushing if any bins are empty after all targets
+// have been processed.
 func findUpDownCatchment(q updownLine, ignore []string, sizeArray [4]int, distArray [4]int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
 
 	neighbours := updownCatchmentStruct{qname: q.id, qidx: q.idx}
@@ -614,6 +647,7 @@ func findUpDownCatchment(q updownLine, ignore []string, sizeArray [4]int, distAr
 	cOut <- neighbours
 }
 
+// splitInput fans each target out over the array of queries
 func splitInput(queries []updownLine, ignore []string, sizeArray [4]int, distArray [4]int, threshpair float32, threshtarg int,
 	pushDistance int, cIn chan updownLine, cOut chan updownCatchmentStruct, cErr chan error, cSplitDone chan bool) {
 
@@ -651,6 +685,9 @@ func splitInput(queries []updownLine, ignore []string, sizeArray [4]int, distArr
 	cSplitDone <- true
 }
 
+// allGreaterThanEqualTo4 returns true/false; a[i] is greater that or equal to b[i]; for every item in a
+// it is used to check whether any balancing is required given the --size options when some bins fall
+// short of their desired sizes
 func allGreaterThanEqualTo4(a, b [4]int) bool {
 	for i, _ := range a {
 		if a[i] < b[i] {
@@ -661,7 +698,7 @@ func allGreaterThanEqualTo4(a, b [4]int) bool {
 }
 
 // given the input options, and the final size of the neighbourhoods,
-// return the size that the output data should be
+// balance returns the size that the output data should be
 func balance(sizetotal int, sizeIdeal [4]int, sizeObserved [4]int, nofill bool) [4]int {
 	var size [4]int
 
@@ -709,6 +746,7 @@ func balance(sizetotal int, sizeIdeal [4]int, sizeObserved [4]int, nofill bool) 
 	return size
 }
 
+// writeUpDownCatchment writes the catchments for each query to a file/stdout
 func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct, sizeArray [4]int, nofill bool) error {
 
 	var err error
@@ -789,6 +827,7 @@ func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct, sizeArra
 	return nil
 }
 
+// true false every item in s == 0
 func allZero(s []int) bool {
 	for _, n := range s {
 		if n != 0 {
@@ -798,6 +837,7 @@ func allZero(s []int) bool {
 	return true
 }
 
+// checkArgs sanity checks the command line options
 func checkArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int) ([4]int, [4]int, error) {
 
@@ -876,6 +916,7 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 	return sizeArray, distArray, nil
 }
 
+// the sum of all the integers in a
 func sum4(a [4]int) int {
 	var t int
 	for _, n := range a {
@@ -884,6 +925,9 @@ func sum4(a [4]int) int {
 	return t
 }
 
+// TopRanking finds pseudo-tree-aware catchments for query sequences, given a large database of target sequences, the closest
+// of which should be returned in the output. Targets are split into bins depending on whether they are likely direct ancestors of,
+// direct descendants of, polyphyletic with, or exactly the same as, the query
 func TopRanking(query, target, reference io.Reader, out io.Writer,
 	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
@@ -919,12 +963,12 @@ func TopRanking(query, target, reference io.Reader, out io.Writer,
 
 	switch q_in_type {
 	case "csv":
-		queries, err = readCSVToList(query)
+		queries, err = readCSVToUDLList(query)
 		if err != nil {
 			return err
 		}
 	case "fasta":
-		queries, err = fastaToUDLslice(query, refSeq)
+		queries, err = fastaToUDLList(query, refSeq)
 		if err != nil {
 			return err
 		}
@@ -942,9 +986,9 @@ func TopRanking(query, target, reference io.Reader, out io.Writer,
 
 	switch t_in_type {
 	case "csv":
-		go readCSVToChan(target, cudL, cErr, cReadDone)
+		go readCSVToUDLChan(target, cudL, cErr, cReadDone)
 	case "fasta":
-		go readFastaToChan(target, refSeq, cudL, cErr, cReadDone)
+		go readFastaToUDLChan(target, refSeq, cudL, cErr, cReadDone)
 	}
 
 	go splitInput(queries, ignoreArray,

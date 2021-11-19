@@ -35,19 +35,20 @@ type Region struct {
 	Translation string // amino acid sequence of this region if it is a CDS
 }
 
-//
+// A Variant is a struct that contains information about one mutation (nuc, amino acid, indel) between
+// reference and query
 type Variant struct {
 	Queryname  string
 	RefAl      string
 	QueAl      string
-	Position   int // genomic location
-	Residue    int // feature location?
-	Changetype string
+	Position   int    // genomic location
+	Residue    int    // feature location?
+	Changetype string // one of {nuc,aa,ins,del}
 	Feature    string // this should be, for example, the name of the CDS that the thing is in
 	Length     int    // for indels
 }
 
-// for passing groups of annoStruct around with an index which is used to retain input
+// AnnoStructs is for passing groups of Variant structs around with an index which is used to retain input
 // order in the output
 type AnnoStructs struct {
 	Queryname string
@@ -55,6 +56,8 @@ type AnnoStructs struct {
 	Idx       int
 }
 
+// Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons represented by an amino acid change)
+// mutations relative to a reference sequence from a multiple sequence alignment in fasta format. Genome annotations are derived from a genbank flat file
 func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) error {
 
 	gb, err := genbank.ReadGenBank(gbIn)
@@ -175,7 +178,7 @@ func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) erro
 	return nil
 }
 
-// get the reference sequence from the msa if it is in there. If it isn't, we will try get it
+// findReference gets the reference sequence from the msa if it is in there. If it isn't, we will try get it
 // from the genbank record (in which case can be no insertions relative to the ref in the msa)
 func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRecord, error) {
 
@@ -266,6 +269,8 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 	return refRec, nil
 }
 
+// GetRegions parses a genbank flat format file of genome annotations to extract information about the
+// the positions of CDS and intergenic regions, in order to annotate mutations within each
 func GetRegions(genbankIn io.Reader) ([]Region, error) {
 	gb, err := genbank.ReadGenBank(genbankIn)
 	if err != nil {
@@ -344,6 +349,8 @@ func GetRegions(genbankIn io.Reader) ([]Region, error) {
 	return regions, nil
 }
 
+// GetOffsets returns two arrays which contain coordinate shifting information that can be used to
+// convert reference to msa coordinates, and vice versa
 func GetOffsets(refseq []byte) ([]int, []int) {
 	// we make an array of integers to offset the positions by.
 	// this should be the same length as a degapped refseq?
@@ -368,7 +375,6 @@ func GetOffsets(refseq []byte) ([]int, []int) {
 	for i, nuc := range refseq {
 		if nuc == 244 {
 			gapsum++
-			continue
 		}
 		offsetRefCoord[i-gapsum] = gapsum
 		offsetMSACoord[i] = gapsum
@@ -377,6 +383,8 @@ func GetOffsets(refseq []byte) ([]int, []int) {
 	return offsetRefCoord, offsetMSACoord
 }
 
+// getVariants annotates mutations between query and reference sequences, one fasta record at a time. It reads each fasta
+// record from a channel and passes all its mutations to another channel grouped together in one struct.
 func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fastaio.EncodedFastaRecord, cVariants chan AnnoStructs, cErr chan error) {
 
 	DA := encoding.MakeDecodingArray()
@@ -543,6 +551,8 @@ func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoor
 	}
 }
 
+// FormatVariant returns a string representation of a single mutation the format of which varies
+// given its type (aa/nuc/indel)
 func FormatVariant(v Variant) (string, error) {
 	var s string
 
@@ -562,6 +572,7 @@ func FormatVariant(v Variant) (string, error) {
 	return s, nil
 }
 
+// WriteVariants writes each queries mutations to file or stdout
 func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	outputMap := make(map[int]AnnoStructs)

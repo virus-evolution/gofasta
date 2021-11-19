@@ -147,7 +147,7 @@ func MakeScoreArray() [256]int64 {
 	return byteArray
 }
 
-// like MakeScoreArray() but the indices are EP bitwise representations of
+// MakeEncodedScoreArray is like MakeScoreArray() but the indices are EP bitwise representations of
 // nucleotides
 func MakeEncodedScoreArray() [256]int64 {
 

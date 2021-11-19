@@ -1,7 +1,6 @@
 package sam
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,11 +10,12 @@ import (
 	"sync"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
+	"github.com/cov-ert/gofasta/pkg/variants"
 
 	biogosam "github.com/biogo/hts/sam"
 )
 
-// alignPair is a struct for storing an aligned ref + query sequence pair
+// alignPair is a struct for storing an aligned reference & query sequence pair
 type alignPair struct {
 	ref          []byte
 	query        []byte
@@ -28,14 +28,15 @@ type alignPair struct {
 	idx          int // for retaining input order in the output
 }
 
-// for passing groups of alignPairs around with an index which is used to retain input
+// alignPairs is for passing groups of alignPair around with an index which is used to retain input
 // order in the output
 type alignPairs struct {
 	aps []alignPair
 	idx int
 }
 
-// store some information about a single insertion from cigars in a block of SAM records
+// insertionOccurence stores information about a single insertion from cigars in a block of SAM records,
+// which is used to appropriate gap the other sam lines belonging to the same query sequence
 type insertionOccurence struct {
 	start     int
 	length    int
@@ -44,16 +45,22 @@ type insertionOccurence struct {
 
 type byStart []insertionOccurence
 
+// the functions required by the sorting interface so that insertion structs can be started by their genomic position
 func (a byStart) Len() int           { return len(a) }
 func (a byStart) Less(i, j int) bool { return a[i].start < a[j].start }
 func (a byStart) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
+// alignedBlockInfo stores arrays of sam fields for one queriy's sam lines -
+// they should be equal length and the item at the same index in each array should
+// originate from the same sam line
 type alignedBlockInfo struct {
 	seqpairArray []alignPair      // an array of ref + query seqs from primary + secondary mappings
 	cigarArray   []biogosam.Cigar // the cigars for each mapping in seqpairArray
 	posArray     []int            // the start POS from the sam file for each mapping in seqpairArray
 }
 
+// blockToSeqPair converts a block of sam records corresponding to the same query sequence to a pairwise
+// alignment between reference and query, including insertions in the query relative to the reference
 func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 	// get all insertions in order of occurence - earliest first
 	//
@@ -269,77 +276,43 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 	return
 }
 
-// func getFeaturesFromAnnotation(gb genbank.Genbank, annotation string) []genbank.GenbankFeature {
-
-// 	FEATS := make([]genbank.GenbankFeature, 0)
-
-// 	for _, F := range gb.FEATURES {
-// 		if F.Feature == annotation {
-// 			FEATS = append(FEATS, F)
-// 		}
-// 	}
-
-// 	return FEATS
-// }
-
-// func getRefAdjustedPositions(seq []byte) []int {
-// 	idx := make([]int, len(seq))
-// 	pos := 0
-// 	for i, nuc := range seq {
+// // getOffset returns an array of integers the same length as the reference sequence, which consist of the
+// // the number of bases to add needed to convert each position to msa coordinates when insertions relative
+// // to the refernce are included
+// func getOffset(refseq []byte) []int {
+// 	// we make an array of integers to offset the positions by.
+// 	// this should be the same length as a degapped refseq?
+// 	degappedLen := 0
+// 	for _, nuc := range refseq {
+// 		// if there is no alignment gap at this site, ++
 // 		if nuc != '-' {
-// 			pos += 1
-// 		}
-// 		idx[i] = pos
-// 	}
-
-// 	return idx
-// }
-
-// func findOffsetPos(i int, a []int) int {
-// 	var pos int
-// 	for j, x := range a {
-// 		if x == i {
-// 			pos = j
-// 			break
+// 			degappedLen++
 // 		}
 // 	}
-// 	return pos
+// 	// if there are no alignment gaps, we can return a slice of 0s
+// 	if degappedLen == len(refseq) {
+// 		return make([]int, len(refseq), len(refseq))
+// 	}
+
+// 	// otherwise, we get one offset:
+// 	// 1) offsetRefCoord = the number of bases to add to convert each position to msa coordinates
+// 	gapsum := 0
+// 	offsetRefCoord := make([]int, degappedLen)
+// 	for i, nuc := range refseq {
+// 		if nuc == '-' {
+// 			gapsum++
+// 			continue
+// 		}
+// 		offsetRefCoord[i-gapsum] = gapsum
+// 	}
+
+// 	return offsetRefCoord
 // }
 
-func getOffset(refseq []byte) []int {
-	// we make an array of integers to offset the positions by.
-	// this should be the same length as a degapped refseq?
-	degappedLen := 0
-	for _, nuc := range refseq {
-		// if there is no alignment gap at this site, ++
-		if nuc != '-' {
-			degappedLen++
-		}
-	}
-	// if there are no alignment gaps, we can return a slice of 0s
-	if degappedLen == len(refseq) {
-		return make([]int, len(refseq), len(refseq))
-	}
-
-	// otherwise, we get one offset:
-	// 1) offsetRefCoord = the number of bases to add to convert each position to msa coordinates
-	gapsum := 0
-	offsetRefCoord := make([]int, degappedLen)
-	for i, nuc := range refseq {
-		if nuc == '-' {
-			gapsum++
-			continue
-		}
-		offsetRefCoord[i-gapsum] = gapsum
-	}
-
-	return offsetRefCoord
-}
-
-// TODO - allow multiple feature types in features []genbank.GenbankFeature
+// trimAlignment trims the alignment to user-specified coordinates in degapped reference space
 func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair, cErr chan error) {
 
-	// if no feature is specified on the command line, we take the whole sequence:
+	// if no trimming is specified on the command line, we take the whole sequence:
 	if !trim {
 		for pair := range cPairIn {
 			pair.descriptor = pair.queryname
@@ -349,7 +322,7 @@ func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair
 	} else {
 		for pair := range cPairIn {
 
-			offsetRefCoord := getOffset(pair.ref)
+			offsetRefCoord, _ := variants.GetOffsets(pair.ref)
 
 			adjTrimStart := trimStart + offsetRefCoord[trimStart]
 			adjTrimEnd := trimEnd + offsetRefCoord[trimEnd]
@@ -362,6 +335,8 @@ func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair
 	}
 }
 
+// writePairwiseAlignment writes the pairwise alignments between reference and queries to a directory, p, one fasta
+// file per query
 func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
 
 	_ = path.Join()
@@ -428,27 +403,26 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 	cWriteDone <- true
 }
 
-// sanity checks the trimming and padding arguments (given the length of the ref seq)
-func checkArgsPairAlign(refLen int, trim bool, trimstart int, trimend int) error {
+// // checkArgsPairAlign sanity checks the trimming and padding arguments (given the length of the ref seq)
+// func checkArgsPairAlign(refLen int, trim bool, trimstart int, trimend int) error {
 
-	if trim {
-		if trimstart > refLen-2 || trimstart < 1 {
-			return errors.New("error parsing trimming coordinates: check or include --trimstart")
-		}
-		if trimend > refLen-1 || trimend < 1 {
-			return errors.New("error parsing trimming coordinates: check or include --trimend")
-		}
-		if trimstart >= trimend {
-			return errors.New("error parsing trimming coordinates: check trimstart and trimend")
-		}
-	}
+// 	if trim {
+// 		if trimstart > refLen-2 || trimstart < 1 {
+// 			return errors.New("error parsing trimming coordinates: check or include --trimstart")
+// 		}
+// 		if trimend > refLen-1 || trimend < 1 {
+// 			return errors.New("error parsing trimming coordinates: check or include --trimend")
+// 		}
+// 		if trimstart >= trimend {
+// 			return errors.New("error parsing trimming coordinates: check trimstart and trimend")
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-// ToPairAlign converts a SAM file into pairwise fasta-format alignments
-// optionally including the reference, optionally split by annotations,
-// optionally skipping insertions relative to the reference
+// ToPairAlign converts a SAM file into pairwise fasta-format alignments, optionally including the reference,
+// optionally skipping insertions relative to the reference, optionally trimmed to coordinates in (degapped-)reference space
 func ToPairAlign(samIn, ref io.Reader, outpath string, trim bool, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
 	// NB probably uncomment the below and use it for checks (e.g. for
@@ -483,7 +457,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, trim bool, trimStart int,
 		}
 	}
 
-	err := checkArgsPairAlign(len(refSeq), trim, trimStart, trimEnd)
+	err := checkArgs(len(refSeq), trim, trimStart, trimEnd)
 	if err != nil {
 		return err
 	}

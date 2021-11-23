@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -58,27 +57,34 @@ type AnnoStructs struct {
 
 // Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons represented by an amino acid change)
 // mutations relative to a reference sequence from a multiple sequence alignment in fasta format. Genome annotations are derived from a genbank flat file
-func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) error {
+func Variants(msaIn io.Reader, stdin bool, refID string, gbIn io.Reader, out io.Writer, threads int) error {
 
 	gb, err := genbank.ReadGenBank(gbIn)
 	if err != nil {
 		return err
 	}
 
-	ref, err := findReference(msaIn, refID)
-	if err != nil {
-		return err
-	}
+	var ref fastaio.EncodedFastaRecord
 
 	// move the reader back to the beginning of the alignment, because we are scanning through it twice
 	// NB - is there a more elegant way to do this?
 	switch x := msaIn.(type) {
 	case *os.File:
-		_, err = x.Seek(0, io.SeekStart)
+		if !stdin && refID != "" {
+			ref, err = findReference(msaIn, refID)
+			if err != nil {
+				return err
+			}
+			_, err = x.Seek(0, io.SeekStart)
+			if err != nil {
+				return err
+			}
+		}
+	case *bytes.Reader:
+		ref, err = findReference(msaIn, refID)
 		if err != nil {
 			return err
 		}
-	case *bytes.Reader:
 		_, err = x.Seek(0, io.SeekStart)
 		if err != nil {
 			return err
@@ -94,28 +100,11 @@ func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) erro
 		ref = fastaio.EncodedFastaRecord{ID: "genbank_source", Seq: encodedrefseq}
 	}
 
-	// move the reader back to the beginning of the genbank file
-	switch y := gbIn.(type) {
-	case *os.File:
-		_, err = y.Seek(0, io.SeekStart)
-		if err != nil {
-			return err
-		}
-	case *bytes.Reader:
-		_, err = y.Seek(0, io.SeekStart)
-		if err != nil {
-			return err
-		}
-	}
-
 	// get a list of CDS + intergenic regions from the genbank file
-	regions, err := GetRegions(gbIn)
+	regions, err := GetRegions(gb)
 	if err != nil {
 		return err
 	}
-
-	// get the offset accounting for insertions relative to the reference
-	offsetRefCoord, offsetMSACoord := GetOffsets(ref.Seq)
 
 	cMSA := make(chan fastaio.EncodedFastaRecord)
 	cErr := make(chan error)
@@ -125,16 +114,32 @@ func Variants(msaIn io.Reader, refID string, gbIn io.Reader, out io.Writer) erro
 	cVariantsDone := make(chan bool)
 	cWriteDone := make(chan bool)
 
-	go WriteVariants(out, cVariants, cWriteDone, cErr)
-
 	go fastaio.ReadEncodeAlignment(msaIn, false, cMSA, cErr, cMSADone)
 
-	var wgVariants sync.WaitGroup
-	wgVariants.Add(runtime.NumCPU())
+	if stdin && refID != "" {
+		select {
+		case ref = <-cMSA:
+			if ref.ID != refID {
+				return errors.New("--reference is not the first record in --msa (if --msa is reference-length you don't need to provide --reference)")
+			}
+		case err := <-cErr:
+			return err
+		case <-cMSADone:
+			return errors.New("is the pipe to --msa empty?")
+		}
+	}
 
-	for n := 0; n < runtime.NumCPU(); n++ {
+	go WriteVariants(out, refID, cVariants, cWriteDone, cErr)
+
+	// get the offsets accounting for insertions relative to the reference
+	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+
+	var wgVariants sync.WaitGroup
+	wgVariants.Add(threads)
+
+	for n := 0; n < threads; n++ {
 		go func() {
-			getVariants(ref, regions, offsetRefCoord, offsetMSACoord, cMSA, cVariants, cErr)
+			getVariants(ref, regions, refToMSA, MSAToRef, cMSA, cVariants, cErr)
 			wgVariants.Done()
 		}()
 	}
@@ -255,6 +260,10 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 		}
 	}
 
+	if counter == 0 {
+		return fastaio.EncodedFastaRecord{}, errors.New("empty fasta file")
+	}
+
 	err = s.Err()
 	if err != nil {
 		return fastaio.EncodedFastaRecord{}, err
@@ -271,12 +280,7 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 
 // GetRegions parses a genbank flat format file of genome annotations to extract information about the
 // the positions of CDS and intergenic regions, in order to annotate mutations within each
-func GetRegions(genbankIn io.Reader) ([]Region, error) {
-	gb, err := genbank.ReadGenBank(genbankIn)
-	if err != nil {
-		return make([]Region, 0), err
-	}
-
+func GetRegions(gb genbank.Genbank) ([]Region, error) {
 	CDSFEATS := make([]genbank.GenbankFeature, 0)
 	for _, F := range gb.FEATURES {
 		if F.Feature == "CDS" {
@@ -349,11 +353,11 @@ func GetRegions(genbankIn io.Reader) ([]Region, error) {
 	return regions, nil
 }
 
-// GetOffsets returns two arrays which contain coordinate shifting information that can be used to
+// GetMSAOffsets returns two arrays which contain coordinate shifting information that can be used to
 // convert reference to msa coordinates, and vice versa
-func GetOffsets(refseq []byte) ([]int, []int) {
-	// we make an array of integers to offset the positions by.
-	// this should be the same length as a degapped refseq?
+func GetMSAOffsets(refseq []byte) ([]int, []int) {
+
+	// get the length of the reference sequence without any gaps
 	degappedLen := 0
 	for _, nuc := range refseq {
 		// if there is no alignment gap at this site, ++
@@ -361,194 +365,201 @@ func GetOffsets(refseq []byte) ([]int, []int) {
 			degappedLen++
 		}
 	}
-	// if there are no alignment gaps, we can return two slices of 0s
-	if degappedLen == len(refseq) {
-		return make([]int, len(refseq), len(refseq)), make([]int, len(refseq), len(refseq))
-	}
 
-	// otherwise, we get some offsets:
-	// 1) offsetRefCoord = the number of bases to add to convert each position to msa coordinates
-	// 2) offsetMSACoord = the number of bases to subtract to convert each position to reference coordinates
+	// We get some offsets:
+	// 1) refToMSA = the number of bases to add to convert each reference position to MSA coordinates
+	// 2) MSAToRef = the number of bases to subtract to convert each MSA position to reference coordinates
 	gapsum := 0
-	offsetRefCoord := make([]int, degappedLen)
-	offsetMSACoord := make([]int, len(refseq))
+	refToMSA := make([]int, degappedLen)
+	MSAToRef := make([]int, len(refseq))
 	for i, nuc := range refseq {
 		if nuc == 244 {
 			gapsum++
+			continue
 		}
-		offsetRefCoord[i-gapsum] = gapsum
-		offsetMSACoord[i] = gapsum
+		refToMSA[i-gapsum] = gapsum
+		MSAToRef[i] = gapsum
 	}
 
-	return offsetRefCoord, offsetMSACoord
+	return refToMSA, MSAToRef
 }
 
 // getVariants annotates mutations between query and reference sequences, one fasta record at a time. It reads each fasta
 // record from a channel and passes all its mutations to another channel grouped together in one struct.
 func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fastaio.EncodedFastaRecord, cVariants chan AnnoStructs, cErr chan error) {
 
-	DA := encoding.MakeDecodingArray()
-	CD := alphabet.MakeCodonDict()
 	for record := range cMSA {
 
-		insOpen := false
-		insStart := 0
-		insLength := 0
-		delOpen := false
-		delStart := 0
-		delLength := 0
-
-		// check that the reference is the same length as this record
-		// (might conceivably not be if the ref came from the genbank file and the msa has insertions in it)
-		if len(record.Seq) != len(ref.Seq) {
-			cErr <- fmt.Errorf("sequence length for query %s (%d) is different to the sequence length of the reference %s (%d)", record.ID, len(record.Seq), ref.ID, len(ref.Seq))
+		AS, err := GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, regions, offsetRefCoord, offsetMSACoord)
+		if err != nil {
+			cErr <- err
 			break
 		}
 
-		// here is the slice of variants that we will populate, then sort, then put in an
-		// annoStructs{} to write to file
-		variants := make([]Variant, 0)
+		cVariants <- AS
+	}
+}
 
-		// first, we get indels
-		for pos := range record.Seq {
-			if ref.Seq[pos] == 244 { // insertion relative to reference (somewhere in the alignment)
-				if record.Seq[pos] == 244 { // insertion is not in this seq
-					continue
-				} else { // insertion is in this seq
-					if insOpen { // not the first position of an insertion
-						insLength++ // we increment the length counter
-					} else { // the first position of an insertion
-						insStart = pos - 1 // we record the position of the insertion as the left-neighbouring reference position
-						insLength = 1
-						insOpen = true
-					}
-				}
-			} else { // not an insertion relative to the reference at this position
-				if insOpen { // first base after an insertion, so we need to log the insertion
-					variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
-					insOpen = false
-				}
-				if record.Seq[pos] == 244 { // deletion in this seq
-					if delOpen { // not the first position of a deletion
-						delLength++ // we increment the length (there is not a deletion in the reference)
-					} else { // the first position of a deletion
-						delStart = pos
-						delLength = 1
-						delOpen = true
-					}
-				} else { // no deletion in this seq
-					if delOpen { // first base after a deletion, so we need to log the deletion
-						variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
-						delOpen = false // and reset things
-					}
-				}
-			}
-		}
+// GetVariantsPair annotates mutations between one pair of query and reference sequences. ref and query are encoded according
+// to EP's bitwise coding scheme
+func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, regions []Region, offsetRefCoord []int, offsetMSACoord []int) (AnnoStructs, error) {
 
-		// catch things that abut the end of the alignment
-		// don't want deletions at the end of the alignment (or at the beginning)
-		// if delOpen {
-		// 	variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
-		// }
-		if insOpen {
-			variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
-		}
+	AS := AnnoStructs{}
 
-		// then we loop over the regions to get AAs and snps
-		for _, region := range regions {
-			// and switch on whether it is intergenic or CDS:
-			switch region.Whichtype {
-			case "int":
-				adjStart := region.Start + offsetRefCoord[region.Start]
-				adjStop := region.Stop + offsetRefCoord[region.Stop]
-				for pos := adjStart - 1; pos < adjStop; pos++ {
-					if (ref.Seq[pos] & record.Seq[pos]) < 16 { // check for SNPs
-						variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref.Seq[pos]], QueAl: DA[record.Seq[pos]], Position: pos - offsetMSACoord[pos]})
-					}
-				}
-			case "CDS":
-				codonSNPs := make([]Variant, 0, 3)
-				decodedCodon := ""
-				aa := ""
-				refaa := ""
-				// here are the 1-based start positions of each codon in reference coordinates
-				for aaCounter, tempPos := range region.Codonstarts {
-					// here is the actual position in the msa:
-					pos := (tempPos - 1) + offsetRefCoord[tempPos]
+	DA := encoding.MakeDecodingArray()
+	CD := alphabet.MakeCodonDict()
 
-					// for each position in this codon
-					for codonCounter := 0; codonCounter < 3; codonCounter++ {
-						// skip insertions relative to the reference
-						// TO DO = if they are in this record log/take them into account
-						if ref.Seq[pos+codonCounter] == 244 {
-							continue
-						}
-						if (record.Seq[pos+codonCounter] & ref.Seq[pos+codonCounter]) < 16 {
-							codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref.Seq[pos+codonCounter]], QueAl: DA[record.Seq[pos+codonCounter]], Position: (pos + codonCounter) - offsetMSACoord[pos+codonCounter]})
-						}
-						decodedCodon = decodedCodon + DA[record.Seq[pos+codonCounter]]
-					}
+	insOpen := false
+	insStart := 0
+	insLength := 0
+	delOpen := false
+	delStart := 0
+	delLength := 0
 
-					if _, ok := CD[decodedCodon]; ok {
-						aa = CD[decodedCodon]
-					} else {
-						aa = "X"
-					}
+	// check that the reference is the same length as this record
+	// (might conceivably not be if the ref came from the genbank file and the msa has insertions in it)
+	if len(query) != len(ref) {
+		return AS, fmt.Errorf("sequence length for query %s (%d) is different to the sequence length of the reference %s (%d)", queryID, len(query), refID, len(ref))
+	}
 
-					refaa = string(region.Translation[aaCounter])
+	// here is the slice of variants that we will populate, then sort, then put in an
+	// annoStructs{} to write to file
+	variants := make([]Variant, 0)
 
-					if aa != refaa && aa != "X" {
-						variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: pos - offsetMSACoord[pos], Residue: aaCounter})
-					} else {
-						for _, v := range codonSNPs {
-							variants = append(variants, v)
-						}
-					}
-
-					codonSNPs = make([]Variant, 0, 3)
-					decodedCodon = ""
-				}
-			}
-		}
-
-		// sort the variants
-		sort.SliceStable(variants, func(i, j int) bool {
-			return variants[i].Position < variants[j].Position || (variants[i].Position == variants[j].Position && variants[i].Changetype < variants[j].Changetype)
-		})
-
-		// there might be dups if there was a snp in the region of a join()
-		finalVariants := make([]Variant, 0)
-		previousVariant := Variant{}
-		for i, v := range variants {
-			if i == 0 {
-				// don't want deletions that abut the start of the sequence
-				if v.Changetype == "del" && v.Position == 0 {
-					continue
-				}
-				finalVariants = append(finalVariants, v)
-				previousVariant = v
+	// first, we get indels
+	for pos := range ref {
+		if ref[pos] == 244 { // insertion relative to reference (somewhere in the alignment)
+			if query[pos] == 244 { // insertion is not in this seq
 				continue
+			} else { // insertion is in this seq
+				if insOpen { // not the first position of an insertion
+					insLength++ // we increment the length counter
+				} else { // the first position of an insertion
+					insStart = pos // we record the position of the insertion 0-based
+					insLength = 1
+					insOpen = true
+				}
 			}
+		} else { // not an insertion relative to the reference at this position
+			if insOpen { // first base after an insertion, so we need to log the insertion
+				variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
+				insOpen = false
+			}
+			if query[pos] == 244 { // deletion in this seq
+				if delOpen { // not the first position of a deletion
+					delLength++ // we increment the length (there is not a deletion in the reference)
+				} else { // the first position of a deletion
+					delStart = pos
+					delLength = 1
+					delOpen = true
+				}
+			} else { // no deletion in this seq
+				if delOpen { // first base after a deletion, so we need to log the deletion
+					variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
+					delOpen = false // and reset things
+				}
+			}
+		}
+	}
+
+	// catch things that abut the end of the alignment
+	// don't want deletions at the end of the alignment (or at the beginning)
+	// if delOpen {
+	// 	variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
+	// }
+	if insOpen {
+		variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
+	}
+
+	// then we loop over the regions to get AAs and snps
+	for _, region := range regions {
+		// and switch on whether it is intergenic or CDS:
+		switch region.Whichtype {
+		case "int":
+			adjStart := region.Start + offsetRefCoord[region.Start]
+			adjStop := region.Stop + offsetRefCoord[region.Stop]
+			for pos := adjStart - 1; pos < adjStop; pos++ {
+				if (ref[pos] & query[pos]) < 16 { // check for SNPs
+					variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref[pos]], QueAl: DA[query[pos]], Position: pos - offsetMSACoord[pos]})
+				}
+			}
+		case "CDS":
+			codonSNPs := make([]Variant, 0, 3)
+			decodedCodon := ""
+			aa := ""
+			refaa := ""
+			// here are the 1-based start positions of each codon in reference coordinates
+			for aaCounter, tempPos := range region.Codonstarts {
+				// here is the actual position in the msa:
+				pos := (tempPos - 1) + offsetRefCoord[tempPos]
+
+				// for each position in this codon
+				for codonCounter := 0; codonCounter < 3; codonCounter++ {
+					// skip insertions relative to the reference
+					// TO DO = if they are in this record log/take them into account
+					if ref[pos+codonCounter] == 244 {
+						continue
+					}
+					if (query[pos+codonCounter] & ref[pos+codonCounter]) < 16 {
+						codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref[pos+codonCounter]], QueAl: DA[query[pos+codonCounter]], Position: (pos + codonCounter) - offsetMSACoord[pos+codonCounter]})
+					}
+					decodedCodon = decodedCodon + DA[query[pos+codonCounter]]
+				}
+
+				if _, ok := CD[decodedCodon]; ok {
+					aa = CD[decodedCodon]
+				} else {
+					aa = "X"
+				}
+
+				refaa = string(region.Translation[aaCounter])
+
+				if aa != refaa && aa != "X" {
+					variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: pos - offsetMSACoord[pos], Residue: aaCounter})
+				} else {
+					for _, v := range codonSNPs {
+						variants = append(variants, v)
+					}
+				}
+
+				codonSNPs = make([]Variant, 0, 3)
+				decodedCodon = ""
+			}
+		}
+	}
+
+	// sort the variants
+	sort.SliceStable(variants, func(i, j int) bool {
+		return variants[i].Position < variants[j].Position || (variants[i].Position == variants[j].Position && variants[i].Changetype < variants[j].Changetype)
+	})
+
+	// there might be dups if there was a snp in the region of a join()
+	finalVariants := make([]Variant, 0)
+	previousVariant := Variant{}
+	for i, v := range variants {
+		if i == 0 {
+			// don't want deletions that abut the start of the sequence
 			if v.Changetype == "del" && v.Position == 0 {
-				continue
-			}
-			if v == previousVariant {
 				continue
 			}
 			finalVariants = append(finalVariants, v)
 			previousVariant = v
+			continue
 		}
-
-		AS := AnnoStructs{Queryname: record.ID, Vs: finalVariants, Idx: record.Idx}
-
-		// if this is the reference, let the writer know
-		if record.ID == ref.ID {
-			AS.Queryname = "ref"
+		if v.Changetype == "del" && v.Position == 0 {
+			continue
 		}
-
-		// and we're done
-		cVariants <- AS
+		if v == previousVariant {
+			continue
+		}
+		finalVariants = append(finalVariants, v)
+		previousVariant = v
 	}
+
+	// and we're done
+	AS = AnnoStructs{Queryname: queryID, Vs: finalVariants, Idx: idx}
+
+	return AS, nil
 }
 
 // FormatVariant returns a string representation of a single mutation the format of which varies
@@ -560,7 +571,7 @@ func FormatVariant(v Variant) (string, error) {
 	case "del":
 		s = "del:" + strconv.Itoa(v.Position+1) + ":" + strconv.Itoa(v.Length)
 	case "ins":
-		s = "ins:" + strconv.Itoa(v.Position+1) + ":" + strconv.Itoa(v.Length)
+		s = "ins:" + strconv.Itoa(v.Position) + ":" + strconv.Itoa(v.Length)
 	case "nuc":
 		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position+1) + v.QueAl
 	case "aa":
@@ -573,7 +584,7 @@ func FormatVariant(v Variant) (string, error) {
 }
 
 // WriteVariants writes each queries mutations to file or stdout
-func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+func WriteVariants(w io.Writer, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	outputMap := make(map[int]AnnoStructs)
 
@@ -593,7 +604,7 @@ func WriteVariants(w io.Writer, cVariants chan AnnoStructs, cWriteDone chan bool
 
 		if VL, ok := outputMap[counter]; ok {
 
-			if VL.Queryname == "ref" {
+			if VL.Queryname == refID {
 				delete(outputMap, counter)
 				counter++
 				continue

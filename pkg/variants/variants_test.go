@@ -23,7 +23,7 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, "", genbank, out)
+	err := Variants(msa, false, "", genbank, out, 1)
 	if err != nil {
 		t.Error(err)
 	}

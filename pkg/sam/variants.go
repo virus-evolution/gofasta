@@ -211,9 +211,10 @@ func getVariantsSam(regions []variants.Region, cAlignPair chan alignPair, cVaria
 		}
 
 		// catch things that abut the end of the alignment
-		if delOpen {
-			vs = append(vs, variants.Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
-		}
+		// don't want deletions at the end of the alignment (or at the beginning)
+		// if delOpen {
+		// 	variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
+		// }
 		if insOpen {
 			vs = append(vs, variants.Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
 		}
@@ -285,6 +286,10 @@ func getVariantsSam(regions []variants.Region, cAlignPair chan alignPair, cVaria
 		previousVariant := variants.Variant{}
 		for i, v := range vs {
 			if i == 0 {
+				// don't want deletions that abut the start of the sequence
+				if v.Changetype == "del" && v.Position == 0 {
+					continue
+				}
 				finalVariants = append(finalVariants, v)
 				previousVariant = v
 				continue

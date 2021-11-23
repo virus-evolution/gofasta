@@ -10,22 +10,17 @@ import (
 	"sync"
 
 	"github.com/cov-ert/gofasta/pkg/fastaio"
-	"github.com/cov-ert/gofasta/pkg/variants"
 
 	biogosam "github.com/biogo/hts/sam"
 )
 
 // alignPair is a struct for storing an aligned reference & query sequence pair
 type alignPair struct {
-	ref          []byte
-	query        []byte
-	refname      string
-	queryname    string
-	descriptor   string
-	featPosArray []int // parsed start/end positions of feature from annotation (can be >length(2) if Join())
-	featType     string
-	featName     string
-	idx          int // for retaining input order in the output
+	ref       []byte
+	query     []byte
+	refname   string
+	queryname string
+	idx       int // for retaining input order in the output
 }
 
 // alignPairs is for passing groups of alignPair around with an index which is used to retain input
@@ -276,53 +271,35 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 	return
 }
 
-// // getOffset returns an array of integers the same length as the reference sequence, which consist of the
-// // the number of bases to add needed to convert each position to msa coordinates when insertions relative
-// // to the refernce are included
-// func getOffset(refseq []byte) []int {
-// 	// we make an array of integers to offset the positions by.
-// 	// this should be the same length as a degapped refseq?
-// 	degappedLen := 0
-// 	for _, nuc := range refseq {
-// 		// if there is no alignment gap at this site, ++
-// 		if nuc != '-' {
-// 			degappedLen++
-// 		}
-// 	}
-// 	// if there are no alignment gaps, we can return a slice of 0s
-// 	if degappedLen == len(refseq) {
-// 		return make([]int, len(refseq), len(refseq))
-// 	}
+// getGapAdjustedRefPositions returns a slice the length of seq which represents a mapping
+// from reference -> aligned-including-insertions coordinates, so that the trimming parameters
+// can be given in reference coordinates on the command line.
+func getGapAdjustedRefPositions(seq []byte) []int {
+	idx := make([]int, len(seq))
+	pos := 0
+	for i, nuc := range seq {
+		if nuc != '-' {
+			pos += 1
+		}
+		idx[i] = pos
+	}
 
-// 	// otherwise, we get one offset:
-// 	// 1) offsetRefCoord = the number of bases to add to convert each position to msa coordinates
-// 	gapsum := 0
-// 	offsetRefCoord := make([]int, degappedLen)
-// 	for i, nuc := range refseq {
-// 		if nuc == '-' {
-// 			gapsum++
-// 			continue
-// 		}
-// 		offsetRefCoord[i-gapsum] = gapsum
-// 	}
-
-// 	return offsetRefCoord
-// }
+	return idx
+}
 
 // trimAlignment trims the alignment to user-specified coordinates in degapped reference space
 func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair, cErr chan error) {
 
-	// if no trimming is specified on the command line, we take the whole sequence:
 	if !trim {
+		// if no trimming is specified on the command line, we take the whole sequence:
 		for pair := range cPairIn {
-			pair.descriptor = pair.queryname
 			cPairOut <- pair
 		}
-		// if one feature is specified on the command line:
 	} else {
+		// otherwise we trim
 		for pair := range cPairIn {
 
-			offsetRefCoord, _ := variants.GetOffsets(pair.ref)
+			offsetRefCoord := getGapAdjustedRefPositions(pair.ref)
 
 			adjTrimStart := trimStart + offsetRefCoord[trimStart]
 			adjTrimEnd := trimEnd + offsetRefCoord[trimEnd]

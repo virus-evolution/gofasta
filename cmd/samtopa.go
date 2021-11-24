@@ -32,7 +32,7 @@ func init() {
 
 var toPairAlignCmd = &cobra.Command{
 	Use:     "toPairAlign",
-	Aliases: []string{"topairalign"},
+	Aliases: []string{"topairalign", "topa"},
 	Short:   "convert a SAM file to pairwise alignments in fasta format",
 	Long:    `convert a SAM file to pairwise alignments in fasta format`,
 

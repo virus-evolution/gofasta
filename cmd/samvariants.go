@@ -7,19 +7,28 @@ import (
 	"github.com/cov-ert/gofasta/pkg/sam"
 )
 
-var variantGenbankFile string
-var variantOutfile string
+var samVariantsGenbankFile string
+var samVariantsOutfile string
+var samVariantsAggregate bool
+var samVariantsThreshold float64
+var samVariantsAppendSNP bool
 
 func init() {
-	samCmd.AddCommand(variantCmd)
+	samCmd.AddCommand(samVariantsCmd)
 
-	variantCmd.Flags().StringVarP(&variantGenbankFile, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
-	variantCmd.Flags().StringVarP(&variantOutfile, "outfile", "o", "stdout", "Where to write the variants")
+	samVariantsCmd.Flags().StringVarP(&samVariantsGenbankFile, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
+	samVariantsCmd.Flags().StringVarP(&samVariantsOutfile, "outfile", "o", "stdout", "Where to write the variants")
+	samVariantsCmd.Flags().BoolVarP(&samVariantsAggregate, "aggregate", "", false, "Report the proportions of each change")
+	samVariantsCmd.Flags().Float64VarP(&samVariantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
+	samVariantsCmd.Flags().BoolVarP(&samVariantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
 
-	variantCmd.Flags().SortFlags = false
+	samVariantsCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
+	samVariantsCmd.Flags().Lookup("append-snps").NoOptDefVal = "true"
+
+	samVariantsCmd.Flags().SortFlags = false
 }
 
-var variantCmd = &cobra.Command{
+var samVariantsCmd = &cobra.Command{
 	Use:   "variants",
 	Short: "Find mutations relative to a reference from an alignment in sam format",
 	Long: `Find mutations relative to a reference from an alignment in sam format
@@ -64,7 +73,7 @@ the variants to stdout.`,
 		}
 		defer out.Close()
 
-		err = sam.Variants(samIn, ref, genbank, out, samThreads)
+		err = sam.Variants(samIn, ref, genbank, out, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads)
 
 		return err
 	},

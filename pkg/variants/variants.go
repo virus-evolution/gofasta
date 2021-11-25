@@ -45,6 +45,7 @@ type Variant struct {
 	Changetype string // one of {nuc,aa,ins,del}
 	Feature    string // this should be, for example, the name of the CDS that the thing is in
 	Length     int    // for indels
+	SNPs       string // if this is an amino acid change, what are the snps
 }
 
 // AnnoStructs is for passing groups of Variant structs around with an index which is used to retain input
@@ -57,7 +58,7 @@ type AnnoStructs struct {
 
 // Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons represented by an amino acid change)
 // mutations relative to a reference sequence from a multiple sequence alignment in fasta format. Genome annotations are derived from a genbank flat file
-func Variants(msaIn io.Reader, stdin bool, refID string, gbIn io.Reader, out io.Writer, threads int) error {
+func Variants(msaIn io.Reader, stdin bool, refID string, gbIn io.Reader, out io.Writer, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
 	gb, err := genbank.ReadGenBank(gbIn)
 	if err != nil {
@@ -129,7 +130,12 @@ func Variants(msaIn io.Reader, stdin bool, refID string, gbIn io.Reader, out io.
 		}
 	}
 
-	go WriteVariants(out, refID, cVariants, cWriteDone, cErr)
+	switch aggregate {
+	case true:
+		go AggregateWriteVariants(out, appendSNP, threshold, refID, cVariants, cWriteDone, cErr)
+	case false:
+		go WriteVariants(out, appendSNP, refID, cVariants, cWriteDone, cErr)
+	}
 
 	// get the offsets accounting for insertions relative to the reference
 	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
@@ -515,7 +521,12 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, regions 
 				refaa = string(region.Translation[aaCounter])
 
 				if aa != refaa && aa != "X" {
-					variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: pos - offsetMSACoord[pos], Residue: aaCounter})
+					temp := []string{}
+					for _, v := range codonSNPs {
+						temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position+1)+v.QueAl)
+					}
+					variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: pos - offsetMSACoord[pos], Residue: aaCounter, SNPs: strings.Join(temp, ";")})
+
 				} else {
 					for _, v := range codonSNPs {
 						variants = append(variants, v)
@@ -564,7 +575,7 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, regions 
 
 // FormatVariant returns a string representation of a single mutation the format of which varies
 // given its type (aa/nuc/indel)
-func FormatVariant(v Variant) (string, error) {
+func FormatVariant(v Variant, appendSNP bool) (string, error) {
 	var s string
 
 	switch v.Changetype {
@@ -575,7 +586,11 @@ func FormatVariant(v Variant) (string, error) {
 	case "nuc":
 		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position+1) + v.QueAl
 	case "aa":
-		s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue+1) + v.QueAl
+		if appendSNP {
+			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue+1) + v.QueAl + "(" + v.SNPs + ")"
+		} else {
+			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue+1) + v.QueAl
+		}
 	default:
 		return "", errors.New("couldn't parse variant type")
 	}
@@ -584,7 +599,7 @@ func FormatVariant(v Variant) (string, error) {
 }
 
 // WriteVariants writes each queries mutations to file or stdout
-func WriteVariants(w io.Writer, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+func WriteVariants(w io.Writer, appendSNP bool, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	outputMap := make(map[int]AnnoStructs)
 
@@ -593,7 +608,7 @@ func WriteVariants(w io.Writer, refID string, cVariants chan AnnoStructs, cWrite
 	var err error
 	var sa []string
 
-	_, err = w.Write([]byte("query,variants\n"))
+	_, err = w.Write([]byte("query,mutations\n"))
 	if err != nil {
 		cErr <- err
 		return
@@ -617,7 +632,7 @@ func WriteVariants(w io.Writer, refID string, cVariants chan AnnoStructs, cWrite
 			}
 			sa = make([]string, 0)
 			for _, v := range VL.Vs {
-				newVar, err := FormatVariant(v)
+				newVar, err := FormatVariant(v, appendSNP)
 				if err != nil {
 					cErr <- err
 					return
@@ -656,7 +671,7 @@ func WriteVariants(w io.Writer, refID string, cVariants chan AnnoStructs, cWrite
 		}
 		sa = make([]string, 0)
 		for _, v := range VL.Vs {
-			newVar, err := FormatVariant(v)
+			newVar, err := FormatVariant(v, appendSNP)
 			if err != nil {
 				cErr <- err
 				return
@@ -671,6 +686,62 @@ func WriteVariants(w io.Writer, refID string, cVariants chan AnnoStructs, cWrite
 
 		delete(outputMap, counter)
 		counter++
+	}
+
+	cWriteDone <- true
+}
+
+// AggregateWriteOutput aggregates the mutations that are present above a certain threshold, and
+// writes their frequencies out to file or stdout
+func AggregateWriteVariants(w io.Writer, appendSNP bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+
+	propMap := make(map[Variant]float64)
+
+	var err error
+
+	_, err = w.Write([]byte("mutation,proportion\n"))
+	if err != nil {
+		cErr <- err
+		return
+	}
+
+	counter := 0.0
+
+	for AS := range cVariants {
+		counter++
+		for _, V := range AS.Vs {
+			Vskinny := Variant{RefAl: V.RefAl, QueAl: V.QueAl, Position: V.Position, Residue: V.Residue, Changetype: V.Changetype, Feature: V.Feature, Length: V.Length, SNPs: V.SNPs}
+			if _, ok := propMap[Vskinny]; ok {
+				propMap[Vskinny]++
+			} else {
+				propMap[Vskinny] = 1.0
+			}
+		}
+	}
+
+	order := make([]Variant, 0)
+	for k := range propMap {
+		order = append(order, k)
+	}
+
+	sort.SliceStable(order, func(i, j int) bool {
+		return order[i].Position < order[j].Position || (order[i].Position == order[j].Position && order[i].Changetype < order[j].Changetype) || (order[i].Position == order[j].Position && order[i].Changetype == order[j].Changetype && order[i].QueAl < order[j].QueAl)
+	})
+
+	for _, V := range order {
+		if propMap[V]/counter < threshold {
+			continue
+		}
+		Vformatted, err := FormatVariant(V, appendSNP)
+		if err != nil {
+			cErr <- err
+			return
+		}
+		_, err = w.Write([]byte(Vformatted + "," + strconv.FormatFloat(propMap[V]/counter, 'f', 9, 64) + "\n"))
+		if err != nil {
+			cErr <- err
+			return
+		}
 	}
 
 	cWriteDone <- true

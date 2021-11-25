@@ -28,12 +28,12 @@ aa:ORF7a:A8K	0	MN908947.3	1	60	29903M	*	0	0	ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAAC
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, ref, genbank, out, 1)
+	err := Variants(msa, ref, genbank, out, false, 0.0, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if string(out.Bytes()) != `query,variants
+	if string(out.Bytes()) != `query,mutations
 del:5792:5,del:5792:5
 ins:26646:4,ins:26646:4
 nuc:A5560T,nuc:A5560T

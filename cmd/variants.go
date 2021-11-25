@@ -12,6 +12,9 @@ var variantsReference string
 var variantsGenbankFile string
 var variantsOutfile string
 var variantsThreads int
+var variantsAggregate bool
+var variantsThreshold float64
+var variantsAppendSNP bool
 
 func init() {
 	rootCmd.AddCommand(variantsCmd)
@@ -20,7 +23,13 @@ func init() {
 	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "r", "", "The name of the reference sequence in the msa")
 	variantsCmd.Flags().StringVarP(&variantsGenbankFile, "genbank", "", "", "Genbank format annotation")
 	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "Name of the file of variants to write")
+	variantsCmd.Flags().BoolVarP(&variantsAggregate, "aggregate", "", false, "Report the proportions of each change")
+	variantsCmd.Flags().Float64VarP(&variantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
+	variantsCmd.Flags().BoolVarP(&variantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
 	variantsCmd.Flags().IntVarP(&variantsThreads, "threads", "t", 1, "Number of threads to use")
+
+	variantsCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
+	variantsCmd.Flags().Lookup("append-snps").NoOptDefVal = "true"
 
 	variantsCmd.Flags().SortFlags = false
 }
@@ -77,7 +86,7 @@ nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference a
 		}
 		defer out.Close()
 
-		err = variants.Variants(msa, stdin, variantsReference, genbank, out, variantsThreads)
+		err = variants.Variants(msa, stdin, variantsReference, genbank, out, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads)
 
 		return
 	},

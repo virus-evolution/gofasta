@@ -107,6 +107,7 @@ func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cE
 	_, err = w.Write([]byte("SNP,proportion\n"))
 	if err != nil {
 		cErr <- err
+		return
 	}
 
 	counter := 0.0
@@ -145,9 +146,10 @@ func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cE
 		if propMap[snp]/counter < threshold {
 			continue
 		}
-		_, err = w.Write([]byte(snp + "," + strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n"))
+		_, err = w.Write([]byte(snp + "," + strconv.FormatFloat(propMap[snp]/counter, 'f', 9, 64) + "\n"))
 		if err != nil {
 			cErr <- err
+			return
 		}
 	}
 

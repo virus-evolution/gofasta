@@ -96,7 +96,7 @@ ATTTTG
 
 	// strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n")
 
-	if string(out.Bytes()) != `SNP,proportion
+	if string(out.Bytes()) != `SNP,frequency
 G3T,0.500000000
 A4T,0.500000000
 G6C,0.250000000
@@ -133,7 +133,7 @@ ATTTTG
 
 	// strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n")
 
-	if string(out.Bytes()) != `SNP,proportion
+	if string(out.Bytes()) != `SNP,frequency
 G3T,0.500000000
 A4T,0.500000000
 ` {

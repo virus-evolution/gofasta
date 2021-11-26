@@ -699,7 +699,7 @@ func AggregateWriteVariants(w io.Writer, appendSNP bool, threshold float64, refI
 
 	var err error
 
-	_, err = w.Write([]byte("mutation,proportion\n"))
+	_, err = w.Write([]byte("mutation,frequency\n"))
 	if err != nil {
 		cErr <- err
 		return

@@ -104,7 +104,7 @@ func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cE
 
 	var err error
 
-	_, err = w.Write([]byte("SNP,proportion\n"))
+	_, err = w.Write([]byte("SNP,frequency\n"))
 	if err != nil {
 		cErr <- err
 		return

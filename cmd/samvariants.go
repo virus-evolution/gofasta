@@ -36,6 +36,9 @@ var samVariantsCmd = &cobra.Command{
 Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -g annotation.gb -o variants.csv
 
+If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
+the variants to stdout.
+
 Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide change that
 isn't in a codon that is represented by an amino acid change). The formats are:
 
@@ -44,8 +47,8 @@ del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) p
 aa:s:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
 nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
 
-If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
-the variants to stdout.`,
+Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.
+`,
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 

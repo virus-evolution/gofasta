@@ -60,6 +60,8 @@ ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in ref
 del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
 aa:s:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
 nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
+
+Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 

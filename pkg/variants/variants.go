@@ -497,19 +497,25 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, regions 
 			// here are the 1-based start positions of each codon in reference coordinates
 			for aaCounter, tempPos := range region.Codonstarts {
 				// here is the actual position in the msa:
-				pos := (tempPos - 1) + offsetRefCoord[tempPos]
+				pos := (tempPos - 1) + offsetRefCoord[tempPos-1]
 
 				// for each position in this codon
-				for codonCounter := 0; codonCounter < 3; codonCounter++ {
+				codonCounter := 0
+				refCodonCounter := 0
+				for refCodonCounter < 3 {
 					// skip insertions relative to the reference
 					// TO DO = if they are in this record log/take them into account
 					if ref[pos+codonCounter] == 244 {
+						codonCounter++
 						continue
 					}
 					if (query[pos+codonCounter] & ref[pos+codonCounter]) < 16 {
 						codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref[pos+codonCounter]], QueAl: DA[query[pos+codonCounter]], Position: (pos + codonCounter) - offsetMSACoord[pos+codonCounter]})
 					}
 					decodedCodon = decodedCodon + DA[query[pos+codonCounter]]
+
+					codonCounter++
+					refCodonCounter++
 				}
 
 				if _, ok := CD[decodedCodon]; ok {

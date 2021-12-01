@@ -14,19 +14,21 @@ import (
 	biogosam "github.com/biogo/hts/sam"
 )
 
-// TODO: tidy this up wrt to the struct(s) in topa.go
+// insOccurrence is a struct for holding information about one insertion
 type insOccurrence struct {
 	query string
 	start int
 	seq   string
 }
 
+// delOccurrence is a struct for holding information about one deletion
 type delOccurrence struct {
 	query  string
 	start  int
 	length int
 }
 
+// getSamRecords gets the sam records from a file and passes them to a channel
 func getSamRecords(in io.Reader, chnl chan biogosam.Record, cdone chan bool, cerr chan error) {
 
 	var err error
@@ -74,6 +76,8 @@ func getSamRecords(in io.Reader, chnl chan biogosam.Record, cdone chan bool, cer
 	cdone <- true
 }
 
+// getIndels parses sam records from a channel and passes info about insertions and deletions in each to separate
+// channels of insertion and deletion structs
 func getIndels(cSR chan biogosam.Record, cIns chan insOccurrence, cDel chan delOccurrence, cErr chan error) {
 
 	lambda_dict := getCigarOperationMapNoInsertions()
@@ -125,6 +129,8 @@ func getIndels(cSR chan biogosam.Record, cIns chan insOccurrence, cDel chan delO
 	return
 }
 
+// populateInsMap receives information about insertions from a channel of structs and populates a map
+// with it
 func populateInsMap(cIns chan insOccurrence, cInsMap chan map[int]map[string][]string, cErr chan error) {
 
 	insMap := make(map[int]map[string][]string)
@@ -159,6 +165,8 @@ func populateInsMap(cIns chan insOccurrence, cInsMap chan map[int]map[string][]s
 	cInsMap <- insMap
 }
 
+// populateDelMap receives information about deletions from a channel of structs and populates a map
+// with it
 func populateDelMap(cDel chan delOccurrence, cDelMap chan map[int]map[int][]string, cErr chan error) {
 
 	delMap := make(map[int]map[int][]string)
@@ -193,6 +201,7 @@ func populateDelMap(cDel chan delOccurrence, cDelMap chan map[int]map[int][]stri
 	cDelMap <- delMap
 }
 
+// writeInsMap writes the info in a map of insertion occurrences to file
 func writeInsMap(w io.Writer, insmap map[int]map[string][]string, threshold int) error {
 
 	var err error
@@ -228,6 +237,7 @@ func writeInsMap(w io.Writer, insmap map[int]map[string][]string, threshold int)
 	return nil
 }
 
+// writeDelMap writes the info in a map of deletions occurrences to file
 func writeDelMap(w io.Writer, delmap map[int]map[int][]string, threshold int) error {
 
 	var err error
@@ -263,6 +273,7 @@ func writeDelMap(w io.Writer, delmap map[int]map[int][]string, threshold int) er
 	return nil
 }
 
+// Indels gets raw indel information from the cigar + sequence fields of a sam file
 func Indels(samFile io.Reader, insOut, delOut io.Writer, threshold int) error {
 
 	fmt.Println("sam indels is deprecated and may be removed in a future version. Please use sam variants instead.")

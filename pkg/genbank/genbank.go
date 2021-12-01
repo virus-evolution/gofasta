@@ -1,3 +1,6 @@
+/*
+Package genbank provides functionality for reading genbank flat format files
+*/
 package genbank
 
 import (
@@ -7,7 +10,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-	// "fmt"
 )
 
 // Genbank is a master struct containing all the info from a single genbank record
@@ -54,13 +56,7 @@ type GenbankFeature struct {
 	Info    map[string]string
 }
 
-// TO DO make this work on a pointer to a map instead of making copies
-func updateMap(key string, value string, m map[string]string) map[string]string {
-	m[key] = value
-	return m
-}
-
-// true/false does this line of the file code a new FEATURE (CDS, gene, 5'UTR etc)
+// isFeatureLine returns true/false does this line of the file code a new FEATURE (CDS, gene, 5'UTR etc)
 func isFeatureLine(line string, quoteClosed bool) bool {
 
 	lineFields := strings.Fields(line)
@@ -76,7 +72,7 @@ func isFeatureLine(line string, quoteClosed bool) bool {
 	return false
 }
 
-// get the FEATURES info
+// parseGenbankFEATURES gets the FEATURES info from a genbank file
 func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 	rawLines := field.lines
@@ -152,7 +148,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			quoteClosed = true
 
-			gb.Info = updateMap(string(keyBuffer), string(valueBuffer), gb.Info)
+			gb.Info[string(keyBuffer)] = string(valueBuffer)
 
 			keyBuffer = make([]rune, 0)
 			valueBuffer = make([]rune, 0)
@@ -181,7 +177,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			quoteClosed = true
 
-			gb.Info = updateMap(string(keyBuffer), string(valueBuffer), gb.Info)
+			gb.Info[string(keyBuffer)] = string(valueBuffer)
 			features = append(features, gb)
 
 			lineFields := strings.Fields(line)
@@ -211,6 +207,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 	return features
 }
 
+// ParsePositions returns the genomic positions of a position, handling regions that are join()ed together
 func ParsePositions(position string) ([]int, error) {
 	var A []int
 	if position[0:4] == "join" {
@@ -243,7 +240,7 @@ func ParsePositions(position string) ([]int, error) {
 	return A, nil
 }
 
-// get the ORIGIN info
+// parseGenbankORIGIN gets the ORIGIN info from a genbank file
 func parseGenbankORIGIN(field genbankField) []byte {
 
 	rawLines := field.lines

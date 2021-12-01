@@ -23,6 +23,7 @@ import (
 // 	snps []string
 // }
 
+// catchmentStruct contains information about the closest sequences to a particular query
 type catchmentStruct struct {
 	qname                string
 	qidx                 int
@@ -31,6 +32,9 @@ type catchmentStruct struct {
 	furthestCompleteness int64   // this is completeness for the least close of the current set of neighbours in catchment
 }
 
+// rearrangeCatchment sorts a catchmentStruct so that the sequences in its catchment field are in order of
+// genetic distance, with ties broken by genome completeness. It is called before the catchment is written to
+// output, or if a new sequence is added to a catchmentStruct which is already at capacity
 func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 	sort.SliceStable(nS.catchment, func(i, j int) bool {
 		return nS.catchment[i].distance < nS.catchment[j].distance || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].completeness > nS.catchment[j].completeness)
@@ -40,6 +44,7 @@ func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 	nS.furthestCompleteness = nS.catchment[catchmentSize-1].completeness
 }
 
+// findClosestN finds the closest sequences by genetic distance to single a query sequence
 func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct) {
 
 	neighbours := catchmentStruct{qname: query.ID, qidx: query.Idx}
@@ -95,6 +100,7 @@ func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan 
 	cOut <- neighbours
 }
 
+// splitInputN fans out target sequences over an array of query sequences, so that each target is passed over each query.
 func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct, cErr chan error, cSplitDone chan bool) {
 
 	nQ := len(queries)
@@ -132,6 +138,7 @@ func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn ch
 	cSplitDone <- true
 }
 
+// writeClosestN parses an array of catchmentStructs in order to write them, usually to stdout or file
 func writeClosestN(results []catchmentStruct, w io.Writer) error {
 
 	var err error
@@ -152,6 +159,8 @@ func writeClosestN(results []catchmentStruct, w io.Writer) error {
 	return nil
 }
 
+// ClosestN finds the closest sequence(s) by raw genetic distance to a query/queries. It writes the results
+// to stdout or to file. Ties for distance are broken by genome completeness
 func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads int) error {
 
 	if threads == 0 {

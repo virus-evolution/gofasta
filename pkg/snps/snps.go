@@ -1,3 +1,7 @@
+/*
+Package snps implements functions to call nucleotide changes between each sequence
+in a fasta format alignment and a reference sequence.
+*/
 package snps
 
 import (
@@ -12,14 +16,14 @@ import (
 	"github.com/cov-ert/gofasta/pkg/fastaio"
 )
 
-// snpLine is a struct for one Fasta record's SNPs
+// snpLine is a struct for one fasta record's SNPs
 type snpLine struct {
 	queryname string
 	snps      []string
 	idx       int
 }
 
-// getSNPs gets the SNPs between the reference and each Fasta record at a time
+// getSNPs gets the SNPs between the reference sequence and each fasta record from a channel
 func getSNPs(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cSNPs chan snpLine, cErr chan error) {
 
 	DA := encoding.MakeDecodingArray()
@@ -93,16 +97,17 @@ func writeOutput(w io.Writer, cSNPs chan snpLine, cErr chan error, cWriteDone ch
 }
 
 // aggregateWriteOutput aggregates the SNPs that are present above a certain threshold, and
-// writes their frequencies out
+// writes their frequencies out to file or stdout
 func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cErr chan error, cWriteDone chan bool) {
 
 	propMap := make(map[string]float64)
 
 	var err error
 
-	_, err = w.Write([]byte("SNP,proportion\n"))
+	_, err = w.Write([]byte("SNP,frequency\n"))
 	if err != nil {
 		cErr <- err
+		return
 	}
 
 	counter := 0.0
@@ -141,9 +146,10 @@ func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cE
 		if propMap[snp]/counter < threshold {
 			continue
 		}
-		_, err = w.Write([]byte(snp + "," + strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n"))
+		_, err = w.Write([]byte(snp + "," + strconv.FormatFloat(propMap[snp]/counter, 'f', 9, 64) + "\n"))
 		if err != nil {
 			cErr <- err
+			return
 		}
 	}
 

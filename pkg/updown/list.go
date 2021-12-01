@@ -14,6 +14,8 @@ import (
 	"github.com/cov-ert/gofasta/pkg/fastaio"
 )
 
+// updownLine is a struct for one records snps relative to a reference sequence and ambiguity tracts.
+// It is meant as a compressed compressed version of a genome to facilitate fast distance calculations
 type updownLine struct {
 	id       string
 	idx      int
@@ -22,86 +24,6 @@ type updownLine struct {
 	snpCount int
 	ambs     []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
 	ambCount int   // total number of sites that are not ATGC
-}
-
-// getLine gets the mutation + ambiguity lists between the reference and each Fasta record at a time
-func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updownLine, cErr chan error) {
-
-	DA := encoding.MakeDecodingArray()
-
-	var snp string
-	var snps []string
-	var snpCount int
-	var snpPos []int
-	var ambs []int // [1,265,11083,11083,...,...] len(ambs) %% 2 must equal 0: each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
-	var ambCount int
-	var udLine updownLine
-	var amb_start int
-	var amb_stop int
-	var cont bool
-
-	for FR := range cFR {
-
-		if len(FR.Seq) != len(refSeq) {
-			cErr <- errors.New("alignment and reference are not the same width")
-		}
-
-		cont = false // for tracts of ambiguities
-
-		udLine = updownLine{}
-		udLine.id = FR.ID
-		udLine.idx = FR.Idx
-		snps = make([]string, 0)
-		snpPos = make([]int, 0)
-		ambs = make([]int, 0)
-		snpCount = 0
-		ambCount = 0
-
-		for i, que_nuc := range FR.Seq {
-
-			// if query nucleotide is a known base
-			if que_nuc&8 == 8 {
-				// if it is different from the reference:
-				if (refSeq[i] & que_nuc) < 16 {
-					snp = DA[refSeq[i]] + strconv.Itoa(i+1) + DA[que_nuc]
-					snps = append(snps, snp)
-					snpPos = append(snpPos, i+1)
-					snpCount++
-				}
-				// also need to finalise any previous ambiguity tract
-				if cont {
-					ambs = append(ambs, amb_start+1)
-					ambs = append(ambs, amb_stop+1)
-					cont = false
-				}
-				// otherwise update the ambiguities
-			} else {
-				ambCount++
-				if cont {
-					amb_stop = i
-				} else {
-					amb_start = i
-					amb_stop = i
-					cont = true
-				}
-			}
-		}
-
-		// need to finalise any ambiguity tract that reaches the edge of the sequence
-		if cont {
-			ambs = append(ambs, amb_start+1)
-			ambs = append(ambs, amb_stop+1)
-		}
-
-		udLine.snps = snps
-		udLine.snpCount = snpCount
-		udLine.snpsPos = snpPos
-		udLine.ambs = ambs
-		udLine.ambCount = ambCount
-		cUDs <- udLine
-	}
-
-	return
 }
 
 // writeOutput writes the output to stdout or a file as it arrives.
@@ -172,7 +94,7 @@ func writeOutput(w io.Writer, cudLs chan updownLine, cErr chan error, cWriteDone
 	cWriteDone <- true
 }
 
-// List gets a list of ATGC SNPs and ambiguous sites for each query
+// List gets a list of ATGC SNPs and ambiguous sites for each query, and writes it to file
 func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cErr := make(chan error)

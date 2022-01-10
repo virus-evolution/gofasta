@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
 
 	biogosam "github.com/biogo/hts/sam"
 )

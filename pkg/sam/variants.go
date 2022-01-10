@@ -5,10 +5,10 @@ import (
 	"sync"
 
 	biogosam "github.com/biogo/hts/sam"
-	"github.com/cov-ert/gofasta/pkg/encoding"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
-	"github.com/cov-ert/gofasta/pkg/genbank"
-	"github.com/cov-ert/gofasta/pkg/variants"
+	"github.com/virus-evolution/gofasta/pkg/alphabet"
+	"github.com/virus-evolution/gofasta/pkg/encoding"
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
 // Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons represented by an amino acid change)

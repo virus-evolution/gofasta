@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/encoding"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/encoding"
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
 
 // resultsStruct is a struct that contains information about a query sequence and its (current)

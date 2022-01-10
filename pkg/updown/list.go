@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/encoding"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/encoding"
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
 
 // updownLine is a struct for one records snps relative to a reference sequence and ambiguity tracts.

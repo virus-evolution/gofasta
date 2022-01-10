@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/cov-ert/gofasta/cmd"
+	"github.com/virus-evolution/gofasta/cmd"
 )
 
 func main() {

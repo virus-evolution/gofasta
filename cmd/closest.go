@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/cov-ert/gofasta/pkg/closest"
-	"github.com/cov-ert/gofasta/pkg/gfio"
+	"github.com/virus-evolution/gofasta/pkg/closest"
+	"github.com/virus-evolution/gofasta/pkg/gfio"
 )
 
 var closestThreads int

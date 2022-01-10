@@ -17,10 +17,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/alphabet"
-	"github.com/cov-ert/gofasta/pkg/encoding"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
-	"github.com/cov-ert/gofasta/pkg/genbank"
+	"github.com/virus-evolution/gofasta/pkg/alphabet"
+	"github.com/virus-evolution/gofasta/pkg/encoding"
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/genbank"
 )
 
 // Region is a struct containing a part of the genome which might

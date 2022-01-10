@@ -9,8 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cov-ert/gofasta/pkg/encoding"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
 
 // getAmbArr parses the ambiguities field from one line of the output of gofasta updown list to an array of

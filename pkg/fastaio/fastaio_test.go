@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/cov-ert/gofasta/pkg/encoding"
+	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
 func TestGetAlignmentDims(t *testing.T) {

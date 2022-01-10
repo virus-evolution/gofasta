@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	biogosam "github.com/biogo/hts/sam"
-	"github.com/cov-ert/gofasta/pkg/alphabet"
-	"github.com/cov-ert/gofasta/pkg/encoding"
-	"github.com/cov-ert/gofasta/pkg/fastaio"
-	"github.com/cov-ert/gofasta/pkg/variants"
+	"github.com/virus-evolution/gofasta/pkg/alphabet"
+	"github.com/virus-evolution/gofasta/pkg/encoding"
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
 func Variants(samIn, ref, gb io.Reader, out io.Writer, threads int) error {

@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cov-ert/gofasta/pkg/encoding"
+	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
 // FastaRecord is a simple struct for Fasta records

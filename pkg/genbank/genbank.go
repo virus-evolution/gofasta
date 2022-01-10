@@ -7,7 +7,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-	// "fmt"
 )
 
 // Genbank is a master struct containing all the info from a single genbank record

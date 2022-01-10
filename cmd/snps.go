@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/cov-ert/gofasta/pkg/gfio"
-	"github.com/cov-ert/gofasta/pkg/snps"
+	"github.com/virus-evolution/gofasta/pkg/gfio"
+	"github.com/virus-evolution/gofasta/pkg/snps"
 )
 
 var snpsReference string

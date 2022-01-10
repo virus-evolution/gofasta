@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	biogosam "github.com/biogo/hts/sam"
-	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 

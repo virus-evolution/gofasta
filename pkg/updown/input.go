@@ -12,6 +12,8 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
 
+// getAmbArr parses the ambiguities field from one line of the output of gofasta updown list to an array of
+// 1-based inclusive start-stop pairs of integers which represent tracts of ambiguities
 func getAmbArr(s string) ([]int, error) {
 	// if there are no ambiguities:
 	if len(s) == 0 {
@@ -51,6 +53,8 @@ func getAmbArr(s string) ([]int, error) {
 	return A, nil
 }
 
+// headerEqual is a utility function to check that two slices of strings are equal. It is used
+// to check the format of the csv-file input to updown routines
 func headerEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -63,7 +67,9 @@ func headerEqual(a, b []string) bool {
 	return true
 }
 
-func readCSVToChan(in io.Reader, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
+// readCSVToUDLChan reads a csv file in the format produced by gofasta updown list to a channel of
+// updownLine structs, each of which contains the snps and ambiguous positions for one query or target sequence
+func readCSVToUDLChan(in io.Reader, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
 
 	var snps []string
 	var snpPos []int
@@ -122,7 +128,9 @@ func readCSVToChan(in io.Reader, cudL chan updownLine, cErr chan error, cReadDon
 	cReadDone <- true
 }
 
-func readCSVToList(in io.Reader) ([]updownLine, error) {
+// readCSVToUDLList reads a csv file in the format produced by gofasta updown list to an array of
+// updownLine structs, each of which contains the snps and ambiguous positions for one query or target sequence
+func readCSVToUDLList(in io.Reader) ([]updownLine, error) {
 
 	LudL := make([]updownLine, 0)
 
@@ -179,7 +187,9 @@ func readCSVToList(in io.Reader) ([]updownLine, error) {
 	return LudL, nil
 }
 
-func fastaToUDLslice(in io.Reader, refSeq []byte) ([]updownLine, error) {
+// fastaToUDLslice converts a fasta format alignment to an array of updownLine structs, given a reference sequence,
+// each of which contains the snps and ambiguous positions for one query or target sequence
+func fastaToUDLList(in io.Reader, refSeq []byte) ([]updownLine, error) {
 
 	var udla []updownLine
 
@@ -243,42 +253,9 @@ func fastaToUDLslice(in io.Reader, refSeq []byte) ([]updownLine, error) {
 	return udla, nil
 }
 
-func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
-
-	reorderMap := make(map[int]updownLine)
-
-	counter := 0
-
-	for input := range cIn {
-		reorderMap[input.idx] = input
-		if output, ok := reorderMap[counter]; ok {
-
-			cOut <- output
-
-			delete(reorderMap, counter)
-			counter++
-		} else {
-			continue
-		}
-	}
-
-	for n := 1; n > 0; {
-		if len(reorderMap) == 0 {
-			n--
-			break
-		}
-		output := reorderMap[counter]
-
-		cOut <- output
-
-		delete(reorderMap, counter)
-		counter++
-	}
-
-	cReorderDone <- true
-}
-
-func readFastaToChan(target io.Reader, refSeq []byte, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
+// readFastaToUDLChan converts each record in a fasta format alignment to an updownLine struct, given a reference sequence,
+// and passes it to a channel
+func readFastaToUDLChan(target io.Reader, refSeq []byte, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
 	cInternalErr := make(chan error)
 
 	cFR := make(chan fastaio.EncodedFastaRecord)
@@ -340,4 +317,123 @@ func readFastaToChan(target io.Reader, refSeq []byte, cudL chan updownLine, cErr
 			n--
 		}
 	}
+}
+
+// reorderRecords reorders the records in a channel of updownLine structs according to the order they were
+// in the input. It does this to ensure that given the same dataset, the results of the updown routines will
+// be the same whether the input target file is in csv or fasta format. This is necessary because when there are
+// ties for genetic distance and ambiguity content, sort.SliceStable will preserve input order as precedence.
+func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
+
+	reorderMap := make(map[int]updownLine)
+
+	counter := 0
+
+	for input := range cIn {
+		reorderMap[input.idx] = input
+		if output, ok := reorderMap[counter]; ok {
+
+			cOut <- output
+
+			delete(reorderMap, counter)
+			counter++
+		} else {
+			continue
+		}
+	}
+
+	for n := 1; n > 0; {
+		if len(reorderMap) == 0 {
+			n--
+			break
+		}
+		output := reorderMap[counter]
+
+		cOut <- output
+
+		delete(reorderMap, counter)
+		counter++
+	}
+
+	cReorderDone <- true
+}
+
+// getLine gets the mutation + ambiguity lists between the reference and each Fasta record at a time
+func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updownLine, cErr chan error) {
+
+	DA := encoding.MakeDecodingArray()
+
+	var snp string
+	var snps []string
+	var snpCount int
+	var snpPos []int
+	var ambs []int // [1,265,11083,11083,...,...] len(ambs) %% 2 must equal 0: each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
+	var ambCount int
+	var udLine updownLine
+	var amb_start int
+	var amb_stop int
+	var cont bool
+
+	for FR := range cFR {
+
+		if len(FR.Seq) != len(refSeq) {
+			cErr <- errors.New("alignment and reference are not the same width")
+		}
+
+		cont = false // for tracts of ambiguities
+
+		udLine = updownLine{}
+		udLine.id = FR.ID
+		udLine.idx = FR.Idx
+		snps = make([]string, 0)
+		snpPos = make([]int, 0)
+		ambs = make([]int, 0)
+		snpCount = 0
+		ambCount = 0
+
+		for i, que_nuc := range FR.Seq {
+
+			// if query nucleotide is a known base
+			if que_nuc&8 == 8 {
+				// if it is different from the reference:
+				if (refSeq[i] & que_nuc) < 16 {
+					snp = DA[refSeq[i]] + strconv.Itoa(i+1) + DA[que_nuc]
+					snps = append(snps, snp)
+					snpPos = append(snpPos, i+1)
+					snpCount++
+				}
+				// also need to finalise any previous ambiguity tract
+				if cont {
+					ambs = append(ambs, amb_start+1)
+					ambs = append(ambs, amb_stop+1)
+					cont = false
+				}
+				// otherwise update the ambiguities
+			} else {
+				ambCount++
+				if cont {
+					amb_stop = i
+				} else {
+					amb_start = i
+					amb_stop = i
+					cont = true
+				}
+			}
+		}
+
+		// need to finalise any ambiguity tract that reaches the edge of the sequence
+		if cont {
+			ambs = append(ambs, amb_start+1)
+			ambs = append(ambs, amb_stop+1)
+		}
+
+		udLine.snps = snps
+		udLine.snpCount = snpCount
+		udLine.snpsPos = snpPos
+		udLine.ambs = ambs
+		udLine.ambCount = ambCount
+		cUDs <- udLine
+	}
+
+	return
 }

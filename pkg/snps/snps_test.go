@@ -96,11 +96,11 @@ ATTTTG
 
 	// strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n")
 
-	if string(out.Bytes()) != `SNP,proportion
-G3T,0.5000
-A4T,0.5000
-G6C,0.2500
-G6W,0.2500
+	if string(out.Bytes()) != `SNP,frequency
+G3T,0.500000000
+A4T,0.500000000
+G6C,0.250000000
+G6W,0.250000000
 ` {
 		t.Errorf("problem in TestSNPsAggregate()")
 	}
@@ -133,9 +133,9 @@ ATTTTG
 
 	// strconv.FormatFloat(propMap[snp]/counter, 'f', 4, 64) + "\n")
 
-	if string(out.Bytes()) != `SNP,proportion
-G3T,0.5000
-A4T,0.5000
+	if string(out.Bytes()) != `SNP,frequency
+G3T,0.500000000
+A4T,0.500000000
 ` {
 		t.Errorf("problem in TestSNPsAggregateThresh()")
 	}

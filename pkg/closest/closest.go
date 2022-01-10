@@ -1,3 +1,7 @@
+/*
+Package closest provides routines to find the closest sequences
+to a set of query sequences, by genetic distance
+*/
 package closest
 
 import (
@@ -14,6 +18,9 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
 
+// resultsStruct is a struct that contains information about a query sequence and its (current)
+// single closest target by raw genetic distance, including the snps that distinguish them and
+// the total snp-distance between them.
 type resultsStruct struct {
 	qname        string
 	qidx         int
@@ -23,6 +30,7 @@ type resultsStruct struct {
 	snps         []string
 }
 
+// scoreEncodedAlignment scores a single fasta record by how complete its genome is.
 func scoreEncodedAlignment(cIn chan fastaio.EncodedFastaRecord, cOut chan fastaio.EncodedFastaRecord) {
 	scoring := encoding.MakeEncodedScoreArray()
 	var score int64
@@ -39,6 +47,7 @@ func scoreEncodedAlignment(cIn chan fastaio.EncodedFastaRecord, cOut chan fastai
 	return
 }
 
+// findClosest finds the single closest sequence by genetic distance among a set of target sequences to a query sequence
 func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFastaRecord, cOut chan resultsStruct) {
 	var closest resultsStruct
 	var distance float64
@@ -105,6 +114,7 @@ func findClosest(query fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFasta
 	cOut <- closest
 }
 
+// splitInput fans out target sequences over an array of query sequences, so that each target is passed over each query.
 func splitInput(queries []fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFastaRecord, cOut chan resultsStruct, cErr chan error, cSplitDone chan bool) {
 
 	nQ := len(queries)
@@ -142,6 +152,7 @@ func splitInput(queries []fastaio.EncodedFastaRecord, cIn chan fastaio.EncodedFa
 	cSplitDone <- true
 }
 
+// writeClosest parses an array of resultsStructs in order to write them, usually to stdout or file
 func writeClosest(results []resultsStruct, w io.Writer) error {
 
 	var err error
@@ -158,6 +169,8 @@ func writeClosest(results []resultsStruct, w io.Writer) error {
 	return nil
 }
 
+// Closest finds the single closest sequence by raw genetic distance to a query/queries. It writes the results
+// to stdout or to file. Ties for distance are broken by genome completeness
 func Closest(query, target io.Reader, out io.Writer, threads int) error {
 
 	if threads == 0 {

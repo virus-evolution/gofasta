@@ -27,7 +27,7 @@ func init() {
 
 var toMultiAlignCmd = &cobra.Command{
 	Use:     "toMultiAlign",
-	Aliases: []string{"tomultialign"},
+	Aliases: []string{"tomultialign", "toma"},
 	Short:   "Convert a SAM file to a multiple alignment in fasta format",
 	Long: `Convert a SAM file to a multiple alignment in fasta format
 

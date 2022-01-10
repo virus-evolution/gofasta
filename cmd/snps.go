@@ -66,7 +66,7 @@ from stdin and write the snps file to stdout, e.g. you could do this:
 		}
 		defer ref.Close()
 
-		out, err := gfio.OpenIn(*cmd.Flag("outfile"))
+		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
 		if err != nil {
 			return err
 		}

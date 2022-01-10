@@ -40,8 +40,8 @@ func getFastaRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trim
 	return FR
 }
 
-// sanity checks the trimming and padding arguments (given the length of the ref seq)
-func checkArgs(refLen int, trim bool, pad bool, trimstart int, trimend int) error {
+// checkArgs sanity checks the trimming and padding arguments, given the length of the reference sequence
+func checkArgs(refLen int, trim bool, trimstart int, trimend int) error {
 
 	if trim {
 		if trimstart > refLen-2 || trimstart < 1 {
@@ -55,17 +55,10 @@ func checkArgs(refLen int, trim bool, pad bool, trimstart int, trimend int) erro
 		}
 	}
 
-	// if pad && !trim {
-	// 	_, err := fmt.Fprintln(os.Stderr, "warning: using --pad without --trim has no effect")
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-
 	return nil
 }
 
-// worker function that takes items from a channel of sam block structs (with indices)
+// blockToFastaRecord is a worker function that takes items from a channel of sam block structs (with indices)
 // and writes the corresponding fasta records to a channel
 func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, ch_err chan error,
 	refLen int, trim bool, pad bool, trimstart int, trimend int, includeInsertions bool) {
@@ -82,8 +75,8 @@ func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, 
 	return
 }
 
-// ToMultiAlign converts a SAM file to a fasta-format alignment
-// Insertions relative to the reference are discarded.
+// ToMultiAlign converts a SAM file to a fasta-format alignment.
+// Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
 func ToMultiAlign(samIn io.Reader, out io.Writer, trim bool, pad bool, trimstart int, trimend int, threads int) error {
 
 	cSR := make(chan samRecords, threads)
@@ -103,7 +96,7 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, trim bool, pad bool, trimstart
 	header := <-cSH
 	refLen := header.Refs()[0].Len()
 
-	err := checkArgs(refLen, trim, pad, trimstart, trimend)
+	err := checkArgs(refLen, trim, trimstart, trimend)
 	if err != nil {
 		return err
 	}

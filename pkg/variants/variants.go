@@ -345,7 +345,7 @@ func GetRegions(gb genbank.Genbank) ([]Region, error) {
 		regions = append(regions, REGION)
 		regions = append(regions, cdsregion)
 		newstart = cdsregion.Stop + 1
-		if i == len(cdsregions) {
+		if i == len(cdsregions)-1 {
 			start := newstart
 			stop := len(gb.ORIGIN)
 			if !((stop - start) > 0) {
@@ -482,8 +482,8 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, regions 
 		// and switch on whether it is intergenic or CDS:
 		switch region.Whichtype {
 		case "int":
-			adjStart := region.Start + offsetRefCoord[region.Start]
-			adjStop := region.Stop + offsetRefCoord[region.Stop]
+			adjStart := region.Start + offsetRefCoord[region.Start-1]
+			adjStop := region.Stop + offsetRefCoord[region.Stop-1]
 			for pos := adjStart - 1; pos < adjStop; pos++ {
 				if (ref[pos] & query[pos]) < 16 { // check for SNPs
 					variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref[pos]], QueAl: DA[query[pos]], Position: pos - offsetMSACoord[pos]})

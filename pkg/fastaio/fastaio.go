@@ -73,6 +73,7 @@ func ReadAlignment(f io.Reader, chnl chan FastaRecord, cErr chan error, cdone ch
 	var id string
 	var description string
 	var seqBuffer string
+	var width int
 
 	for s.Scan() {
 		line := string(s.Text())
@@ -91,6 +92,13 @@ func ReadAlignment(f io.Reader, chnl chan FastaRecord, cErr chan error, cdone ch
 
 		} else if string(line[0]) == ">" {
 
+			if counter == 0 {
+				width = len(seqBuffer)
+			} else if len(seqBuffer) != width {
+				cErr <- errors.New("different length sequences in input file: is this an alignment?")
+				return
+			}
+
 			fr := FastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 			chnl <- fr
 			counter++
@@ -106,6 +114,10 @@ func ReadAlignment(f io.Reader, chnl chan FastaRecord, cErr chan error, cdone ch
 	}
 
 	if len(seqBuffer) > 0 {
+		if counter > 0 && len(seqBuffer) != width {
+			cErr <- errors.New("different length sequences in input file: is this an alignment?")
+			return
+		}
 		fr := FastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 		chnl <- fr
 		counter++
@@ -201,6 +213,10 @@ func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecor
 	}
 
 	if len(seqBuffer) > 0 {
+		if counter > 0 && len(seqBuffer) != width {
+			cErr <- errors.New("different length sequences in input file: is this an alignment?")
+			return
+		}
 		fr = EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 		chnl <- fr
 		counter++
@@ -293,6 +309,9 @@ func ReadEncodeAlignmentToList(f io.Reader, hardGaps bool) ([]EncodedFastaRecord
 	}
 
 	if len(seqBuffer) > 0 {
+		if counter > 0 && len(seqBuffer) != width {
+			return []EncodedFastaRecord{}, errors.New("different length sequences in input file: is this an alignment?")
+		}
 		fr := EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 		records = append(records, fr)
 		counter++

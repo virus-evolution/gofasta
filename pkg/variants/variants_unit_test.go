@@ -107,19 +107,25 @@ ATGAATGAA-G
 
 func TestGetVariantsPair(t *testing.T) {
 	/*
-		>nottheref hey
-		nuc:C2T, gene1:M1L, nuc:A18T
-		>stillnottheref
+		>seq1
+		nuc:C2T, gene1:M1L, nuc:A19T
+		>seq2
 		del:6:3
+		>seq3
+		ins:14:1
+		>seq4
+		nuc:T13G, del:14:1, nuc:A15T, del:19:1, nuc:A20T
 	*/
 	msaData := []byte(`>reference
 ACGTAATGATGATG-AAAAAA
->nottheref hey
+>seq1
 ATGTATTGATGATG-AAAATA
->stillnottheref
+>seq2
 ACGTA---ATGATG-AAAAAA
->lastone
+>seq3
 ACGTAATGATGATGAAAAAAA
+>seq4
+ACGTAATGATGAG--TAAA-T
 `)
 
 	genbankReader := bytes.NewReader(genbankDataShort)
@@ -152,9 +158,13 @@ ACGTAATGATGATGAAAAAAA
 		t.Error(err)
 	}
 
-	desiredResult := AnnoStructs{Queryname: "nottheref", Vs: []Variant{{RefAl: "C", QueAl: "T", Position: 1, Changetype: "nuc"}, {RefAl: "M", QueAl: "L", Position: 5, Residue: 0, Changetype: "aa", Feature: "gene1", SNPs: "nuc:A6T"}, {RefAl: "A", QueAl: "T", Position: 18, Changetype: "nuc"}}, Idx: 1}
+	desiredResult := AnnoStructs{Queryname: "seq1", Vs: []Variant{
+		{RefAl: "C", QueAl: "T", Position: 1, Changetype: "nuc"},
+		{RefAl: "M", QueAl: "L", Position: 5, Residue: 0, Changetype: "aa", Feature: "gene1", SNPs: "nuc:A6T"},
+		{RefAl: "A", QueAl: "T", Position: 18, Changetype: "nuc"},
+	}, Idx: 1}
 	if !reflect.DeepEqual(mutations, desiredResult) {
-		t.Errorf("problem in TestGetVariantsPair (nottheref)")
+		t.Errorf("problem in TestGetVariantsPair (seq1)")
 	}
 
 	mutations, err = GetVariantsPair(ref.Seq, queries[2].Seq, "reference", queries[2].ID, 2, regions, refToMSA, MSAToRef)
@@ -162,9 +172,11 @@ ACGTAATGATGATGAAAAAAA
 		t.Error(err)
 	}
 
-	desiredResult = AnnoStructs{Queryname: "stillnottheref", Vs: []Variant{{Position: 5, Length: 3, Changetype: "del"}}, Idx: 2}
+	desiredResult = AnnoStructs{Queryname: "seq2", Vs: []Variant{
+		{Position: 5, Length: 3, Changetype: "del"},
+	}, Idx: 2}
 	if !reflect.DeepEqual(mutations, desiredResult) {
-		t.Errorf("problem in TestGetVariantsPair (stillnottheref)")
+		t.Errorf("problem in TestGetVariantsPair (seq2)")
 	}
 
 	mutations, err = GetVariantsPair(ref.Seq, queries[3].Seq, "reference", queries[3].ID, 3, regions, refToMSA, MSAToRef)
@@ -172,16 +184,126 @@ ACGTAATGATGATGAAAAAAA
 		t.Error(err)
 	}
 
-	desiredResult = AnnoStructs{Queryname: "lastone", Vs: []Variant{{Position: 14, Length: 1, Changetype: "ins"}}, Idx: 3}
+	desiredResult = AnnoStructs{Queryname: "seq3", Vs: []Variant{
+		{Position: 14, Length: 1, Changetype: "ins"},
+	}, Idx: 3}
 	if !reflect.DeepEqual(mutations, desiredResult) {
-		t.Errorf("problem in TestGetVariantsPair (lastone)")
+		t.Errorf("problem in TestGetVariantsPair (seq3)")
+	}
+
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, regions, refToMSA, MSAToRef)
+	if err != nil {
+		t.Error(err)
+	}
+
+	desiredResult = AnnoStructs{Queryname: "seq4", Vs: []Variant{
+		{Position: 12, RefAl: "T", QueAl: "G", Changetype: "nuc"},
+		{Position: 13, Length: 1, Changetype: "del"},
+		{Position: 14, RefAl: "A", QueAl: "T", Changetype: "nuc"},
+		{Position: 18, Length: 1, Changetype: "del"},
+		{Position: 19, RefAl: "A", QueAl: "T", Changetype: "nuc"},
+	}, Idx: 4}
+	if !reflect.DeepEqual(mutations, desiredResult) {
+		t.Errorf("problem in TestGetVariantsPair (seq4)")
+	}
+}
+
+func TestFormatVariant(t *testing.T) {
+	msaData := []byte(`>reference
+ACGTAATGATGATG-AAAAAA
+>seq1
+ATGTATTGATGATG-AAAATA
+>seq2
+ACGTA---ATGATG-AAAAAA
+>seq3
+ACGTAATGATGATGAAAAAAA
+>seq4
+ACGTAATGATGAG--TAAA-T
+`)
+
+	genbankReader := bytes.NewReader(genbankDataShort)
+	gb, err := genbank.ReadGenBank(genbankReader)
+	if err != nil {
+		t.Error(err)
+	}
+
+	regions, err := GetRegions(gb)
+	if err != nil {
+		t.Error(err)
+	}
+
+	msaReader := bytes.NewReader(msaData)
+	ref, err := findReference(msaReader, "reference")
+	if err != nil {
+		t.Error(err)
+	}
+	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+
+	msaReader = bytes.NewReader(msaData)
+
+	queries, err := fastaio.ReadEncodeAlignmentToList(msaReader, false)
+	if err != nil {
+		t.Error(err)
+	}
+
+	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, regions, refToMSA, MSAToRef)
+	if err != nil {
+		t.Error(err)
+	}
+
+	/*
+		>seq1
+		nuc:C2T, gene1:M1L, nuc:A19T
+		>seq2
+		del:6:3
+		>seq3
+		ins:14:1
+		>seq4
+		nuc:T13G, del:14:1, nuc:A15T, del:19:1, nuc:A20T
+	*/
+	desiredResult := []string{"nuc:C2T", "aa:gene1:M1L", "nuc:A19T"}
+	for i, mutation := range mutations.Vs {
+		mut, err := FormatVariant(mutation, false)
+		if err != nil {
+			t.Error(err)
+		}
+		if mut != desiredResult[i] {
+			t.Errorf("problem in TestFormatVariant 1")
+		}
+	}
+
+	desiredResult = []string{"nuc:C2T", "aa:gene1:M1L(nuc:A6T)", "nuc:A19T"}
+	for i, mutation := range mutations.Vs {
+		mut, err := FormatVariant(mutation, true)
+		if err != nil {
+			t.Error(err)
+		}
+		if mut != desiredResult[i] {
+			t.Errorf("problem in TestFormatVariant 2")
+		}
+	}
+
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, regions, refToMSA, MSAToRef)
+	if err != nil {
+		t.Error(err)
+	}
+
+	desiredResult = []string{"nuc:T13G", "del:14:1", "nuc:A15T", "del:19:1", "nuc:A20T"}
+	for i, mutation := range mutations.Vs {
+		mut, err := FormatVariant(mutation, false)
+		if err != nil {
+			t.Error(err)
+		}
+		if mut != desiredResult[i] {
+			t.Errorf("problem in TestFormatVariant 3")
+		}
 	}
 }
 
 var genbankDataShort []byte
 
 func init() {
-	genbankDataShort = []byte(`LOCUS       TEST               20 bp ss-RNA     linear   VRL 11-FEB-2020
+	genbankDataShort = []byte(`LOCUS       TEST               20 bp ss-RNA     linear   VRL 21-MAR-1987
 FEATURES             Location/Qualifiers
 		source          1..20
 						/organism="Not a real organism"
@@ -194,5 +316,5 @@ FEATURES             Location/Qualifiers
 		3'UTR           15..20
 ORIGIN      
 		1 acgtaatgat gatgaaaaaa 
-	`)
+`)
 }

@@ -23,7 +23,7 @@ func init() {
 	samCmd.AddCommand(toMultiAlignCmd)
 
 	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignStart, "start", "", -1, "1-based first nucleotide position to retain the output. Bases before this position are omitted, or are replaced with N if --pad")
-	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignEnd, "end", "", -1, "1-based last nucleotide position to retain the output. Bases after position this are omitted, or are replaced with N if --pad")
+	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignEnd, "end", "", -1, "1-based last nucleotide position to retain the output. Bases after this position are omitted, or are replaced with N if --pad")
 	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignPad, "pad", "", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
 	toMultiAlignCmd.Flags().StringVarP(&toMultiAlignOutfile, "fasta-out", "o", "stdout", "Where to write the alignment")
 

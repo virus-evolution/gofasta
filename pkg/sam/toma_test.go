@@ -34,7 +34,7 @@ England/PLYM-1FCEE8A/2021	0	MN908947.3	55	60	54S21974M6D6213M6D17M1D1563M69S	*	0
 
 	out := new(bytes.Buffer)
 
-	err := ToMultiAlign(sam, out, false, false, -1, -1, 2)
+	err := ToMultiAlign(sam, out, -1, -1, false, 2)
 	if err != nil {
 		t.Error(err)
 	}

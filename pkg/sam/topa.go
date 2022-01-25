@@ -301,7 +301,7 @@ func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair
 
 			offsetRefCoord := getGapAdjustedRefPositions(pair.ref)
 
-			adjTrimStart := trimStart + offsetRefCoord[trimStart]
+			adjTrimStart := trimStart - 1 + offsetRefCoord[trimStart-1]
 			adjTrimEnd := trimEnd + offsetRefCoord[trimEnd]
 
 			pair.query = pair.query[adjTrimStart:adjTrimEnd]
@@ -380,27 +380,9 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 	cWriteDone <- true
 }
 
-// // checkArgsPairAlign sanity checks the trimming and padding arguments (given the length of the ref seq)
-// func checkArgsPairAlign(refLen int, trim bool, trimstart int, trimend int) error {
-
-// 	if trim {
-// 		if trimstart > refLen-2 || trimstart < 1 {
-// 			return errors.New("error parsing trimming coordinates: check or include --trimstart")
-// 		}
-// 		if trimend > refLen-1 || trimend < 1 {
-// 			return errors.New("error parsing trimming coordinates: check or include --trimend")
-// 		}
-// 		if trimstart >= trimend {
-// 			return errors.New("error parsing trimming coordinates: check trimstart and trimend")
-// 		}
-// 	}
-
-// 	return nil
-// }
-
 // ToPairAlign converts a SAM file into pairwise fasta-format alignments, optionally including the reference,
 // optionally skipping insertions relative to the reference, optionally trimmed to coordinates in (degapped-)reference space
-func ToPairAlign(samIn, ref io.Reader, outpath string, trim bool, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
+func ToPairAlign(samIn, ref io.Reader, outpath string, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
 	// NB probably uncomment the below and use it for checks (e.g. for
 	// reference length)
@@ -434,7 +416,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, trim bool, trimStart int,
 		}
 	}
 
-	err := checkArgs(len(refSeq), trim, trimStart, trimEnd)
+	trimStart, trimEnd, trim, err := checkArgs(len(refSeq), trimStart, trimEnd)
 	if err != nil {
 		return err
 	}

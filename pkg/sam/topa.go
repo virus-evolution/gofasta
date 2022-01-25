@@ -271,27 +271,36 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 	return
 }
 
-// getGapAdjustedRefPositions returns a slice the length of seq which represents a mapping
-// from reference -> aligned-including-insertions coordinates, so that the trimming parameters
-// can be given in reference coordinates on the command line.
-func getGapAdjustedRefPositions(seq []byte) []int {
-	idx := make([]int, len(seq))
-	pos := 0
-	for i, nuc := range seq {
+// get the number of bases to add to convert each reference position to MSA coordinates
+func getRefOffset(refseq []byte) []int {
+
+	// get the length of the reference sequence without any gaps
+	degappedLen := 0
+	for _, nuc := range refseq {
+		// if there is no alignment gap at this site, ++
 		if nuc != '-' {
-			pos += 1
+			degappedLen++
 		}
-		idx[i] = pos
 	}
 
-	return idx
+	gapsum := 0
+	refToMSA := make([]int, degappedLen)
+	for i, nuc := range refseq {
+		if nuc == '-' { // 244 represents a gap ('-')
+			gapsum++
+			continue
+		}
+		refToMSA[i-gapsum] = gapsum
+	}
+
+	return refToMSA
 }
 
 // trimAlignment trims the alignment to user-specified coordinates in degapped reference space
 func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair, cErr chan error) {
 
 	if !trim {
-		// if no trimming is specified on the command line, we take the whole sequence:
+		// if no trimming is specified we take the whole sequence:
 		for pair := range cPairIn {
 			cPairOut <- pair
 		}
@@ -299,10 +308,10 @@ func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair
 		// otherwise we trim
 		for pair := range cPairIn {
 
-			offsetRefCoord := getGapAdjustedRefPositions(pair.ref)
+			refToMSA := getRefOffset(pair.ref)
 
-			adjTrimStart := trimStart - 1 + offsetRefCoord[trimStart-1]
-			adjTrimEnd := trimEnd + offsetRefCoord[trimEnd]
+			adjTrimStart := trimStart + refToMSA[trimStart-1] - 1
+			adjTrimEnd := trimEnd + refToMSA[trimEnd-1]
 
 			pair.query = pair.query[adjTrimStart:adjTrimEnd]
 			pair.ref = pair.ref[adjTrimStart:adjTrimEnd]

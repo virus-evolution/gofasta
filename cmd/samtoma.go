@@ -65,6 +65,7 @@ the fasta file to stdout, e.g.:
 				return errors.New(`--start and --end replace --trim, --trimstart and --trimend.
 				
 Don't combine them (and note the change of coordinate system if using the new options)
+
 `)
 			}
 		}

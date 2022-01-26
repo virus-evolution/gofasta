@@ -12,20 +12,20 @@ The functions with SAM files as input were written exclusively to handle pairwis
 
 ### Installation
 
-Binaries are available for Mac OS and Linux under the [latest release](https://github.com/cov-ert/gofasta/releases/latest).
-
-Or if you have Go installed, you can run `go install github.com/cov-ert/gofasta` to build a binary of the latest release locally (maybe in `~/go/bin/`).
+Binaries are available for Mac OS and Linux under the [latest release](https://github.com/virus-evolution/gofasta/releases/latest).
 
 Or you can get them from Conda:
 
 `conda install bioconda::gofasta`
 
-You can also build the current contents of this repository if you have Go installed:
+Or if you have Go installed, you can run `go install github.com/virus-evolution/gofasta@latest` to build a binary of the latest release locally (maybe in `~/go/bin/`).
+
+You can also build the current contents of this repository:
 
 ```
-git clone github.com/cov-ert/gofasta
+git clone git@github.com:virus-evolution/gofasta.git
 cd gofasta
-go build
+go build -o gofasta
 ```
 
 

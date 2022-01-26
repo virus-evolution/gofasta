@@ -87,6 +87,38 @@ ATTTTC
 
 }
 
+func TestReadAlignmentShortSeqs(t *testing.T) {
+	alignmentData := []byte(`>Target1
+ATGATC
+>TargetShort1
+ATTAT
+>Target2
+ATGATC
+`)
+
+	alignment := bytes.NewReader(alignmentData)
+
+	cErr := make(chan error)
+	cFR := make(chan FastaRecord, 10)
+	cReadDone := make(chan bool)
+
+	go ReadAlignment(alignment, cFR, cErr, cReadDone)
+
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			if err.Error() != "different length sequences in input file: is this an alignment?" {
+				t.Error(err)
+			}
+			n--
+		case <-cReadDone:
+			close(cFR)
+			t.Error("reached end of alignment without throwing a sequence length error")
+			n--
+		}
+	}
+}
+
 func TestReadEncodeAlignment(t *testing.T) {
 	alignmentData := []byte(
 		`>Target1
@@ -140,6 +172,38 @@ ATTTTC
 
 }
 
+func TestReadEncodeAlignmentShortSeqs(t *testing.T) {
+	alignmentData := []byte(`>Target1
+ATGATC
+>TargetShort1
+ATTAT
+>Target2
+ATGATC
+`)
+
+	alignment := bytes.NewReader(alignmentData)
+
+	cErr := make(chan error)
+	cFR := make(chan EncodedFastaRecord, 10)
+	cReadDone := make(chan bool)
+
+	go ReadEncodeAlignment(alignment, false, cFR, cErr, cReadDone)
+
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			if err.Error() != "different length sequences in input file: is this an alignment?" {
+				t.Error(err)
+			}
+			n--
+		case <-cReadDone:
+			close(cFR)
+			t.Error("reached end of alignment without throwing a sequence length error")
+			n--
+		}
+	}
+}
+
 func TestReadEncodeAlignmentToList(t *testing.T) {
 	alignmentData := []byte(
 		`>Target1
@@ -177,7 +241,24 @@ ATTTTC
 ` {
 		t.Errorf("problem in TestReadEncodeAlignmentToList()")
 	}
+}
 
+func TestReadEncodeAlignmentToListShortSeqs(t *testing.T) {
+	alignmentData := []byte(
+		`>Target1
+ATGATC
+>Target2
+ATGAT
+>Target3
+ATTTTC
+`)
+
+	alignment := bytes.NewReader(alignmentData)
+
+	_, err := ReadEncodeAlignmentToList(alignment, false)
+	if err.Error() != "different length sequences in input file: is this an alignment?" {
+		t.Error(err)
+	}
 }
 
 // func TestReadEncodeScoreAlignment(t *testing.T) {

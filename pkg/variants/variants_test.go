@@ -19,11 +19,11 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 `)
 
 	msa := bytes.NewReader(msaData)
-	genbank := bytes.NewReader(genbankData)
+	genbankReader := bytes.NewReader(genbankData)
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbank, out, false, 0.0, false, 1)
+	err := Variants(msa, false, "", genbankReader, out, false, 0.0, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -52,11 +52,11 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 `)
 
 	msa := bytes.NewReader(msaData)
-	genbank := bytes.NewReader(genbankData)
+	genbankReader := bytes.NewReader(genbankData)
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbank, out, false, 0.0, true, 1)
+	err := Variants(msa, false, "", genbankReader, out, false, 0.0, true, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -89,11 +89,11 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 `)
 
 	msa := bytes.NewReader(msaData)
-	genbank := bytes.NewReader(genbankData)
+	genbankReader := bytes.NewReader(genbankData)
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbank, out, true, 0.0, false, 1)
+	err := Variants(msa, false, "", genbankReader, out, true, 0.0, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -125,11 +125,11 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 `)
 
 	msa := bytes.NewReader(msaData)
-	genbank := bytes.NewReader(genbankData)
+	genbankReader := bytes.NewReader(genbankData)
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbank, out, true, 0.0, true, 1)
+	err := Variants(msa, false, "", genbankReader, out, true, 0.0, true, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -161,11 +161,11 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 `)
 
 	msa := bytes.NewReader(msaData)
-	genbank := bytes.NewReader(genbankData)
+	genbankReader := bytes.NewReader(genbankData)
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbank, out, true, 0.5, false, 1)
+	err := Variants(msa, false, "", genbankReader, out, true, 0.5, false, 1)
 	if err != nil {
 		t.Error(err)
 	}

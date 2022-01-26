@@ -26,12 +26,12 @@ func getFastaRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trim
 	if trim {
 		if pad {
 			for i, _ := range seq {
-				if i < trimstart || i >= trimend {
+				if i < trimstart-1 || i >= trimend {
 					seq[i] = 'N'
 				}
 			}
 		} else {
-			seq = seq[trimstart:trimend]
+			seq = seq[trimstart-1 : trimend]
 		}
 	}
 
@@ -41,21 +41,33 @@ func getFastaRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trim
 }
 
 // checkArgs sanity checks the trimming and padding arguments, given the length of the reference sequence
-func checkArgs(refLen int, trim bool, trimstart int, trimend int) error {
+func checkArgs(refLen int, trimstart int, trimend int) (int, int, bool, error) {
 
-	if trim {
-		if trimstart > refLen-2 || trimstart < 1 {
-			return errors.New("error parsing trimming coordinates: check or include --trimstart")
-		}
-		if trimend > refLen-1 || trimend < 1 {
-			return errors.New("error parsing trimming coordinates: check or include --trimend")
-		}
-		if trimstart >= trimend {
-			return errors.New("error parsing trimming coordinates: check trimstart and trimend")
-		}
+	trim := false
+
+	if trimstart == -1 {
+		trimstart = 1
+	} else {
+		trim = true
 	}
 
-	return nil
+	if trimend == -1 {
+		trimend = refLen
+	} else {
+		trim = true
+	}
+
+	if trimstart > refLen || trimstart < 1 {
+		return 0, 0, false, errors.New("error parsing --start coordinate. --start must be > 0 && <= length(reference)")
+	}
+	if trimend > refLen || trimend < 1 {
+		return 0, 0, false, errors.New("error parsing --end coordinate. --end must be > 0 &! > length(reference)")
+	}
+	if trimstart > trimend {
+		return 0, 0, false, errors.New("error parsing trimming coordinates: --start must be <= --end")
+	}
+
+	return trimstart, trimend, trim, nil
 }
 
 // blockToFastaRecord is a worker function that takes items from a channel of sam block structs (with indices)
@@ -77,7 +89,7 @@ func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, 
 
 // ToMultiAlign converts a SAM file to a fasta-format alignment.
 // Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
-func ToMultiAlign(samIn io.Reader, out io.Writer, trim bool, pad bool, trimstart int, trimend int, threads int) error {
+func ToMultiAlign(samIn io.Reader, out io.Writer, trimstart int, trimend int, pad bool, threads int) error {
 
 	cSR := make(chan samRecords, threads)
 	cReadDone := make(chan bool)
@@ -96,7 +108,7 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, trim bool, pad bool, trimstart
 	header := <-cSH
 	refLen := header.Refs()[0].Len()
 
-	err := checkArgs(refLen, trim, trimstart, trimend)
+	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
 	if err != nil {
 		return err
 	}

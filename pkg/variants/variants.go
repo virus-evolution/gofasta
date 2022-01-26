@@ -40,8 +40,8 @@ type Variant struct {
 	Queryname  string
 	RefAl      string
 	QueAl      string
-	Position   int    // genomic location
-	Residue    int    // feature location?
+	Position   int    // (0-based) genomic location
+	Residue    int    // (0-based) aminoacid location
 	Changetype string // one of {nuc,aa,ins,del}
 	Feature    string // this should be, for example, the name of the CDS that the thing is in
 	Length     int    // for indels
@@ -266,10 +266,6 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 		}
 	}
 
-	if counter == 0 {
-		return fastaio.EncodedFastaRecord{}, errors.New("empty fasta file")
-	}
-
 	err = s.Err()
 	if err != nil {
 		return fastaio.EncodedFastaRecord{}, err
@@ -345,7 +341,7 @@ func GetRegions(gb genbank.Genbank) ([]Region, error) {
 		regions = append(regions, REGION)
 		regions = append(regions, cdsregion)
 		newstart = cdsregion.Stop + 1
-		if i == len(cdsregions) {
+		if i == len(cdsregions)-1 {
 			start := newstart
 			stop := len(gb.ORIGIN)
 			if !((stop - start) > 0) {
@@ -375,11 +371,12 @@ func GetMSAOffsets(refseq []byte) ([]int, []int) {
 	// We get some offsets:
 	// 1) refToMSA = the number of bases to add to convert each reference position to MSA coordinates
 	// 2) MSAToRef = the number of bases to subtract to convert each MSA position to reference coordinates
+	//			   - note that for MSAToRef positions that are gaps in the ref get a 0 in the MSAToRef slice
 	gapsum := 0
 	refToMSA := make([]int, degappedLen)
 	MSAToRef := make([]int, len(refseq))
 	for i, nuc := range refseq {
-		if nuc == 244 {
+		if nuc == 244 { // 244 represents a gap ('-')
 			gapsum++
 			continue
 		}
@@ -482,8 +479,8 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, regions 
 		// and switch on whether it is intergenic or CDS:
 		switch region.Whichtype {
 		case "int":
-			adjStart := region.Start + offsetRefCoord[region.Start]
-			adjStop := region.Stop + offsetRefCoord[region.Stop]
+			adjStart := region.Start + offsetRefCoord[region.Start-1]
+			adjStop := region.Stop + offsetRefCoord[region.Stop-1]
 			for pos := adjStart - 1; pos < adjStop; pos++ {
 				if (ref[pos] & query[pos]) < 16 { // check for SNPs
 					variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref[pos]], QueAl: DA[query[pos]], Position: pos - offsetMSACoord[pos]})

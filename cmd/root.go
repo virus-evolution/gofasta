@@ -10,9 +10,9 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use:     "gofasta",
-		Short:   "some functions for working with alignments",
-		Long:    `some functions for working with alignments`,
-		Version: "0.0.6",
+		Short:   "genomic epidemiology utilities for short genome alignments",
+		Long:    `genomic epidemiology utilities for short genome alignments`,
+		Version: "1.0.0",
 	}
 )
 

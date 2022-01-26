@@ -62,9 +62,9 @@ the fasta file to stdout, e.g.:
 		*/
 		if toMultiAlignTrim || toMultiAlignTrimStart != -1 || toMultiAlignTrimEnd != -1 {
 			if toMultiAlignStart != -1 || toMultiAlignEnd != -1 {
-				return errors.New(`--start and --end replace --trim, --trimstart and --trimend.
-				
-Don't combine them (and note the change of coordinate system if using the new options)
+				return errors.New(`As of version 1.0.0 --start and --end replace --trim, --trimstart and --trimend 
+The old flags and their behaviour are retained for backwards compatibility, but you shouldn't combine the two sets of flags.
+Note the change of coordinate system if moving from old to new flags.
 
 `)
 			}

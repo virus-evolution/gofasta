@@ -1,6 +1,6 @@
 # gofasta
 
-Some functions for dealing with alignments, developed to handle SARS-CoV-2 data as part of the [COG-UK project](https://www.cogconsortium.uk/).
+A command-line utility for genomic epidemiology, developed to handle SARS-CoV-2 alignments as part of the [COG-UK project](https://www.cogconsortium.uk/).
 
 ### Third party licences / acknowledgements
 

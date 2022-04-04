@@ -248,7 +248,7 @@ ATGCTT
 	}
 
 	desiredResult := `query,closestsame,closestup,closestdown,closestside
-Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2;TargetSide1
+Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2;TargetSide1
 `
 
 	if string(out.Bytes()) != desiredResult {

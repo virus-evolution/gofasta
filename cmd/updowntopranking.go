@@ -59,7 +59,7 @@ func init() {
 	toprankingCmd.Flags().IntVarP(&TRthresholdtarget, "threshold-target", "", 10000, "Target can have at most this number of ambiguities to be considered")
 
 	toprankingCmd.Flags().BoolVarP(&TRnofill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
-	toprankingCmd.Flags().IntVarP(&TRdistpush, "dist-push", "", 0, "Push the SNP-distance boundaries for any empty bins to the closest n distances for which there are neighbours, where possible")
+	toprankingCmd.Flags().IntVarP(&TRdistpush, "dist-push", "", 0, "Push the SNP-distance boundaries so that bins have at least these many closest snp-distances for which there are neighbours, where possible")
 
 	toprankingCmd.Flags().Lookup("no-fill").NoOptDefVal = "true"
 	toprankingCmd.Flags().Lookup("dist-push").NoOptDefVal = "1"
@@ -92,11 +92,8 @@ The program will aim to provide the sum of these numbers in total in the output,
 by increasing the count of the other bins where possible, unless --no-fill.
 
 You can also filter on SNP-distance instead of returning the closest n sequences. Use the --dist flags to do this. If --dist-push 
-is invoked with an integer (n) argument, the program can push the SNP-distance boundaries for any empty bins to cover the sequences
-that are the closest n SNP-distances away, and then it will return all the neighbours at those distances in that bin, 
-and print what it's done to stderr.
-
-You can combine the two types of flag (size and dist), to return only the closest n sequences under a set distance.
+is invoked with an integer (i) argument, the program will push the SNP-distance boundaries to cover the sequences
+that are the closest i SNP-distances away, and then it will return all the neighbours at those distances in that bin.
 `,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 

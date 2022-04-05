@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
@@ -703,6 +704,39 @@ func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct) error {
 	return nil
 }
 
+// writeUpdownTable writes the output in table format, including SNP-distances
+func writeUpdownTable(w io.Writer, results []updownCatchmentStruct) error {
+	w.Write([]byte("query,direction,distance,target\n"))
+	for _, result := range results {
+		for _, neighbour := range result.same.catchment {
+			_, err := w.Write([]byte(strings.Join([]string{result.qname, "same", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
+			if err != nil {
+				return err
+			}
+		}
+		for _, neighbour := range result.up.catchment {
+			_, err := w.Write([]byte(strings.Join([]string{result.qname, "up", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
+			if err != nil {
+				return err
+			}
+		}
+		for _, neighbour := range result.down.catchment {
+			_, err := w.Write([]byte(strings.Join([]string{result.qname, "down", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
+			if err != nil {
+				return err
+			}
+		}
+		for _, neighbour := range result.side.catchment {
+			_, err := w.Write([]byte(strings.Join([]string{result.qname, "side", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // true false every item in s == 0
 func allZero(s []int) bool {
 	for _, n := range s {
@@ -804,7 +838,7 @@ func sum4(a [4]int) int {
 // TopRanking finds pseudo-tree-aware catchments for query sequences, given a large database of target sequences, the closest
 // of which should be returned in the output. Targets are split into bins depending on whether they are likely direct ancestors of,
 // direct descendants of, polyphyletic with, or exactly the same as, the query
-func TopRanking(query, target, reference io.Reader, out io.Writer,
+func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
@@ -895,7 +929,11 @@ func TopRanking(query, target, reference io.Reader, out io.Writer,
 		QResultsArray[result.qidx] = result
 	}
 
-	err = writeUpDownCatchment(out, QResultsArray)
+	if table {
+		err = writeUpdownTable(out, QResultsArray)
+	} else {
+		err = writeUpDownCatchment(out, QResultsArray)
+	}
 	if err != nil {
 		return err
 	}

@@ -31,7 +31,7 @@ ATGCTT
 	query := bytes.NewReader(queryData)
 	target := bytes.NewReader(targetData)
 	out := new(bytes.Buffer)
-
+	table := false
 	qtype := "fasta"
 	ttype := "fasta"
 	ignoreArray := make([]string, 0)
@@ -49,7 +49,7 @@ ATGCTT
 	TRnofill := false
 	TRdistpush := 0
 
-	err := TopRanking(query, target, ref, out,
+	err := TopRanking(query, target, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -85,7 +85,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2
 	ttype = "csv"
 	out = new(bytes.Buffer)
 
-	err = TopRanking(queryList, targetList, ref, out,
+	err = TopRanking(queryList, targetList, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -125,7 +125,7 @@ ATGCTT
 	query := bytes.NewReader(queryData)
 	target := bytes.NewReader(targetData)
 	out := new(bytes.Buffer)
-
+	table := false
 	qtype := "fasta"
 	ttype := "fasta"
 	ignoreArray := make([]string, 0)
@@ -143,7 +143,7 @@ ATGCTT
 	TRnofill := false
 	TRdistpush := 0
 
-	err := TopRanking(query, target, ref, out,
+	err := TopRanking(query, target, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -180,7 +180,7 @@ Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2
 	ttype = "csv"
 	out = new(bytes.Buffer)
 
-	err = TopRanking(queryList, targetList, ref, out,
+	err = TopRanking(queryList, targetList, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -220,7 +220,7 @@ ATGCTT
 	query := bytes.NewReader(queryData)
 	target := bytes.NewReader(targetData)
 	out := new(bytes.Buffer)
-
+	table := false
 	qtype := "fasta"
 	ttype := "fasta"
 	ignoreArray := make([]string, 0)
@@ -238,7 +238,7 @@ ATGCTT
 	TRnofill := false
 	TRdistpush := 2
 
-	err := TopRanking(query, target, ref, out,
+	err := TopRanking(query, target, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -275,7 +275,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2;TargetSide1
 	ttype = "csv"
 	out = new(bytes.Buffer)
 
-	err = TopRanking(queryList, targetList, ref, out,
+	err = TopRanking(queryList, targetList, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -317,7 +317,7 @@ ATNATC
 	query := bytes.NewReader(queryData)
 	target := bytes.NewReader(targetData)
 	out := new(bytes.Buffer)
-
+	table := false
 	qtype := "fasta"
 	ttype := "fasta"
 	ignoreArray := make([]string, 0)
@@ -335,7 +335,7 @@ ATNATC
 	TRnofill := false
 	TRdistpush := 0
 
-	err := TopRanking(query, target, ref, out,
+	err := TopRanking(query, target, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -372,7 +372,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide3;TargetSide1
 	ttype = "csv"
 	out = new(bytes.Buffer)
 
-	err = TopRanking(queryList, targetList, ref, out,
+	err = TopRanking(queryList, targetList, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -414,7 +414,7 @@ ATNATC
 	query := bytes.NewReader(queryData)
 	target := bytes.NewReader(targetData)
 	out := new(bytes.Buffer)
-
+	table := false
 	qtype := "fasta"
 	ttype := "fasta"
 	ignoreArray := make([]string, 0)
@@ -432,7 +432,7 @@ ATNATC
 	TRnofill := false
 	TRdistpush := 0
 
-	err := TopRanking(query, target, ref, out,
+	err := TopRanking(query, target, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -469,7 +469,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide1
 	ttype = "csv"
 	out = new(bytes.Buffer)
 
-	err = TopRanking(queryList, targetList, ref, out,
+	err = TopRanking(queryList, targetList, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -509,7 +509,7 @@ ATGCTT
 	query := bytes.NewReader(queryData)
 	target := bytes.NewReader(targetData)
 	out := new(bytes.Buffer)
-
+	table := false
 	qtype := "fasta"
 	ttype := "fasta"
 	ignoreArray := make([]string, 0)
@@ -527,7 +527,7 @@ ATGCTT
 	TRnofill := false
 	TRdistpush := 0
 
-	err := TopRanking(query, target, ref, out,
+	err := TopRanking(query, target, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -563,7 +563,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1,TargetDown1_dist1,
 	ttype = "csv"
 	out = new(bytes.Buffer)
 
-	err = TopRanking(queryList, targetList, ref, out,
+	err = TopRanking(queryList, targetList, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -605,7 +605,7 @@ ATGCTT
 	query := bytes.NewReader(queryData)
 	target := bytes.NewReader(targetData)
 	out := new(bytes.Buffer)
-
+	table := false
 	qtype := "fasta"
 	ttype := "fasta"
 	ignoreArray := make([]string, 0)
@@ -623,7 +623,7 @@ ATGCTT
 	TRnofill := false
 	TRdistpush := 2
 
-	err := TopRanking(query, target, ref, out,
+	err := TopRanking(query, target, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
@@ -659,7 +659,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1;TargetUp1_dist2,TargetDown1_dist1,Targe
 	ttype = "csv"
 	out = new(bytes.Buffer)
 
-	err = TopRanking(queryList, targetList, ref, out,
+	err = TopRanking(queryList, targetList, ref, out, table,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,

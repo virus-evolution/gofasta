@@ -16,6 +16,7 @@ var TRquery string
 var TRtarget string
 var TRignore string
 var TRoutfile string
+var TRtable bool
 
 var TRsizetotal int
 var TRsizeup int
@@ -41,6 +42,7 @@ func init() {
 	toprankingCmd.Flags().StringVarP(&TRquery, "query", "q", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	toprankingCmd.Flags().StringVarP(&TRtarget, "target", "t", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	toprankingCmd.Flags().StringVarP(&TRoutfile, "outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
+	toprankingCmd.Flags().BoolVarP(&TRtable, "table", "", false, "write a long-form table of the output")
 	toprankingCmd.Flags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
 	toprankingCmd.Flags().StringVarP(&TRignore, "ignore", "", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
 
@@ -61,8 +63,8 @@ func init() {
 	toprankingCmd.Flags().BoolVarP(&TRnofill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
 	toprankingCmd.Flags().IntVarP(&TRdistpush, "dist-push", "", 0, "Push the SNP-distance boundaries so that bins have at least these many closest snp-distances for which there are neighbours, where possible")
 
+	toprankingCmd.Flags().Lookup("table").NoOptDefVal = "true"
 	toprankingCmd.Flags().Lookup("no-fill").NoOptDefVal = "true"
-	toprankingCmd.Flags().Lookup("dist-push").NoOptDefVal = "1"
 
 	toprankingCmd.Flags().SortFlags = false
 }
@@ -168,7 +170,7 @@ that are the closest i SNP-distances away, and then it will return all the neigh
 		}
 		defer out.Close()
 
-		err = updown.TopRanking(query, target, ref, out,
+		err = updown.TopRanking(query, target, ref, out, TRtable,
 			qtype, ttype, ignoreArray,
 			TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 			TRdistall, TRdistup, TRdistdown, TRdistside,

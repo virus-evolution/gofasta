@@ -380,7 +380,7 @@ func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4
 		return neighbours.side.catchment[i].distance < neighbours.side.catchment[j].distance || (neighbours.side.catchment[i].distance == neighbours.side.catchment[j].distance && neighbours.side.catchment[i].ambCount < neighbours.side.catchment[j].ambCount)
 	})
 
-	// TO DO - balance the neighbours here if sizeArray is given, somehow. Probably will need a balance function specific to pushing
+	// TO DO - balance the neighbours here if sizeArray is given? Would need a balance function specific to pushing
 
 	cOut <- neighbours
 }
@@ -749,9 +749,9 @@ func allZero(s []int) bool {
 
 // checkArgs sanity checks the command line options
 func checkArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
-	distall int, distup int, distdown int, distside int) ([4]int, [4]int, error) {
+	distall int, distup int, distdown int, distside int, distpush int) ([4]int, [4]int, error) {
 
-	if sizetotal == 0 && allZero([]int{sizeup, sizedown, sizeside, sizesame}) && allZero([]int{distup, distdown, distside, distall}) {
+	if sizetotal == 0 && allZero([]int{sizeup, sizedown, sizeside, sizesame}) && distpush == 0 && allZero([]int{distup, distdown, distside, distall}) {
 		return [4]int{}, [4]int{}, errors.New(`
 Please provide values to either --size-total,
 or all or some of --size-up, --size-down, --size-side and --size-same,
@@ -759,13 +759,20 @@ or all or some of --size-up, --size-down, --size-side and --size-same,
                             * or *
 
 to --dist-all,
-or all or some of --dist-up, --dist-down, --dist-side,
+or all or some of --dist-up, --dist-down, --dist-side
+or to --dist-push`)
+	}
 
-and optionally to the --size- arguments (to constrain the output by both distance and sample size)`)
+	if (sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame})) && !allZero([]int{distup, distdown, distside, distall}) && (distpush > 0) {
+		return [4]int{}, [4]int{}, errors.New("you can't combine --dist* and --size* flags if you also invoke --dist-push")
 	}
 
 	if sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame}) {
-		return [4]int{}, [4]int{}, errors.New("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
+		os.Stderr.WriteString("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
+	}
+
+	if distall != 0 && !allZero([]int{distup, distdown, distside}) {
+		os.Stderr.WriteString("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
 	}
 
 	// bucket sizes for same,up,down,side,total respectively
@@ -797,10 +804,6 @@ and optionally to the --size- arguments (to constrain the output by both distanc
 		sizeArray[1] = math.MaxInt32
 		sizeArray[2] = math.MaxInt32
 		sizeArray[3] = math.MaxInt32
-	}
-
-	if distall != 0 && !allZero([]int{distup, distdown, distside}) {
-		return [4]int{}, [4]int{}, errors.New("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
 	}
 
 	var distArray [4]int
@@ -842,18 +845,11 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
-	threshpair float32, threshtarg int, nofill bool, pushdist int) error {
+	threshpair float32, threshtarg int, nofill bool, distpush int) error {
 
-	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside)
+	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush)
 	if err != nil {
-		switch {
-		case err.Error() == "warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same":
-			os.Stderr.WriteString(err.Error() + "\n")
-		case err.Error() == "warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side":
-			os.Stderr.WriteString(err.Error() + "\n")
-		default:
-			return err
-		}
+		return err
 	}
 
 	var refSeq []byte
@@ -902,7 +898,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	}
 
 	go splitInput(queries, ignoreArray,
-		sizeArray, nofill, distArray, threshpair, threshtarg, pushdist,
+		sizeArray, nofill, distArray, threshpair, threshtarg, distpush,
 		cudL, cResults, cErr, cSplitDone)
 
 	for n := 1; n > 0; {

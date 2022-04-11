@@ -2,6 +2,7 @@ package updown
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -63,6 +64,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2
 `
 	if string(out.Bytes()) != desiredResult {
 		t.Errorf("problem in TestTopRanking1(fasta)")
+		fmt.Println(string(out.Bytes()))
 	}
 
 	ref = bytes.NewReader(refData)

@@ -140,6 +140,11 @@ func Variants(msaIn io.Reader, stdin bool, refID string, gbIn io.Reader, out io.
 	// get the offsets accounting for insertions relative to the reference
 	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
 
+	// check that the reference sequence is in the same coordinates as the annotation
+	if len(refToMSA) != len(gb.ORIGIN) {
+		return errors.New("the degapped reference sequence (" + ref.ID + ") is not the same length as the genbank annotation")
+	}
+
 	var wgVariants sync.WaitGroup
 	wgVariants.Add(threads)
 

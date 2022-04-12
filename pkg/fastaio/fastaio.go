@@ -76,7 +76,7 @@ func ReadAlignment(f io.Reader, chnl chan FastaRecord, cErr chan error, cdone ch
 	var width int
 
 	for s.Scan() {
-		line := string(s.Text())
+		line := s.Text()
 
 		if first {
 

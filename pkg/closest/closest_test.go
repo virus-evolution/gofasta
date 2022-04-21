@@ -34,14 +34,14 @@ ATTTTG
 
 	out := new(bytes.Buffer)
 
-	err := Closest(query, target, out, 2)
+	err := Closest(query, target, "snp", out, 2)
 	if err != nil {
 		t.Error(err)
 	}
 
 	// fmt.Println(string(out.Bytes()))
 
-	if string(out.Bytes()) != `query,closest,SNPdistance,SNPs
+	if string(out.Bytes()) != `query,closest,distance,SNPs
 Query1,Target4,0,
 Query2,Target1,0,
 Query3,Target5,1,6GC

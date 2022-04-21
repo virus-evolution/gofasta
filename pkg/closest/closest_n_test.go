@@ -34,7 +34,7 @@ ATTATT
 
 	buf := new(bytes.Buffer)
 
-	err := ClosestN(2, query, target, buf, 2)
+	err := ClosestN(2, -1.0, query, target, "raw", buf, false, 2)
 	if err != nil {
 		t.Error(err)
 	}

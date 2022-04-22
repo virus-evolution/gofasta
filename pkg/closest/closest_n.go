@@ -96,7 +96,7 @@ func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, maxdist f
 	// If the user specified a larger catchment than there are records in the target file,
 	// they won't be sorted above, so do it here (need to modify the size argument passed
 	// to the function):
-	if len(neighbours.catchment) < catchmentSize {
+	if len(neighbours.catchment) < catchmentSize && len(neighbours.catchment) > 0 {
 		rearrangeCatchment(&neighbours, len(neighbours.catchment))
 	}
 

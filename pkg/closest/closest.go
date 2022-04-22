@@ -136,6 +136,10 @@ func tn93Distance(query, target fastaio.EncodedFastaRecord) float64 {
 	// tn93 distance:
 	d := -k1*math.Log(w1) - k2*math.Log(w2) - k3*math.Log(w3)
 
+	if d == 0.0 {
+		d = 0.0
+	}
+
 	return d
 }
 

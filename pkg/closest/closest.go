@@ -110,7 +110,7 @@ func tn93Distance(query, target fastaio.EncodedFastaRecord) float64 {
 
 	// calculate the three types of change from the pairwise comparison
 	for i, tNuc := range target.Seq {
-		if (query.Seq[i] & tNuc) < 16 { // are the bases different
+		if (query.Seq[i]&tNuc) < 16 && query.Seq[i]&8 == 8 && tNuc&8 == 8 { // are the bases different (and known for sure)
 			count_d++
 			count_L++
 			if (query.Seq[i] | tNuc) == 200 { // 1 if one of the bases is adenine and the other one is guanine, 0 otherwise

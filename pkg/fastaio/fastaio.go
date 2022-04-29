@@ -14,7 +14,7 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
-// FastaRecord is a simple struct for Fasta records
+// A struct for one Fasta record
 type FastaRecord struct {
 	ID          string
 	Description string
@@ -22,13 +22,66 @@ type FastaRecord struct {
 	Idx         int
 }
 
-// EncodedFastaRecord is a struct for one Fasta record
+// A struct for one Fasta record whose sequence is encoded using EP's scheme
 type EncodedFastaRecord struct {
 	ID          string
 	Description string
 	Seq         []byte
 	Score       int64 // this is for e.g., genome completeness
 	Idx         int
+	Count_A     int
+	Count_T     int
+	Count_G     int
+	Count_C     int
+}
+
+// TO DO - test this
+func (FR FastaRecord) Encode() EncodedFastaRecord {
+	EFR := EncodedFastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
+	EA := encoding.MakeEncodingArray()
+	seq := make([]byte, len(FR.Seq))
+	for i, nuc := range FR.Seq {
+		seq[i] = EA[nuc]
+	}
+	EFR.Seq = seq
+	return EFR
+}
+
+// TO DO - test this
+func (EFR EncodedFastaRecord) Decode() FastaRecord {
+	FR := FastaRecord{ID: EFR.ID, Description: EFR.Description, Idx: EFR.Idx}
+	DA := encoding.MakeDecodingArray()
+	seq := ""
+	for _, nuc := range EFR.Seq {
+		seq = seq + DA[nuc]
+	}
+	FR.Seq = seq
+	return FR
+}
+
+func (EEFT *EncodedFastaRecord) CalculateBaseContent() {
+	count_A := 0
+	count_T := 0
+	count_G := 0
+	count_C := 0
+
+	for _, nuc := range EEFT.Seq {
+		switch nuc {
+		case 136:
+			count_A++
+		case 72:
+			count_G++
+		case 40:
+			count_C++
+		case 24:
+			count_T++
+		}
+	}
+
+	EEFT.Count_A = count_A
+	EEFT.Count_C = count_C
+	EEFT.Count_G = count_G
+	EEFT.Count_T = count_T
 }
 
 // getAlignmentDims gets the dimensions (i.e. the number of sequences and the width of the alignment
@@ -58,6 +111,90 @@ func getAlignmentDims(f io.Reader) (int, int, error) {
 	}
 
 	return n, l, err
+}
+
+// To do - treat ambiguities as the set of nucleotides they represent?
+// could do this most easily with EP's coding scheme?
+func Consensus(f io.Reader) (FastaRecord, error) {
+
+	score := [256]byte{}
+	for i := range score {
+		score[i] = 17
+	}
+	score['A'] = 0
+	score['C'] = 1
+	score['G'] = 2
+	score['T'] = 3
+	score['R'] = 4
+	score['M'] = 5
+	score['W'] = 6
+	score['S'] = 7
+	score['K'] = 8
+	score['Y'] = 9
+	score['V'] = 10
+	score['H'] = 11
+	score['D'] = 12
+	score['B'] = 13
+	score['N'] = 14
+	score['-'] = 15
+	score['?'] = 16
+
+	var err error
+
+	cFR := make(chan FastaRecord)
+	cErr := make(chan error)
+	cReadDone := make(chan bool)
+	cConsensusDone := make(chan bool)
+
+	go ReadAlignment(f, cFR, cErr, cReadDone)
+
+	var counts [][17]byte
+
+	go func() {
+		first := true
+
+		for FR := range cFR {
+			if first {
+				counts = make([][17]byte, len(FR.Seq))
+				first = false
+			}
+			for i := 0; i < len(FR.Seq); i++ {
+				counts[i][score[FR.Seq[i]]]++
+			}
+		}
+
+		cConsensusDone <- true
+	}()
+
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			return FastaRecord{}, err
+		case <-cReadDone:
+			close(cFR)
+			n--
+		}
+	}
+
+	<-cConsensusDone
+
+	backTranslate := [17]string{"A", "C", "G", "T", "R", "M", "W", "S", "K", "Y", "V", "H", "D", "B", "N", "-", "?"}
+	consensusSeq := ""
+	for _, a := range counts {
+		maxval := a[0]
+		maxidx := 0
+		for j := 1; j < len(a); j++ {
+			if a[j] > maxval {
+				maxval = a[j]
+				maxidx = j
+			}
+		}
+		consensusSeq = consensusSeq + backTranslate[maxidx]
+	}
+
+	consensus := FastaRecord{ID: "consensus", Seq: consensusSeq}
+
+	return consensus, err
 }
 
 // ReadAlignment reads an alignment in fasta format to a channel of FastaRecord structs

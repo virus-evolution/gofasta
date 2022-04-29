@@ -1,5 +1,5 @@
 /*
-Package genbank provides functionality for reading genbank flat format files
+TO DO
 */
 package genbank
 
@@ -196,14 +196,6 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 	features = append(features, gb)
 
-	// for _, feature := range(features){
-	// 	fmt.Println(feature.feature + ", " + feature.pos)
-	// 	for key, value := range(feature.info) {
-	// 		fmt.Println(key + ": " + value)
-	// 	}
-	// 	fmt.Println(" ")
-	// }
-
 	return features
 }
 
@@ -282,7 +274,6 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 		r, _ := utf8.DecodeRune([]byte{line[0]})
 
 		if unicode.IsUpper(r) {
-			// fmt.Println(line)
 			if first {
 				header = strings.Fields(line)[0]
 				first = false
@@ -293,11 +284,9 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 			case header == "FEATURES":
 				field = genbankField{header: header, lines: lines}
 				gb.FEATURES = parseGenbankFEATURES(field)
-				// fmt.Println(gb.FEATURES)
 			case header == "ORIGIN":
 				field = genbankField{header: header, lines: lines}
 				gb.ORIGIN = parseGenbankORIGIN(field)
-				// fmt.Println(string(gb.ORIGIN))
 			}
 
 			header = strings.Fields(line)[0]
@@ -313,22 +302,10 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 	case header == "FEATURES":
 		field = genbankField{header: header, lines: lines}
 		gb.FEATURES = parseGenbankFEATURES(field)
-		// fmt.Println(gb.FEATURES)
 	case header == "ORIGIN":
 		field = genbankField{header: header, lines: lines}
 		gb.ORIGIN = parseGenbankORIGIN(field)
-		// fmt.Println(string(gb.ORIGIN))
 	}
-
-	// for _, feature := range(gb.FEATURES){
-	// 	fmt.Println(feature.Feature + ", " + feature.Pos)
-	// 	for key, value := range(feature.Info) {
-	// 		fmt.Println(key + ": " + value)
-	// 	}
-	// 	fmt.Println(" ")
-	// }
-	//
-	// fmt.Println(string(gb.ORIGIN))
 
 	return gb, nil
 }

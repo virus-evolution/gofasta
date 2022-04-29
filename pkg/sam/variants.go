@@ -1,54 +1,82 @@
 package sam
 
 import (
+	"errors"
 	"io"
+	"os"
 	"sync"
 
 	biogosam "github.com/biogo/hts/sam"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
+	"github.com/virus-evolution/gofasta/pkg/gff"
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
 // Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons represented by an amino acid change)
-// mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a genbank flat file
-func Variants(samIn, ref, genbankIn io.Reader, out io.Writer, aggregate bool, threshold float64, appendSNP bool, threads int) error {
+// mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a annotation flat file
+func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
-	cErr := make(chan error)
-	cRef := make(chan fastaio.FastaRecord)
-	cRefDone := make(chan bool)
-
-	go fastaio.ReadAlignment(ref, cRef, cErr, cRefDone)
-
-	var refSeq string
-	var refID string
-
-	// to do - do this more sensibly
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
+	var ref fastaio.EncodedFastaRecord
+	if refFromFile {
+		refs, err := fastaio.ReadEncodeAlignmentToList(refIn, false)
+		if err != nil {
 			return err
-		case FR := <-cRef:
-			refSeq = FR.Seq
-			refID = FR.ID
-			// refName = FR.ID
-		case <-cRefDone:
-			close(cRef)
-			n--
+		}
+		if len(refs) > 1 {
+			return errors.New("more than one record in --reference")
+		}
+		ref = refs[0]
+	}
+
+	var regions []variants.Region
+	switch annoSuffix {
+	case "gb":
+		gb, err := genbank.ReadGenBank(annoIn)
+		if err != nil {
+			return err
+		}
+		regions, err = variants.GetRegionsFromGenbank(gb)
+		if err != nil {
+			return err
+		}
+		if !refFromFile {
+			temp := fastaio.FastaRecord{Seq: string(gb.ORIGIN), ID: "annotation_fasta"}
+			ref = temp.Encode()
+			os.Stderr.WriteString("using --annotation fasta as reference\n")
+		}
+	case "gff":
+		gff, err := gff.ReadGFF(annoIn)
+		if err != nil {
+			return err
+		}
+		if !refFromFile {
+			switch len(gff.FASTA) {
+			case 0:
+				return errors.New("couldn't find a reference sequence in the gff and none was provided to --reference")
+			case 1:
+				var encodedrefseq []byte
+				for _, v := range gff.FASTA {
+					encodedrefseq = make([]byte, len(v.Seq))
+					EA := encoding.MakeEncodingArray()
+					for i := range v.Seq {
+						encodedrefseq[i] = EA[v.Seq[i]]
+					}
+					ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
+				}
+				os.Stderr.WriteString("using --annotation fasta as reference\n")
+			default:
+				return errors.New("more that one sequence in gff ##FASTA section")
+			}
+		}
+		regions, err = variants.GetRegionsFromGFF(gff, ref.Decode().Seq)
+		if err != nil {
+			return err
 		}
 	}
 
-	gb, err := genbank.ReadGenBank(genbankIn)
-	if err != nil {
-		return err
-	}
-
-	// get a list of CDS + intergenic regions from the genbank file
-	regions, err := variants.GetRegions(gb)
-	if err != nil {
-		return err
-	}
+	cErr := make(chan error)
 
 	// do some things that are basically just sam topairalign:
 	cSR := make(chan samRecords, threads)
@@ -64,9 +92,9 @@ func Variants(samIn, ref, genbankIn io.Reader, out io.Writer, aggregate bool, th
 
 	switch aggregate {
 	case true:
-		go variants.AggregateWriteVariants(out, appendSNP, threshold, refID, cVariants, cWriteDone, cErr)
+		go variants.AggregateWriteVariants(out, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
 	case false:
-		go variants.WriteVariants(out, appendSNP, refID, cVariants, cWriteDone, cErr)
+		go variants.WriteVariants(out, false, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
 	}
 
 	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
@@ -81,7 +109,7 @@ func Variants(samIn, ref, genbankIn io.Reader, out io.Writer, aggregate bool, th
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			blockToPairwiseAlignment(cSR, cPairAlign, cErr, []byte(refSeq), false)
+			blockToPairwiseAlignment(cSR, cPairAlign, cErr, []byte(ref.Decode().Seq), false)
 			wgAlign.Done()
 		}()
 	}

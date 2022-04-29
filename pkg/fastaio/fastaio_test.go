@@ -2,6 +2,7 @@ package fastaio
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
@@ -258,6 +259,33 @@ ATTTTC
 	_, err := ReadEncodeAlignmentToList(alignment, false)
 	if err.Error() != "different length sequences in input file: is this an alignment?" {
 		t.Error(err)
+	}
+}
+
+func TestConsensus(t *testing.T) {
+	alignmentData := []byte(
+		`>Target1
+ATGATN
+>Target2
+ATGANN
+>Target3
+ATTR-N
+`)
+
+	alignment := bytes.NewReader(alignmentData)
+
+	consensus, err := Consensus(alignment)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if consensus.Seq != "ATGATN" {
+		t.Errorf("problem in TestConsensus()")
+		fmt.Println(consensus.Seq)
+	}
+
+	if consensus.ID != "consensus" {
+		t.Errorf("problem in TestConsensus()")
 	}
 }
 

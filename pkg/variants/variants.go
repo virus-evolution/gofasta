@@ -92,7 +92,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 	}
 
-	cMSA := make(chan fastaio.EncodedFastaRecord, 50)
+	cMSA := make(chan fastaio.EncodedFastaRecord, 50+threads)
 	cErr := make(chan error)
 	cMSADone := make(chan bool)
 
@@ -206,7 +206,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		return errors.New("couldn't tell if --annotation was a .gb or a .gff file")
 	}
 
-	cVariants := make(chan AnnoStructs)
+	cVariants := make(chan AnnoStructs, 50+threads)
 	cVariantsDone := make(chan bool)
 	cWriteDone := make(chan bool)
 

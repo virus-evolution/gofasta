@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -122,7 +123,13 @@ func readCSVToUDLChan(in io.Reader, cudL chan updownLine, cErr chan error, cRead
 			return
 		}
 
-		udL := updownLine{id: record[0], snps: snps, snpsPos: snpPos, ambs: a, ambCount: amb_count}
+		snpsSorted := make([]string, len(snps))
+		copy(snpsSorted, snps)
+		sort.Slice(snpsSorted, func(i, j int) bool {
+			return snpsSorted[i] < snpsSorted[j]
+		})
+
+		udL := updownLine{id: record[0], snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
 		cudL <- udL
 	}
 
@@ -180,7 +187,15 @@ func readCSVToUDLList(in io.Reader) ([]updownLine, error) {
 		if err != nil {
 			return make([]updownLine, 0), err
 		}
-		udL := updownLine{id: record[0], idx: counter, snps: snps, snpsPos: snpPos, ambs: a, ambCount: amb_count}
+
+		snpsSorted := make([]string, len(snps))
+		copy(snpsSorted, snps)
+		sort.Slice(snpsSorted, func(i, j int) bool {
+			return snpsSorted[i] < snpsSorted[j]
+		})
+
+		udL := updownLine{id: record[0], snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
+
 		LudL = append(LudL, udL)
 		counter++
 	}
@@ -428,11 +443,19 @@ func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updo
 			ambs = append(ambs, amb_stop+1)
 		}
 
+		snpsSorted := make([]string, len(snps))
+		copy(snpsSorted, snps)
+		sort.Slice(snpsSorted, func(i, j int) bool {
+			return snpsSorted[i] < snpsSorted[j]
+		})
+
 		udLine.snps = snps
 		udLine.snpCount = snpCount
 		udLine.snpsPos = snpPos
 		udLine.ambs = ambs
 		udLine.ambCount = ambCount
+		udLine.snpsSorted = snpsSorted
+
 		cUDs <- udLine
 	}
 

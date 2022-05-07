@@ -17,13 +17,14 @@ import (
 // updownLine is a struct for one records snps relative to a reference sequence and ambiguity tracts.
 // It is meant as a compressed compressed version of a genome to facilitate fast distance calculations
 type updownLine struct {
-	id       string
-	idx      int
-	snps     []string
-	snpsPos  []int
-	snpCount int
-	ambs     []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
-	ambCount int   // total number of sites that are not ATGC
+	id         string
+	idx        int
+	snps       []string
+	snpsSorted []string
+	snpsPos    []int
+	snpCount   int
+	ambs       []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
+	ambCount   int   // total number of sites that are not ATGC
 }
 
 // writeOutput writes the output to stdout or a file as it arrives.
@@ -99,10 +100,10 @@ func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cErr := make(chan error)
 
-	cFR := make(chan fastaio.EncodedFastaRecord)
+	cFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU()+50)
 	cFRDone := make(chan bool)
 
-	cudLs := make(chan updownLine, runtime.NumCPU())
+	cudLs := make(chan updownLine, runtime.NumCPU()+50)
 	cudLsDone := make(chan bool)
 
 	cWriteDone := make(chan bool)

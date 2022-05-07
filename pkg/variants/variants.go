@@ -38,15 +38,16 @@ type Region struct {
 // A Variant is a struct that contains information about one mutation (nuc, amino acid, indel) between
 // reference and query
 type Variant struct {
-	Queryname  string
-	RefAl      string
-	QueAl      string
-	Position   int    // (0-based) genomic location
-	Residue    int    // (0-based) aminoacid location
-	Changetype string // one of {nuc,aa,ins,del}
-	Feature    string // this should be, for example, the name of the CDS that the thing is in
-	Length     int    // for indels
-	SNPs       string // if this is an amino acid change, what are the snps
+	Queryname      string
+	RefAl          string
+	QueAl          string
+	Position       int    // (0-based) genomic location
+	Residue        int    // (0-based) aminoacid location
+	Changetype     string // one of {nuc,aa,ins,del}
+	Feature        string // this should be, for example, the name of the CDS that the thing is in
+	Length         int    // for indels
+	SNPs           string // if this is an amino acid change, what are the snps
+	Representation string
 }
 
 // AnnoStructs is for passing groups of Variant structs around with an index which is used to retain input
@@ -922,12 +923,13 @@ func AggregateWriteVariants(w io.Writer, appendSNP bool, threshold float64, refI
 		}
 		counter++
 		for _, V := range AS.Vs {
-			Vskinny := Variant{RefAl: V.RefAl, QueAl: V.QueAl, Position: V.Position, Residue: V.Residue, Changetype: V.Changetype, Feature: V.Feature, Length: V.Length, SNPs: V.SNPs}
-			if _, ok := propMap[Vskinny]; ok {
-				propMap[Vskinny]++
-			} else {
-				propMap[Vskinny] = 1.0
+			rep, err := FormatVariant(V, appendSNP)
+			if err != nil {
+				cErr <- err
+				return
 			}
+			Vskinny := Variant{RefAl: V.RefAl, QueAl: V.QueAl, Position: V.Position, Residue: V.Residue, Changetype: V.Changetype, Feature: V.Feature, Length: V.Length, Representation: rep}
+			propMap[Vskinny]++
 		}
 	}
 
@@ -944,12 +946,7 @@ func AggregateWriteVariants(w io.Writer, appendSNP bool, threshold float64, refI
 		if propMap[V]/counter < threshold {
 			continue
 		}
-		Vformatted, err := FormatVariant(V, appendSNP)
-		if err != nil {
-			cErr <- err
-			return
-		}
-		_, err = w.Write([]byte(Vformatted + "," + strconv.FormatFloat(propMap[V]/counter, 'f', 9, 64) + "\n"))
+		_, err = w.Write([]byte(V.Representation + "," + strconv.FormatFloat(propMap[V]/counter, 'f', 9, 64) + "\n"))
 		if err != nil {
 			cErr <- err
 			return

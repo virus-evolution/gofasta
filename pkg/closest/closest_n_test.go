@@ -2,6 +2,7 @@ package closest
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -44,7 +45,8 @@ Query1,Target2;Target1
 Query2,Target1;Target2
 Query3,Target5;Target4
 ` {
-		t.Errorf("problem in closest test")
+		t.Errorf("problem in TestClosestNraw1()")
+		fmt.Println(string(out.Bytes()))
 	}
 }
 

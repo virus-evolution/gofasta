@@ -35,7 +35,7 @@ type EncodedFastaRecord struct {
 	Count_C     int
 }
 
-// TO DO - test this
+// Convert a FastaRecord to an EncodedFastaRecord
 func (FR FastaRecord) Encode() EncodedFastaRecord {
 	EFR := EncodedFastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
 	EA := encoding.MakeEncodingArray()
@@ -47,7 +47,7 @@ func (FR FastaRecord) Encode() EncodedFastaRecord {
 	return EFR
 }
 
-// TO DO - test this
+// Convert an EncodedFastaRecord to a FastaRecord
 func (EFR EncodedFastaRecord) Decode() FastaRecord {
 	FR := FastaRecord{ID: EFR.ID, Description: EFR.Description, Idx: EFR.Idx}
 	DA := encoding.MakeDecodingArray()
@@ -59,6 +59,7 @@ func (EFR EncodedFastaRecord) Decode() FastaRecord {
 	return FR
 }
 
+// Calculate the ATGC content of an EncodedFastaRecord
 func (EEFT *EncodedFastaRecord) CalculateBaseContent() {
 	count_A := 0
 	count_T := 0
@@ -113,8 +114,10 @@ func getAlignmentDims(f io.Reader) (int, int, error) {
 	return n, l, err
 }
 
-// To do - treat ambiguities as the set of nucleotides they represent?
+// To DO - treat ambiguities as the set of nucleotides they represent?
 // could do this most easily with EP's coding scheme?
+
+// Generate a consensus nucleotide sequence
 func Consensus(f io.Reader) (FastaRecord, error) {
 
 	score := [256]byte{}
@@ -275,7 +278,7 @@ func ReadAlignment(f io.Reader, chnl chan FastaRecord, cErr chan error, cdone ch
 }
 
 // ReadEncodeAlignment reads an alignment in fasta format to a channel
-// of EncodedFastaRecord structs - converting sequence to EP's bitwise coding scheme
+// of EncodedFastaRecord structs - converting the nucleotide sequence to EP's bitwise coding scheme
 func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
 
 	var err error
@@ -340,7 +343,7 @@ func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecor
 			for i := range line {
 				nuc = coding[line[i]]
 				if nuc == 0 {
-					cErr <- fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
+					cErr <- fmt.Errorf("invalid nucleotide in fasta file (\"%s\")", string(line[i]))
 					return
 				}
 				encodedLine[i] = nuc
@@ -373,8 +376,126 @@ func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecor
 	cDone <- true
 }
 
-// ReadEncodeAlignmentToList is as ReadEncodeAlignment but returns an array of EncodedFastaRecords instead
-// of passing each EncodedFastaRecord to a channel
+// ReadEncodeScoreAlignment reads an alignment in fasta format to a channel
+// of EncodedFastaRecord structs - converting the nucleotide sequence to EP's bitwise coding scheme
+// and additionally scoring each record and getting ATGC counts
+func ReadEncodeScoreAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecord, cErr chan error, cDone chan bool) {
+
+	var err error
+
+	var coding [256]byte
+	switch hardGaps {
+	case true:
+		coding = encoding.MakeEncodingArrayHardGaps()
+	case false:
+		coding = encoding.MakeEncodingArray()
+	}
+
+	scoring := encoding.MakeEncodedScoreArray()
+
+	s := bufio.NewScanner(f)
+
+	first := true
+
+	var id string
+	var description string
+	var seqBuffer []byte
+	var line []byte
+	var nuc byte
+	var width int
+	var score int64
+
+	var fr EncodedFastaRecord
+	var counting [256]int
+
+	counter := 0
+
+	for s.Scan() {
+		line = s.Bytes()
+
+		if first {
+
+			if len(line) == 0 || line[0] != '>' {
+				cErr <- errors.New("badly formatted fasta file")
+				return
+			}
+
+			description = string(line[1:])
+			id = strings.Fields(description)[0]
+
+			first = false
+
+		} else if line[0] == '>' {
+
+			if counter == 0 {
+				width = len(seqBuffer)
+			} else if len(seqBuffer) != width {
+				cErr <- errors.New("different length sequences in input file: is this an alignment?")
+				return
+			}
+
+			fr = EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter, Score: score}
+			fr.Count_A = counting[136]
+			fr.Count_T = counting[24]
+			fr.Count_G = counting[72]
+			fr.Count_C = counting[40]
+			chnl <- fr
+			counter++
+
+			description = string(line[1:])
+			id = strings.Fields(description)[0]
+			seqBuffer = make([]byte, 0)
+			score = 0
+			for i := range counting {
+				counting[i] = 0
+			}
+
+		} else {
+			encodedLine := make([]byte, len(line))
+			for i := range line {
+				nuc = coding[line[i]]
+				if nuc == 0 {
+					cErr <- fmt.Errorf("invalid nucleotide in fasta file (\"%s\")", string(line[i]))
+					return
+				}
+				encodedLine[i] = nuc
+				score += scoring[nuc]
+				counting[nuc]++
+			}
+			seqBuffer = append(seqBuffer, encodedLine...)
+		}
+	}
+
+	if len(seqBuffer) > 0 {
+		if counter > 0 && len(seqBuffer) != width {
+			cErr <- errors.New("different length sequences in input file: is this an alignment?")
+			return
+		}
+		fr = EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter, Score: score}
+		fr.Count_A = counting[136]
+		fr.Count_T = counting[24]
+		fr.Count_G = counting[72]
+		fr.Count_C = counting[40]
+		chnl <- fr
+		counter++
+	}
+
+	if counter == 0 {
+		cErr <- errors.New("empty fasta file")
+		return
+	}
+
+	err = s.Err()
+	if err != nil {
+		cErr <- err
+		return
+	}
+
+	cDone <- true
+}
+
+// ReadEncodeAlignmentToList is as ReadEncodeAlignment but returns a slice of EncodedFastaRecords instead
+// of passing each EncodedFastaRecord down a channel
 func ReadEncodeAlignmentToList(f io.Reader, hardGaps bool) ([]EncodedFastaRecord, error) {
 
 	var err error
@@ -437,7 +558,7 @@ func ReadEncodeAlignmentToList(f io.Reader, hardGaps bool) ([]EncodedFastaRecord
 			for i := range line {
 				nuc = coding[line[i]]
 				if nuc == 0 {
-					return []EncodedFastaRecord{}, fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
+					return []EncodedFastaRecord{}, fmt.Errorf("invalid nucleotide in fasta file (\"%s\")", string(line[i]))
 				}
 				encodedLine[i] = nuc
 			}
@@ -466,7 +587,7 @@ func ReadEncodeAlignmentToList(f io.Reader, hardGaps bool) ([]EncodedFastaRecord
 	return records, nil
 }
 
-// WriteAlignment reads fasta records from a channel and writes them to file or stdout,
+// WriteAlignment reads FastaRecords from a channel and writes them to file or stdout,
 // in the order in which they are present in the input file.
 // It passes a true to a done channel when the channel of fasta records is empty
 func WriteAlignment(ch chan FastaRecord, w io.Writer, cdone chan bool, cerr chan error) {

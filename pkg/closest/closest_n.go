@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
@@ -189,8 +188,8 @@ func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) 
 	return nil
 }
 
-// ClosestN finds the closest sequence(s) by raw genetic distance to a query/queries. It writes the results
-// to stdout or to file. Ties for distance are broken by genome completeness
+// ClosestN finds the closest sequence(s) by genetic distance to a query/queries. It writes the results
+// to stdout or to file. Ties for distance are broken by genome completeness.
 func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measure string, out io.Writer, table bool, threads int) error {
 
 	if threads == 0 {
@@ -217,31 +216,13 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 	cErr := make(chan error)
 
 	cTEFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
-	cTEFRscored := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
 	cTEFRdone := make(chan bool)
-	cTEFRscoreddone := make(chan bool)
 	cSplitDone := make(chan bool)
-
 	cResults := make(chan catchmentStruct)
 
-	go fastaio.ReadEncodeAlignment(target, false, cTEFR, cErr, cTEFRdone)
+	go fastaio.ReadEncodeScoreAlignment(target, false, cTEFR, cErr, cTEFRdone)
 
-	var wgScore sync.WaitGroup
-	wgScore.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			scoreEncodedAlignment(cTEFR, cTEFRscored, measure)
-			wgScore.Done()
-		}()
-	}
-
-	go splitInputN(queries, catchmentSize, maxdist, measure, cTEFRscored, cResults, cErr, cSplitDone)
-
-	go func() {
-		wgScore.Wait()
-		cTEFRscoreddone <- true
-	}()
+	go splitInputN(queries, catchmentSize, maxdist, measure, cTEFR, cResults, cErr, cSplitDone)
 
 	for n := 1; n > 0; {
 		select {
@@ -249,16 +230,6 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 			return err
 		case <-cTEFRdone:
 			close(cTEFR)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cTEFRscoreddone:
-			close(cTEFRscored)
 			n--
 		}
 	}

@@ -3,10 +3,47 @@ package fastaio
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
+
+func TestEncodeDecode(t *testing.T) {
+	FR := FastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: "ATGCRMWSKYVHDBN-?"}
+
+	desiredResult := EncodedFastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: []byte{136, 24, 72, 40, 192, 160, 144, 96, 80, 48, 224, 176, 208, 112, 240, 244, 242}}
+
+	if !reflect.DeepEqual(desiredResult, FR.Encode()) {
+		t.Errorf("problem in TestEncodeDecode - Encode")
+	}
+
+	if !reflect.DeepEqual(FR, FR.Encode().Decode()) {
+		t.Errorf("problem in TestEncodeDecode - Decode")
+	}
+}
+
+func TestCalculateBaseContent(t *testing.T) {
+	FR := FastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: "ATGCATGCATG"}
+	EFR := FR.Encode()
+	EFR.CalculateBaseContent()
+
+	if EFR.Count_A != 3 {
+		t.Errorf("probem in TestCalculateBaseContent()")
+	}
+
+	if EFR.Count_T != 3 {
+		t.Errorf("probem in TestCalculateBaseContent()")
+	}
+
+	if EFR.Count_G != 3 {
+		t.Errorf("probem in TestCalculateBaseContent()")
+	}
+
+	if EFR.Count_C != 2 {
+		t.Errorf("probem in TestCalculateBaseContent()")
+	}
+}
 
 func TestGetAlignmentDims(t *testing.T) {
 	alignmentData := []byte(
@@ -289,68 +326,91 @@ ATTR-N
 	}
 }
 
-// func TestReadEncodeScoreAlignment(t *testing.T) {
-// 	alignmentData := []byte(
-// 		`>Target1
-// ATGATN
-// >Target2
-// ATGANN
-// >Target3
-// ATTR-N
-// `)
+func TestReadEncodeScoreAlignment(t *testing.T) {
+	alignmentData := []byte(
+		`>Target1
+ATGATN
+>Target2
+ATGANN
+>Target3
+ATTR-N
+`)
 
-// 	alignment := bytes.NewReader(alignmentData)
+	alignment := bytes.NewReader(alignmentData)
 
-// 	cErr := make(chan error)
-// 	cFR := make(chan EncodedFastaRecord)
-// 	cReadDone := make(chan bool)
+	cErr := make(chan error)
+	cFR := make(chan EncodedFastaRecord)
+	cReadDone := make(chan bool)
 
-// 	alOut := new(bytes.Buffer)
-// 	scoreOut := make([]int64, 0)
+	alOut := new(bytes.Buffer)
+	scoreOut := make([]int64, 0)
 
-// 	go ReadEncodeScoreAlignment(alignment, cFR, cErr, cReadDone)
+	go ReadEncodeScoreAlignment(alignment, false, cFR, cErr, cReadDone)
 
-// 	go func() {
-// 		for n := 1; n > 0; {
-// 			select {
-// 			case err := <-cErr:
-// 				t.Error(err)
-// 			case <-cReadDone:
-// 				close(cFR)
-// 			}
-// 		}
-// 	}()
+	go func() {
+		for n := 1; n > 0; {
+			select {
+			case err := <-cErr:
+				t.Error(err)
+			case <-cReadDone:
+				close(cFR)
+			}
+		}
+	}()
 
-// 	DA := encoding.MakeDecodingArray()
+	DA := encoding.MakeDecodingArray()
 
-// 	for FR := range cFR {
-// 		alOut.Write([]byte(">" + FR.ID + "\n"))
-// 		for _, nuc := range FR.Seq {
-// 			alOut.Write([]byte(DA[nuc]))
-// 		}
-// 		alOut.Write([]byte("\n"))
+	FRs := make([]EncodedFastaRecord, 0)
 
-// 		scoreOut = append(scoreOut, FR.Score)
-// 	}
+	for FR := range cFR {
+		FRs = append(FRs, FR)
+		alOut.Write([]byte(">" + FR.ID + "\n"))
+		for _, nuc := range FR.Seq {
+			alOut.Write([]byte(DA[nuc]))
+		}
+		alOut.Write([]byte("\n"))
 
-// 	if string(alOut.Bytes()) != `>Target1
-// ATGATN
-// >Target2
-// ATGANN
-// >Target3
-// ATTR-N
-// ` {
-// 		t.Errorf("problem in TestReadEncodeAlignment() (alignment)")
-// 	}
+		scoreOut = append(scoreOut, FR.Score)
+	}
 
-// 	test := true
-// 	for i := range scoreOut {
-// 		if scoreOut[i] != []int64{63, 54, 48}[i] {
-// 			test = false
-// 			break
-// 		}
-// 	}
-// 	if !test {
-// 		t.Errorf("problem in TestReadEncodeAlignment() (score)")
-// 	}
-// }
+	if string(alOut.Bytes()) != `>Target1
+ATGATN
+>Target2
+ATGANN
+>Target3
+ATTR-N
+` {
+		t.Errorf("problem in TestReadEncodeAlignment() (alignment)")
+	}
+
+	test := true
+	for i := range scoreOut {
+		if scoreOut[i] != []int64{63, 54, 48}[i] {
+			test = false
+			break
+		}
+	}
+	if !test {
+		t.Errorf("problem in TestReadEncodeAlignment() (score)")
+	}
+
+	counts := [][]int{{2, 2, 1, 0}, {2, 1, 1, 0}, {1, 2, 0, 0}}
+	for i := range FRs {
+		for j := 0; j < 4; j++ {
+			var count int
+			switch j {
+			case 0:
+				count = FRs[i].Count_A
+			case 1:
+				count = FRs[i].Count_T
+			case 2:
+				count = FRs[i].Count_G
+			case 3:
+				count = FRs[i].Count_C
+			}
+			if counts[i][j] != count {
+				t.Errorf("problem in TestReadEncodeAlignment() (counts)")
+			}
+		}
+	}
+}

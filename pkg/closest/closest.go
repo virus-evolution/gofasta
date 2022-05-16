@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
@@ -266,7 +265,7 @@ func writeClosest(results []resultsStruct, measure string, w io.Writer) error {
 	return nil
 }
 
-// Closest finds the single closest sequence by raw genetic distance to a query/queries. It writes the results
+// Closest finds the single closest sequence by genetic distance to a query/queries. It writes the results
 // to stdout or to file. Ties for distance are broken by genome completeness
 func Closest(query, target io.Reader, measure string, out io.Writer, threads int) error {
 
@@ -290,31 +289,13 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 	cErr := make(chan error)
 
 	cTEFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
-	cTEFRscored := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
 	cTEFRdone := make(chan bool)
-	cTEFRscoreddone := make(chan bool)
 	cSplitDone := make(chan bool)
-
 	cResults := make(chan resultsStruct)
 
-	go fastaio.ReadEncodeAlignment(target, false, cTEFR, cErr, cTEFRdone)
+	go fastaio.ReadEncodeScoreAlignment(target, false, cTEFR, cErr, cTEFRdone)
 
-	var wgScore sync.WaitGroup
-	wgScore.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			scoreEncodedAlignment(cTEFR, cTEFRscored, measure)
-			wgScore.Done()
-		}()
-	}
-
-	go splitInput(queries, measure, cTEFRscored, cResults, cErr, cSplitDone)
-
-	go func() {
-		wgScore.Wait()
-		cTEFRscoreddone <- true
-	}()
+	go splitInput(queries, measure, cTEFR, cResults, cErr, cSplitDone)
 
 	for n := 1; n > 0; {
 		select {
@@ -322,16 +303,6 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 			return err
 		case <-cTEFRdone:
 			close(cTEFR)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cTEFRscoreddone:
-			close(cTEFRscored)
 			n--
 		}
 	}

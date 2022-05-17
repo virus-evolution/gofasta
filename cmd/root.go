@@ -12,7 +12,7 @@ var (
 		Use:     "gofasta",
 		Short:   "genomic epidemiology utilities for short genome alignments",
 		Long:    `genomic epidemiology utilities for short genome alignments`,
-		Version: "1.0.0",
+		Version: "1.1.0",
 	}
 )
 

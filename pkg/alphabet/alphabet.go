@@ -5,6 +5,8 @@ package alphabet
 import "errors"
 
 // Translate a nucleotide sequence to a protein sequence
+// Codons with ambiguous nucleotides are resolved if it can only possibly
+// represent one amino acid
 func Translate(nuc string) (string, error) {
 	if len(nuc)%3 != 0 {
 		return "", errors.New("nucleotide string not divisible by 3")
@@ -17,7 +19,11 @@ func Translate(nuc string) (string, error) {
 		aa = aa + string(nuc[i])
 		counter++
 		if counter == 3 {
-			translation = translation + CD[aa]
+			if t, ok := CD[aa]; ok {
+				translation = translation + t
+			} else {
+				translation = translation + "X"
+			}
 			counter = 0
 			aa = ""
 		}

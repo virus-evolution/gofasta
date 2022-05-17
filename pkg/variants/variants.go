@@ -1,7 +1,7 @@
 /*
 Package variants implements functionality to annotate mutations relative
 to a reference sequence for all records in a multiple sequence alignment
-(in fasta format).
+in fasta format.
 */
 package variants
 
@@ -42,7 +42,7 @@ type Variant struct {
 	RefAl          string
 	QueAl          string
 	Position       int    // (0-based) genomic location
-	Residue        int    // (0-based) aminoacid location
+	Residue        int    // (0-based) amino acid location
 	Changetype     string // one of {nuc,aa,ins,del}
 	Feature        string // this should be, for example, the name of the CDS that the thing is in
 	Length         int    // for indels
@@ -268,7 +268,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 }
 
 // findReference gets the reference sequence from the msa if it is in there. If it isn't, we will try get it
-// from the genbank record (in which case can be no insertions relative to the ref in the msa)
+// from the annotation (in which case can be no insertions relative to the reference in the msa)
 func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRecord, error) {
 
 	var err error
@@ -449,7 +449,7 @@ func GetRegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, error) {
 	// everything protein-coding:
 	proteincoding := make([]gff.Feature, 0)
 	for _, F := range anno.Features {
-		// to do - a sensible list of Sequence Ontology terms to include, not this these two
+		// TO DO - a sensible list of Sequence Ontology terms to include, not just these two?
 		if F.Type == "CDS" || F.Type == "mature_protein_region_of_CDS" {
 			proteincoding = append(proteincoding, F)
 		}
@@ -589,7 +589,7 @@ func GetMSAOffsets(refseq []byte) ([]int, []int) {
 }
 
 // getVariants annotates mutations between query and reference sequences, one fasta record at a time. It reads each fasta
-// record from a channel and passes all its mutations to another channel grouped together in one struct.
+// record from a channel and passes all its mutations grouped together in one struct to another channel.
 func getVariants(ref fastaio.EncodedFastaRecord, regions []Region, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fastaio.EncodedFastaRecord, cVariants chan AnnoStructs, cErr chan error) {
 
 	for record := range cMSA {
@@ -777,7 +777,7 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, regions 
 	return AS, nil
 }
 
-// FormatVariant returns a string representation of a single mutation the format of which varies
+// FormatVariant returns a string representation of a single mutation, the format of which varies
 // given its type (aa/nuc/indel)
 func FormatVariant(v Variant, appendSNP bool) (string, error) {
 	var s string
@@ -802,7 +802,7 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 	return s, nil
 }
 
-// WriteVariants writes each queries mutations to file or stdout
+// WriteVariants writes each query's mutations to file or stdout
 func WriteVariants(w io.Writer, firstmissing bool, appendSNP bool, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	outputMap := make(map[int]AnnoStructs)
@@ -901,8 +901,8 @@ func WriteVariants(w io.Writer, firstmissing bool, appendSNP bool, refID string,
 	cWriteDone <- true
 }
 
-// AggregateWriteOutput aggregates the mutations that are present above a certain threshold, and
-// writes their frequencies out to file or stdout
+// AggregateWriteOutput aggregates the mutations that are present greater than or equal to threshold, and
+// writes their frequencies to file or stdout
 func AggregateWriteVariants(w io.Writer, appendSNP bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	propMap := make(map[Variant]float64)

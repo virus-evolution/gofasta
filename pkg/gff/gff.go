@@ -177,6 +177,8 @@ func (F *Feature) HasAttribute(tag string) bool {
 	return false
 }
 
+// ReadGFF reads a gff version 3 format annotation file and returns a struct that contains
+// parsed versions of the fields it contains.
 func ReadGFF(f io.Reader) (GFF, error) {
 
 	gff := GFF{}

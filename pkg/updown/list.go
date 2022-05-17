@@ -95,7 +95,8 @@ func writeOutput(w io.Writer, cudLs chan updownLine, cErr chan error, cWriteDone
 	cWriteDone <- true
 }
 
-// List gets a list of ATGC SNPs and ambiguous sites for each query, and writes it to file
+// List gets a list of ATGC SNPs with respect to reference + ambiguous sites for each query sequence in a fasta-format
+// alignment, and writes it to file
 func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cErr := make(chan error)

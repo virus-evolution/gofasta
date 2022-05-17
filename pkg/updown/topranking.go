@@ -1,10 +1,9 @@
 /*
-Package updown implements functions that leverage pseudo-tree aware
+Package updown implements functions that calculate pseudo-tree aware
 snp-distances between sequences. It relies on there being a suitable
 sequence that one can use to represent the "root" (ancestor) of a
 hypothetical phylogenetic tree, and for the distance between relevant
-sequences to be small enough that maximum parsimony is a reasonable
-assumption.
+sequences to be small enough that multiple hits are unlikely
 */
 package updown
 
@@ -57,7 +56,7 @@ Table of relationships
 */
 
 // isSiteAmb asks if a position is within an ambiguity tract, given an array of pairs of start-stop coordinates
-// of such tracts
+// of such tracts. Co-ordinates are 1-based, inclusive
 func isSiteAmb(pos int, a []int) bool {
 	for i := 0; i < len(a); i += 2 {
 		if pos >= a[i] && pos <= a[i+1] {
@@ -67,7 +66,9 @@ func isSiteAmb(pos int, a []int) bool {
 	return false
 }
 
-//
+// is pos present in list, true/false
+// sort.Search* is the go standard library's implementation of binary search.
+// Should scale O(log(N))
 func posOverlapBinarySearch(list []int, pos int) bool {
 
 	idx := sort.SearchInts(list, pos)
@@ -79,12 +80,12 @@ func posOverlapBinarySearch(list []int, pos int) bool {
 	return false
 }
 
-//
-func snpOverlapBinarySearch(list []string, pos string) bool {
+// is snp present in list, true/false
+func snpOverlapBinarySearch(list []string, snp string) bool {
 
-	idx := sort.SearchStrings(list, pos)
+	idx := sort.SearchStrings(list, snp)
 
-	if idx < len(list) && list[idx] == pos {
+	if idx < len(list) && list[idx] == snp {
 		return true
 	}
 
@@ -287,6 +288,8 @@ func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct
 }
 
 // stringInArray returns true/false s is present in the slice sa
+// NB - could use binary search here but this function is only ever called to check whether a sequence ID is
+// present in a list of IDs to ignore, which is likely always going to be small (?!), so slice iteration seems reasonable?
 func stringInArray(s string, sa []string) bool {
 	for i := range sa {
 		if s == sa[i] {
@@ -829,7 +832,7 @@ or to --dist-push`)
 	return sizeArray, distArray, nil
 }
 
-// the sum of all the integers in a
+// returns the sum of all the integers in an length-4 array of ints
 func sum4(a [4]int) int {
 	var t int
 	for _, n := range a {

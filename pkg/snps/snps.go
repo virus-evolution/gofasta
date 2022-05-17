@@ -46,7 +46,7 @@ func getSNPs(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cSNPs chan snpL
 	return
 }
 
-// writeOutput writes the output to stdout or a file as it arrives.
+// writeOutput writes the snps per record to stdout or a file as it arrives.
 // It uses a map to write things in the same order as they are in the input file.
 func writeOutput(w io.Writer, cSNPs chan snpLine, cErr chan error, cWriteDone chan bool) {
 
@@ -96,8 +96,8 @@ func writeOutput(w io.Writer, cSNPs chan snpLine, cErr chan error, cWriteDone ch
 	cWriteDone <- true
 }
 
-// aggregateWriteOutput aggregates the SNPs that are present above a certain threshold, and
-// writes their frequencies out to file or stdout
+// aggregateWriteOutput aggregates the SNPs that are present above a certain threshold in
+// the whole alignment, and writes their frequencies out to file or stdout
 func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cErr chan error, cWriteDone chan bool) {
 
 	propMap := make(map[string]float64)
@@ -156,7 +156,7 @@ func aggregateWriteOutput(w io.Writer, threshold float64, cSNPs chan snpLine, cE
 	cWriteDone <- true
 }
 
-// SNPs annotates snps in a fasta-format alignment with respect to a reference sequence
+// SNPs annotates snps for each record in a fasta-format alignment with respect to a reference sequence
 func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold float64, w io.Writer) error {
 
 	cErr := make(chan error)

@@ -14,8 +14,9 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
-// Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons represented by an amino acid change)
-// mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a annotation flat file
+// Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons with an amino acid change)
+// mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a annotation file
+// in genbank or gff version 3 format
 func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
 	var ref fastaio.EncodedFastaRecord

@@ -87,7 +87,7 @@ func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, 
 	return
 }
 
-// ToMultiAlign converts a SAM file to a fasta-format alignment.
+// ToMultiAlign converts a SAM file containing pairwise alignments between assembled genomes to a fasta-format alignment.
 // Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
 func ToMultiAlign(samIn io.Reader, out io.Writer, trimstart int, trimend int, pad bool, threads int) error {
 

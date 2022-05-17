@@ -15,7 +15,7 @@ import (
 )
 
 // getAmbArr parses the ambiguities field from one line of the output of gofasta updown list to an array of
-// 1-based inclusive start-stop pairs of integers which represent tracts of ambiguities
+// 1-based inclusive start-stop pairs of integers, which represent tracts of ambiguities
 func getAmbArr(s string) ([]int, error) {
 	// if there are no ambiguities:
 	if len(s) == 0 {
@@ -56,7 +56,7 @@ func getAmbArr(s string) ([]int, error) {
 }
 
 // headerEqual is a utility function to check that two slices of strings are equal. It is used
-// to check the format of the csv-file input to updown routines
+// to check the format of the csv-file input to the updown routines
 func headerEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -338,7 +338,7 @@ func readFastaToUDLChan(target io.Reader, refSeq []byte, cudL chan updownLine, c
 // reorderRecords reorders the records in a channel of updownLine structs according to the order they were
 // in the input. It does this to ensure that given the same dataset, the results of the updown routines will
 // be the same whether the input target file is in csv or fasta format. This is necessary because when there are
-// ties for genetic distance and ambiguity content, sort.SliceStable will preserve input order as precedence.
+// ties for genetic distance and ambiguity content, sort.SliceStable will preserve the input order.
 func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
 
 	reorderMap := make(map[int]updownLine)
@@ -374,7 +374,7 @@ func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
 	cReorderDone <- true
 }
 
-// getLine gets the mutation + ambiguity lists between the reference and each Fasta record at a time
+// getLine gets the mutation + ambiguity lists between the reference and each fasta record at a time
 func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updownLine, cErr chan error) {
 
 	DA := encoding.MakeDecodingArray()

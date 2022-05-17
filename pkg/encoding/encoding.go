@@ -8,7 +8,7 @@ http://ape-package.ird.fr/misc/BitLevelCodingScheme.html
 package encoding
 
 // MakeEncodingArray returns an array whose indices are the byte representations
-// of IUPAC codes and whose contents are Emmanual Paradis encodings
+// of IUPAC codes and whose contents are Emmanual Paradis encodings.
 // Lower case nucleotides are mapped to their upper case nucleotides's encoding
 func MakeEncodingArray() [256]byte {
 	var byteArray [256]byte
@@ -53,8 +53,8 @@ func MakeEncodingArray() [256]byte {
 	return byteArray
 }
 
-// makeEncodingArrayHard gaps is as MakeEncodingArray but with '-'
-// set to EP's original code (4 - character is not completely unknown,
+// MakeEncodingArrayHardGaps is as MakeEncodingArray but with '-'
+// set to EP's original code (4; character is not completely unknown,
 // character represents NONE of ACTG)
 func MakeEncodingArrayHardGaps() [256]byte {
 	var byteArray [256]byte

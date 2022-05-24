@@ -117,7 +117,7 @@ func tn93Distance(query, target fastaio.EncodedFastaRecord) float64 {
 			} else if (query.Seq[i] | tNuc) == 56 { // 1 if one of the bases is cytosine and the other one is thymine, 0 otherwise
 				count_P2++
 			}
-		} else if query.Seq[i]&8 == 8 && query.Seq[i] == tNuc { // at the bases certainly the same
+		} else if query.Seq[i]&8 == 8 && query.Seq[i] == tNuc { // are the bases certainly the same
 			count_L++
 		}
 	}

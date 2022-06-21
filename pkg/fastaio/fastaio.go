@@ -602,37 +602,23 @@ func WriteAlignment(ch chan FastaRecord, w io.Writer, cdone chan bool, cerr chan
 
 		outputMap[FR.Idx] = FR
 
-		if fastarecord, ok := outputMap[counter]; ok {
-			_, err = w.Write([]byte(">" + fastarecord.ID + "\n"))
-			if err != nil {
-				cerr <- err
+		for {
+			if fastarecord, ok := outputMap[counter]; ok {
+				_, err = w.Write([]byte(">" + fastarecord.ID + "\n"))
+				if err != nil {
+					cerr <- err
+				}
+				_, err = w.Write([]byte(fastarecord.Seq + "\n"))
+				if err != nil {
+					cerr <- err
+				}
+				delete(outputMap, counter)
+				counter++
+			} else {
+				break
 			}
-			_, err = w.Write([]byte(fastarecord.Seq + "\n"))
-			if err != nil {
-				cerr <- err
-			}
-			delete(outputMap, counter)
-			counter++
-		} else {
-			continue
 		}
-	}
 
-	for n := 1; n > 0; {
-		if len(outputMap) == 0 {
-			break
-		}
-		fastarecord := outputMap[counter]
-		_, err = w.Write([]byte(">" + fastarecord.ID + "\n"))
-		if err != nil {
-			cerr <- err
-		}
-		_, err = w.Write([]byte(fastarecord.Seq + "\n"))
-		if err != nil {
-			cerr <- err
-		}
-		delete(outputMap, counter)
-		counter++
 	}
 
 	cdone <- true

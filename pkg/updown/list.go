@@ -46,50 +46,31 @@ func writeOutput(w io.Writer, cudLs chan updownLine, cErr chan error, cWriteDone
 	var ambstrings []string
 
 	for udL := range cudLs {
+
 		outputMap[udL.idx] = udL
 
-		if udLine, ok := outputMap[counter]; ok {
-			ambstrings = make([]string, 0)
-			for i := 0; i < len(udLine.ambs); i += 2 {
-				if udLine.ambs[i] == udLine.ambs[i+1] {
-					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
-				} else {
-					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
+		for {
+			if udLine, ok := outputMap[counter]; ok {
+				ambstrings = make([]string, 0)
+				for i := 0; i < len(udLine.ambs); i += 2 {
+					if udLine.ambs[i] == udLine.ambs[i+1] {
+						ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
+					} else {
+						ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
+					}
 				}
-			}
-			_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
-			if err != nil {
-				cErr <- err
-				return
-			}
-			delete(outputMap, counter)
-			counter++
-		} else {
-			continue
-		}
-	}
-
-	for n := 1; n > 0; {
-		if len(outputMap) == 0 {
-			n--
-			break
-		}
-		udLine := outputMap[counter]
-		ambstrings = make([]string, 0)
-		for i := 0; i < len(udLine.ambs); i += 2 {
-			if udLine.ambs[i] == udLine.ambs[i+1] {
-				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
+				_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
+				if err != nil {
+					cErr <- err
+					return
+				}
+				delete(outputMap, counter)
+				counter++
 			} else {
-				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
+				break
 			}
 		}
-		_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
-		if err != nil {
-			cErr <- err
-			return
-		}
-		delete(outputMap, counter)
-		counter++
+
 	}
 
 	cWriteDone <- true

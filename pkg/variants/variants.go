@@ -827,75 +827,42 @@ func WriteVariants(w io.Writer, firstmissing bool, appendSNP bool, refID string,
 	for variantLine := range cVariants {
 		outputMap[variantLine.Idx] = variantLine
 
-		if VL, ok := outputMap[counter]; ok {
+		for {
+			if VL, ok := outputMap[counter]; ok {
 
-			if VL.Queryname == refID {
-				delete(outputMap, counter)
-				counter++
-				continue
-			}
+				if VL.Queryname == refID {
+					delete(outputMap, counter)
+					counter++
+					continue
+				}
 
-			_, err = w.Write([]byte(VL.Queryname + ","))
-			if err != nil {
-				cErr <- err
-				return
-			}
-			sa = make([]string, 0)
-			for _, v := range VL.Vs {
-				newVar, err := FormatVariant(v, appendSNP)
+				_, err = w.Write([]byte(VL.Queryname + ","))
 				if err != nil {
 					cErr <- err
 					return
 				}
-				sa = append(sa, newVar)
+				sa = make([]string, 0)
+				for _, v := range VL.Vs {
+					newVar, err := FormatVariant(v, appendSNP)
+					if err != nil {
+						cErr <- err
+						return
+					}
+					sa = append(sa, newVar)
+				}
+				_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
+				if err != nil {
+					cErr <- err
+					return
+				}
+
+				delete(outputMap, counter)
+				counter++
+			} else {
+				break
 			}
-			_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
-			if err != nil {
-				cErr <- err
-				return
-			}
-
-			delete(outputMap, counter)
-			counter++
-		} else {
-			continue
-		}
-	}
-
-	for n := 1; n > 0; {
-		if len(outputMap) == 0 {
-			n--
-			break
 		}
 
-		VL := outputMap[counter]
-		if VL.Queryname == refID {
-			delete(outputMap, counter)
-			counter++
-			continue
-		}
-		_, err = w.Write([]byte(VL.Queryname + ","))
-		if err != nil {
-			cErr <- err
-			return
-		}
-		sa = make([]string, 0)
-		for _, v := range VL.Vs {
-			newVar, err := FormatVariant(v, appendSNP)
-			if err != nil {
-				cErr <- err
-				return
-			}
-			sa = append(sa, newVar)
-		}
-		_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
-		if err != nil {
-			cErr <- err
-			return
-		}
-
-		delete(outputMap, counter)
-		counter++
 	}
 
 	cWriteDone <- true

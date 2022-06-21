@@ -63,34 +63,23 @@ func writeOutput(w io.Writer, cSNPs chan snpLine, cErr chan error, cWriteDone ch
 	}
 
 	for snpLine := range cSNPs {
+
 		outputMap[snpLine.idx] = snpLine
 
-		if SL, ok := outputMap[counter]; ok {
-			_, err := w.Write([]byte(SL.queryname + "," + strings.Join(SL.snps, "|") + "\n"))
-			if err != nil {
-				cErr <- err
-				return
+		for {
+			if SL, ok := outputMap[counter]; ok {
+				_, err := w.Write([]byte(SL.queryname + "," + strings.Join(SL.snps, "|") + "\n"))
+				if err != nil {
+					cErr <- err
+					return
+				}
+				delete(outputMap, counter)
+				counter++
+			} else {
+				break
 			}
-			delete(outputMap, counter)
-			counter++
-		} else {
-			continue
 		}
-	}
 
-	for n := 1; n > 0; {
-		if len(outputMap) == 0 {
-			n--
-			break
-		}
-		SL := outputMap[counter]
-		_, err := w.Write([]byte(SL.queryname + "," + strings.Join(SL.snps, "|") + "\n"))
-		if err != nil {
-			cErr <- err
-			return
-		}
-		delete(outputMap, counter)
-		counter++
 	}
 
 	cWriteDone <- true

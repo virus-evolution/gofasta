@@ -42,7 +42,7 @@ func init() {
 	toprankingCmd.Flags().StringVarP(&TRquery, "query", "q", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	toprankingCmd.Flags().StringVarP(&TRtarget, "target", "t", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	toprankingCmd.Flags().StringVarP(&TRoutfile, "outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
-	toprankingCmd.Flags().BoolVarP(&TRtable, "table", "", false, "write a long-form table of the output")
+	toprankingCmd.Flags().BoolVarP(&TRtable, "table", "", false, "Write a long-form table of the output")
 	toprankingCmd.Flags().StringVarP(&udReference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
 	toprankingCmd.Flags().StringVarP(&TRignore, "ignore", "", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
 

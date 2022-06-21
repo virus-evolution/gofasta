@@ -26,11 +26,11 @@ func init() {
 	closestCmd.Flags().IntVarP(&closestThreads, "threads", "t", 0, "Number of CPUs to use (Default: all available CPUs)")
 	closestCmd.Flags().StringVarP(&closestQuery, "query", "", "", "Alignment of sequences to find neighbours for, in fasta format")
 	closestCmd.Flags().StringVarP(&closestTarget, "target", "", "", "Alignment of sequences to search for neighbours in, in fasta format")
-	closestCmd.Flags().StringVarP(&closestMeasure, "measure", "m", "raw", "which distance measure to use (raw, snp or tn93)")
+	closestCmd.Flags().StringVarP(&closestMeasure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
 	closestCmd.Flags().IntVarP(&closestN, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
 	closestCmd.Flags().StringVarP(&closestDist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away")
 	closestCmd.Flags().StringVarP(&closestOutfile, "outfile", "o", "stdout", "The output file to write")
-	closestCmd.Flags().BoolVarP(&closestTable, "table", "", false, "write a long-form table of the output")
+	closestCmd.Flags().BoolVarP(&closestTable, "table", "", false, "Write a long-form table of the output")
 
 	closestCmd.Flags().SortFlags = false
 }

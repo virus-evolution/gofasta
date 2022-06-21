@@ -60,8 +60,6 @@ func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]
 	rstart := POS
 
 	for _, op := range CIGAR {
-		// fmt.Println(op.Type().String())
-		// fmt.Println(op.Len())
 
 		operation := op.Type().String()
 		size := op.Len()
@@ -83,8 +81,6 @@ func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]
 
 		newSeqArray = append(newSeqArray, rightpad...)
 	}
-
-	// fmt.Println(string(newSeqArray))
 
 	return newSeqArray, nil
 }
@@ -127,8 +123,6 @@ func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInserti
 	rstart := POS
 
 	for _, op := range CIGAR {
-		// fmt.Println(op.Type().String())
-		// fmt.Println(op.Len())
 
 		operation := op.Type().String()
 		size := op.Len()
@@ -138,10 +132,6 @@ func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInserti
 		newSeqArray = append(newSeqArray, extension...)
 		newRefSeqArray = append(newRefSeqArray, refextension...)
 
-		// fmt.Println(extension)
-		// fmt.Println(refextension)
-		// fmt.Println()
-
 		qstart = new_qstart
 		rstart = new_rstart
 
@@ -149,15 +139,13 @@ func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInserti
 
 	if !includeInsertions {
 		rightpad := make([]byte, len(reference)-len(newSeqArray))
-		// fmt.Println(len(rightpad))
+
 		for i, _ := range rightpad {
 			rightpad[i] = '*'
 		}
 
 		newSeqArray = append(newSeqArray, rightpad...)
 	}
-
-	// fmt.Println(string(newSeqArray))
 
 	return newSeqArray, newRefSeqArray, nil
 }
@@ -262,7 +250,6 @@ func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bo
 		seq = block[0]
 	}
 
-	// fmt.Println(seq)
 	return seq, nil
 }
 

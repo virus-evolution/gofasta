@@ -19,8 +19,8 @@ func init() {
 	toPairAlignCmd.Flags().StringVarP(&toPairAlignOutpath, "outpath", "o", "", "Output path where fasta files will be written")
 	toPairAlignCmd.Flags().BoolVarP(&toPairAlignOmitReference, "omit-reference", "", false, "Omit the reference sequences from the output alignments")
 	toPairAlignCmd.Flags().BoolVarP(&toPairAlignSkipInsertions, "skip-insertions", "", false, "Skip insertions relative to the reference from the output alignments")
-	toPairAlignCmd.Flags().IntVarP(&toPairAlignStart, "start", "", -1, "1-based first nucleotide position (in reference coordinates) to retain the output. Bases before this position are omitted")
-	toPairAlignCmd.Flags().IntVarP(&toPairAlignEnd, "end", "", -1, "1-based last nucleotide position (in reference coordinates) to retain the output. Bases after this position are omitted")
+	toPairAlignCmd.Flags().IntVarP(&toPairAlignStart, "start", "", -1, "1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted")
+	toPairAlignCmd.Flags().IntVarP(&toPairAlignEnd, "end", "", -1, "1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted")
 
 	toPairAlignCmd.Flags().Lookup("omit-reference").NoOptDefVal = "true"
 	toPairAlignCmd.Flags().Lookup("skip-insertions").NoOptDefVal = "true"

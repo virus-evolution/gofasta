@@ -76,8 +76,6 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 		for _, op := range cigar {
 			// populate orderedInsertions here...
 
-			// fmt.Println(op.Type())
-
 			if op.Type().String() == "I" {
 
 				I := insertionOccurence{start: pos, length: op.Len(), rowNumber: i}
@@ -163,7 +161,6 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 			line = append(line, stars...)
 		}
 		RBlock = append(RBlock, line)
-		// fmt.Println(line)
 	}
 
 	R := checkAndGetFlattenedSeq(RBlock, "reference")
@@ -389,8 +386,8 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 	cWriteDone <- true
 }
 
-// ToPairAlign converts a SAM file into pairwise fasta-format alignments, optionally including the reference,
-// optionally skipping insertions relative to the reference, optionally trimmed to coordinates in (degapped-)reference space
+// ToPairAlign converts a SAM file containing pairwise alignments between assembled genomes into pairwise fasta-format alignments,
+// optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space
 func ToPairAlign(samIn, ref io.Reader, outpath string, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
 	// NB probably uncomment the below and use it for checks (e.g. for

@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
@@ -45,30 +46,31 @@ func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 }
 
 // findClosestN finds the closest sequences by genetic distance to single a query sequence
-func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct) {
+func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, maxdist float64, measure string, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct) {
 
 	neighbours := catchmentStruct{qname: query.ID, qidx: query.Idx}
 	neighbours.catchment = make([]resultsStruct, 0)
 
 	var rs resultsStruct
 
-	var n int64
-	var d int64
 	var distance float64
 
 	for target := range cIn {
-		n = 0
-		d = 0
-		for i, tNuc := range target.Seq {
-			if (query.Seq[i] & tNuc) < 16 {
-				n += 1
-				d += 1
-			}
-			if (query.Seq[i]&8 == 8) && query.Seq[i] == tNuc {
-				d += 1
+
+		switch measure {
+		case "raw":
+			distance = rawDistance(query, target)
+		case "snp":
+			distance = snpDistance(query, target)
+		case "tn93":
+			distance = tn93Distance(query, target)
+		}
+
+		if maxdist != -1.0 {
+			if distance > maxdist {
+				continue
 			}
 		}
-		distance = float64(n) / float64(d)
 
 		if len(neighbours.catchment) < catchmentSize {
 			rs = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance}
@@ -93,7 +95,7 @@ func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan 
 	// If the user specified a larger catchment than there are records in the target file,
 	// they won't be sorted above, so do it here (need to modify the size argument passed
 	// to the function):
-	if len(neighbours.catchment) < catchmentSize {
+	if len(neighbours.catchment) < catchmentSize && len(neighbours.catchment) > 0 {
 		rearrangeCatchment(&neighbours, len(neighbours.catchment))
 	}
 
@@ -101,7 +103,7 @@ func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, cIn chan 
 }
 
 // splitInputN fans out target sequences over an array of query sequences, so that each target is passed over each query.
-func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct, cErr chan error, cSplitDone chan bool) {
+func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, maxdist float64, measure string, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct, cErr chan error, cSplitDone chan bool) {
 
 	nQ := len(queries)
 
@@ -112,7 +114,7 @@ func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, cIn ch
 	}
 
 	for i, q := range queries {
-		go findClosestN(q, catchmentSize, QChanArray[i], cOut)
+		go findClosestN(q, catchmentSize, maxdist, measure, QChanArray[i], cOut)
 	}
 
 	targetCounter := 0
@@ -159,14 +161,45 @@ func writeClosestN(results []catchmentStruct, w io.Writer) error {
 	return nil
 }
 
-// ClosestN finds the closest sequence(s) by raw genetic distance to a query/queries. It writes the results
-// to stdout or to file. Ties for distance are broken by genome completeness
-func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads int) error {
+func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) error {
+
+	var err error
+
+	_, err = w.Write([]byte("query,target,distance\n"))
+	if err != nil {
+		return err
+	}
+
+	switch measure {
+	case "snp":
+		for _, result := range results {
+			for _, hit := range result.catchment {
+				w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.Itoa(int(hit.distance)) + "\n"))
+			}
+		}
+	default:
+		for _, result := range results {
+			for _, hit := range result.catchment {
+				w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.FormatFloat(hit.distance, 'f', 9, 64) + "\n"))
+			}
+		}
+	}
+
+	return nil
+}
+
+// ClosestN finds the closest sequence(s) by genetic distance to a query/queries. It writes the results
+// to stdout or to file. Ties for distance are broken by genome completeness.
+func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measure string, out io.Writer, table bool, threads int) error {
 
 	if threads == 0 {
 		threads = runtime.NumCPU()
 	} else if threads < runtime.NumCPU() {
 		runtime.GOMAXPROCS(threads)
+	}
+
+	if maxdist != -1.0 && catchmentSize == 0 {
+		catchmentSize = math.MaxInt
 	}
 
 	queries, err := fastaio.ReadEncodeAlignmentToList(query, false)
@@ -183,31 +216,13 @@ func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads
 	cErr := make(chan error)
 
 	cTEFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
-	cTEFRscored := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
 	cTEFRdone := make(chan bool)
-	cTEFRscoreddone := make(chan bool)
 	cSplitDone := make(chan bool)
-
 	cResults := make(chan catchmentStruct)
 
-	go fastaio.ReadEncodeAlignment(target, false, cTEFR, cErr, cTEFRdone)
+	go fastaio.ReadEncodeScoreAlignment(target, false, cTEFR, cErr, cTEFRdone)
 
-	var wgScore sync.WaitGroup
-	wgScore.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			scoreEncodedAlignment(cTEFR, cTEFRscored)
-			wgScore.Done()
-		}()
-	}
-
-	go splitInputN(queries, catchmentSize, cTEFRscored, cResults, cErr, cSplitDone)
-
-	go func() {
-		wgScore.Wait()
-		cTEFRscoreddone <- true
-	}()
+	go splitInputN(queries, catchmentSize, maxdist, measure, cTEFR, cResults, cErr, cSplitDone)
 
 	for n := 1; n > 0; {
 		select {
@@ -215,16 +230,6 @@ func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads
 			return err
 		case <-cTEFRdone:
 			close(cTEFR)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cTEFRscoreddone:
-			close(cTEFRscored)
 			n--
 		}
 	}
@@ -243,7 +248,12 @@ func ClosestN(catchmentSize int, query, target io.Reader, out io.Writer, threads
 		QResultsArray[result.qidx] = result
 	}
 
-	err = writeClosestN(QResultsArray, out)
+	switch table {
+	case true:
+		err = writeClosestNTable(QResultsArray, out, measure)
+	case false:
+		err = writeClosestN(QResultsArray, out)
+	}
 	if err != nil {
 		return err
 	}

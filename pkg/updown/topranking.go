@@ -1,10 +1,9 @@
 /*
-Package updown implements functions that leverage pseudo-tree aware
+Package updown implements functions that calculate pseudo-tree aware
 snp-distances between sequences. It relies on there being a suitable
 sequence that one can use to represent the "root" (ancestor) of a
 hypothetical phylogenetic tree, and for the distance between relevant
-sequences to be small enough that maximum parsimony is a reasonable
-assumption.
+sequences to be small enough that multiple hits are unlikely
 */
 package updown
 
@@ -56,46 +55,40 @@ Table of relationships
 
 */
 
-// index returns the index of a query string in an array of target strings, if it exists,
-// else it returns -1
-func index(vs []string, t string) int {
-	for i, v := range vs {
-		if v == t {
-			return i
-		}
-	}
-	return -1
-}
-
-// snpOverlap asks if one snp is present in an array of snps
-func snpOverlap(vs []string, t string) bool {
-	return index(vs, t) >= 0
-}
-
-// indexInt returns the index of a query integer in an array of target integers, if it exists,
-// else it returns -1
-func indexInt(vs []int, t int) int {
-	for i, v := range vs {
-		if v == t {
-			return i
-		}
-	}
-	return -1
-}
-
-// posOverlap asks if one position is present in an array of positions
-func posOverlap(vs []int, t int) bool {
-	return indexInt(vs, t) >= 0
-}
-
 // isSiteAmb asks if a position is within an ambiguity tract, given an array of pairs of start-stop coordinates
-// of such tracts
+// of such tracts. Co-ordinates are 1-based, inclusive
 func isSiteAmb(pos int, a []int) bool {
 	for i := 0; i < len(a); i += 2 {
 		if pos >= a[i] && pos <= a[i+1] {
 			return true
 		}
 	}
+	return false
+}
+
+// is pos present in list, true/false
+// sort.Search* is the go standard library's implementation of binary search.
+// Should scale O(log(N))
+func posOverlapBinarySearch(list []int, pos int) bool {
+
+	idx := sort.SearchInts(list, pos)
+
+	if idx < len(list) && list[idx] == pos {
+		return true
+	}
+
+	return false
+}
+
+// is snp present in list, true/false
+func snpOverlapBinarySearch(list []string, snp string) bool {
+
+	idx := sort.SearchStrings(list, snp)
+
+	if idx < len(list) && list[idx] == snp {
+		return true
+	}
+
 	return false
 }
 
@@ -110,22 +103,30 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 	d := make([]int, 0)
 
 	for i, qsnp := range q.snps {
+		// is the site ambiguous in the target
 		if isSiteAmb(q.snpsPos[i], t.ambs) {
 			table[3]++
-		} else if snpOverlap(t.snps, qsnp) {
+			// if this exact snp (allele and position) is present in the target
+		} else if snpOverlapBinarySearch(t.snpsSorted, qsnp) {
 			table[1]++
 		} else {
+			// otherwise we +1 the Q snps bin and append the snp to d
 			table[0]++
 			d = append(d, q.snpsPos[i])
 		}
 	}
+	d_plus := 0
 	for i, tsnp := range t.snps {
+		// is the site ambiguous in the query
 		if isSiteAmb(t.snpsPos[i], q.ambs) {
 			table[3]++
-		} else if !snpOverlap(q.snps, tsnp) {
+			// if there is no overlap between the exact snp (allele and position) and the query's snps
+		} else if !snpOverlapBinarySearch(q.snpsSorted, tsnp) {
+			// we +1 the T snps bin
 			table[2]++
-			if !posOverlap(d, t.snpsPos[i]) {
-				d = append(d, t.snpsPos[i])
+			// if this position has not already been added to the list of differences we use to calculate d, then add it here too (otherwise two mutations historically at the same position, but only counts 1 for distance)
+			if !posOverlapBinarySearch(d, t.snpsPos[i]) {
+				d_plus++
 			}
 		}
 	}
@@ -165,7 +166,7 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 	// this is wrong (when there are multiple hits):
 	// distance := table[0] + table[2]
 
-	distance := len(d)
+	distance := len(d) + d_plus
 
 	return direction, distance
 }
@@ -287,6 +288,8 @@ func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct
 }
 
 // stringInArray returns true/false s is present in the slice sa
+// NB - could use binary search here but this function is only ever called to check whether a sequence ID is
+// present in a list of IDs to ignore, which is likely always going to be small (?!), so slice iteration seems reasonable?
 func stringInArray(s string, sa []string) bool {
 	for i := range sa {
 		if s == sa[i] {
@@ -829,7 +832,7 @@ or to --dist-push`)
 	return sizeArray, distArray, nil
 }
 
-// the sum of all the integers in a
+// returns the sum of all the integers in an length-4 array of ints
 func sum4(a [4]int) int {
 	var t int
 	for _, n := range a {

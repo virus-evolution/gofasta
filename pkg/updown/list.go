@@ -17,13 +17,14 @@ import (
 // updownLine is a struct for one records snps relative to a reference sequence and ambiguity tracts.
 // It is meant as a compressed compressed version of a genome to facilitate fast distance calculations
 type updownLine struct {
-	id       string
-	idx      int
-	snps     []string
-	snpsPos  []int
-	snpCount int
-	ambs     []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
-	ambCount int   // total number of sites that are not ATGC
+	id         string
+	idx        int
+	snps       []string
+	snpsSorted []string
+	snpsPos    []int
+	snpCount   int
+	ambs       []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
+	ambCount   int   // total number of sites that are not ATGC
 }
 
 // writeOutput writes the output to stdout or a file as it arrives.
@@ -45,64 +46,46 @@ func writeOutput(w io.Writer, cudLs chan updownLine, cErr chan error, cWriteDone
 	var ambstrings []string
 
 	for udL := range cudLs {
+
 		outputMap[udL.idx] = udL
 
-		if udLine, ok := outputMap[counter]; ok {
-			ambstrings = make([]string, 0)
-			for i := 0; i < len(udLine.ambs); i += 2 {
-				if udLine.ambs[i] == udLine.ambs[i+1] {
-					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
-				} else {
-					ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
+		for {
+			if udLine, ok := outputMap[counter]; ok {
+				ambstrings = make([]string, 0)
+				for i := 0; i < len(udLine.ambs); i += 2 {
+					if udLine.ambs[i] == udLine.ambs[i+1] {
+						ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
+					} else {
+						ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
+					}
 				}
-			}
-			_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
-			if err != nil {
-				cErr <- err
-				return
-			}
-			delete(outputMap, counter)
-			counter++
-		} else {
-			continue
-		}
-	}
-
-	for n := 1; n > 0; {
-		if len(outputMap) == 0 {
-			n--
-			break
-		}
-		udLine := outputMap[counter]
-		ambstrings = make([]string, 0)
-		for i := 0; i < len(udLine.ambs); i += 2 {
-			if udLine.ambs[i] == udLine.ambs[i+1] {
-				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
+				_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
+				if err != nil {
+					cErr <- err
+					return
+				}
+				delete(outputMap, counter)
+				counter++
 			} else {
-				ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
+				break
 			}
 		}
-		_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
-		if err != nil {
-			cErr <- err
-			return
-		}
-		delete(outputMap, counter)
-		counter++
+
 	}
 
 	cWriteDone <- true
 }
 
-// List gets a list of ATGC SNPs and ambiguous sites for each query, and writes it to file
+// List gets a list of ATGC SNPs with respect to reference + ambiguous sites for each query sequence in a fasta-format
+// alignment, and writes it to file
 func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cErr := make(chan error)
 
-	cFR := make(chan fastaio.EncodedFastaRecord)
+	cFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU()+50)
 	cFRDone := make(chan bool)
 
-	cudLs := make(chan updownLine, runtime.NumCPU())
+	cudLs := make(chan updownLine, runtime.NumCPU()+50)
 	cudLsDone := make(chan bool)
 
 	cWriteDone := make(chan bool)

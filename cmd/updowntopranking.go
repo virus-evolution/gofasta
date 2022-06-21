@@ -162,9 +162,12 @@ you haven't also invoked --dist-push).
 		}
 		defer target.Close()
 
-		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
-		if err != nil {
-			return err
+		var ref *os.File
+		if qtype == "fasta" || ttype == "fasta" {
+			ref, err = gfio.OpenIn(*cmd.Flag("reference"))
+			if err != nil {
+				return err
+			}
 		}
 		defer ref.Close()
 

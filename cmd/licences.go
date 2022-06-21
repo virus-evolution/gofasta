@@ -11,9 +11,10 @@ func init() {
 }
 
 var licenceCmd = &cobra.Command{
-	Use:   "licences",
-	Short: "Print licence information",
-	Long:  `Print licence information`,
+	Use:     "licences",
+	Aliases: []string{"licenses"},
+	Short:   "Print licence information",
+	Long:    `Print licence information`,
 	Run: func(cmd *cobra.Command, args []string) {
 
 		frontmatter := `

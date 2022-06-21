@@ -2,11 +2,13 @@ package variants
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/virus-evolution/gofasta/pkg/fastaio"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
+	"github.com/virus-evolution/gofasta/pkg/gff"
 )
 
 // type Region struct {
@@ -19,26 +21,51 @@ import (
 // }
 
 // TO DO: maybe move this to the genbank package?
-func TestGetRegions(t *testing.T) {
+func TestGetRegionsGenbank(t *testing.T) {
 	genbankReader := bytes.NewReader(genbankDataShort)
 	gb, err := genbank.ReadGenBank(genbankReader)
 	if err != nil {
 		t.Error(err)
 	}
 
-	regions, err := GetRegions(gb)
+	regions, err := GetRegionsFromGenbank(gb)
 	if err != nil {
 		t.Error(err)
 	}
 
 	var desiredResult = []Region{
 		{Whichtype: "int", Start: 1, Stop: 5},
-		{Whichtype: "CDS", Name: "gene1", Start: 6, Stop: 14, Translation: "MMM*", Codonstarts: []int{6, 9, 12}},
-		{Whichtype: "int", Start: 15, Stop: 20},
+		{Whichtype: "protein-coding", Name: "gene1", Start: 6, Stop: 17, Translation: "MMM*", Codonstarts: []int{6, 9, 12, 15}},
+		{Whichtype: "int", Start: 18, Stop: 23},
 	}
 
 	if !reflect.DeepEqual(regions, desiredResult) {
-		t.Errorf("problem in TestGetRegions")
+		t.Errorf("problem in TestGetRegionsGenbank")
+		fmt.Println(regions)
+	}
+}
+
+func TestGetRegionsGFF(t *testing.T) {
+	gffReader := bytes.NewReader(gffDataShort)
+	gff, err := gff.ReadGFF(gffReader)
+	if err != nil {
+		t.Error(err)
+	}
+
+	regions, err := GetRegionsFromGFF(gff, gff.FASTA["somefakething"].Seq)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var desiredResult = []Region{
+		{Whichtype: "protein-coding", Name: "gene1", Start: 6, Stop: 17, Translation: "MMM*", Codonstarts: []int{6, 9, 12, 15}},
+		{Whichtype: "int", Start: 1, Stop: 5},
+		{Whichtype: "int", Start: 18, Stop: 23},
+	}
+
+	if !reflect.DeepEqual(regions, desiredResult) {
+		t.Errorf("problem in TestGetRegionsGFF")
+		fmt.Println(regions)
 	}
 }
 
@@ -117,15 +144,15 @@ func TestGetVariantsPair(t *testing.T) {
 		nuc:T13G, del:14:1, nuc:A15T, del:19:1, nuc:A20T
 	*/
 	msaData := []byte(`>reference
-ACGTAATGATGATG-AAAAAA
+ACGTAATGATGATGTAG-AAAAAA
 >seq1
-ATGTATTGATGATG-AAAATA
+ATGTATTGATGATGTAG-AAAATA
 >seq2
-ACGTA---ATGATG-AAAAAA
+ACGTA---ATGATGTAG-AAAAAA
 >seq3
-ACGTAATGATGATGAAAAAAA
+ACGTAATGATGATGTAGAAAAAAA
 >seq4
-ACGTAATGATGAG--TAAA-T
+ACGTAATGATGAG-TAG-TAAA-T
 `)
 
 	genbankReader := bytes.NewReader(genbankDataShort)
@@ -134,7 +161,7 @@ ACGTAATGATGAG--TAAA-T
 		t.Error(err)
 	}
 
-	regions, err := GetRegions(gb)
+	regions, err := GetRegionsFromGenbank(gb)
 	if err != nil {
 		t.Error(err)
 	}
@@ -161,7 +188,7 @@ ACGTAATGATGAG--TAAA-T
 	desiredResult := AnnoStructs{Queryname: "seq1", Vs: []Variant{
 		{RefAl: "C", QueAl: "T", Position: 1, Changetype: "nuc"},
 		{RefAl: "M", QueAl: "L", Position: 5, Residue: 0, Changetype: "aa", Feature: "gene1", SNPs: "nuc:A6T"},
-		{RefAl: "A", QueAl: "T", Position: 18, Changetype: "nuc"},
+		{RefAl: "A", QueAl: "T", Position: 21, Changetype: "nuc"},
 	}, Idx: 1}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq1)")
@@ -185,7 +212,7 @@ ACGTAATGATGAG--TAAA-T
 	}
 
 	desiredResult = AnnoStructs{Queryname: "seq3", Vs: []Variant{
-		{Position: 14, Length: 1, Changetype: "ins"},
+		{Position: 17, Length: 1, Changetype: "ins"},
 	}, Idx: 3}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq3)")
@@ -199,9 +226,9 @@ ACGTAATGATGAG--TAAA-T
 	desiredResult = AnnoStructs{Queryname: "seq4", Vs: []Variant{
 		{Position: 12, RefAl: "T", QueAl: "G", Changetype: "nuc"},
 		{Position: 13, Length: 1, Changetype: "del"},
-		{Position: 14, RefAl: "A", QueAl: "T", Changetype: "nuc"},
-		{Position: 18, Length: 1, Changetype: "del"},
-		{Position: 19, RefAl: "A", QueAl: "T", Changetype: "nuc"},
+		{Position: 17, RefAl: "A", QueAl: "T", Changetype: "nuc"},
+		{Position: 21, Length: 1, Changetype: "del"},
+		{Position: 22, RefAl: "A", QueAl: "T", Changetype: "nuc"},
 	}, Idx: 4}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq4)")
@@ -210,15 +237,15 @@ ACGTAATGATGAG--TAAA-T
 
 func TestFormatVariant(t *testing.T) {
 	msaData := []byte(`>reference
-ACGTAATGATGATG-AAAAAA
+ACGTAATGATGATGTAG-AAAAAA
 >seq1
-ATGTATTGATGATG-AAAATA
+ATGTATTGATGATGTAG-AAAATA
 >seq2
-ACGTA---ATGATG-AAAAAA
+ACGTA---ATGATGTAG-AAAAAA
 >seq3
-ACGTAATGATGATGAAAAAAA
+ACGTAATGATGATGTAGAAAAAAA
 >seq4
-ACGTAATGATGAG--TAAA-T
+ACGTAATGATGAG-TAG-TAAA-T
 `)
 
 	genbankReader := bytes.NewReader(genbankDataShort)
@@ -227,7 +254,7 @@ ACGTAATGATGAG--TAAA-T
 		t.Error(err)
 	}
 
-	regions, err := GetRegions(gb)
+	regions, err := GetRegionsFromGenbank(gb)
 	if err != nil {
 		t.Error(err)
 	}
@@ -253,15 +280,15 @@ ACGTAATGATGAG--TAAA-T
 
 	/*
 		>seq1
-		nuc:C2T, gene1:M1L, nuc:A19T
+		nuc:C2T, gene1:M1L, nuc:A22T
 		>seq2
 		del:6:3
 		>seq3
-		ins:14:1
+		ins:17:1
 		>seq4
-		nuc:T13G, del:14:1, nuc:A15T, del:19:1, nuc:A20T
+		nuc:T13G, del:14:1, nuc:A18T, del:22:1, nuc:A23T
 	*/
-	desiredResult := []string{"nuc:C2T", "aa:gene1:M1L", "nuc:A19T"}
+	desiredResult := []string{"nuc:C2T", "aa:gene1:M1L", "nuc:A22T"}
 	for i, mutation := range mutations.Vs {
 		mut, err := FormatVariant(mutation, false)
 		if err != nil {
@@ -272,7 +299,7 @@ ACGTAATGATGAG--TAAA-T
 		}
 	}
 
-	desiredResult = []string{"nuc:C2T", "aa:gene1:M1L(nuc:A6T)", "nuc:A19T"}
+	desiredResult = []string{"nuc:C2T", "aa:gene1:M1L(nuc:A6T)", "nuc:A22T"}
 	for i, mutation := range mutations.Vs {
 		mut, err := FormatVariant(mutation, true)
 		if err != nil {
@@ -288,7 +315,7 @@ ACGTAATGATGAG--TAAA-T
 		t.Error(err)
 	}
 
-	desiredResult = []string{"nuc:T13G", "del:14:1", "nuc:A15T", "del:19:1", "nuc:A20T"}
+	desiredResult = []string{"nuc:T13G", "del:14:1", "nuc:A18T", "del:22:1", "nuc:A23T"}
 	for i, mutation := range mutations.Vs {
 		mut, err := FormatVariant(mutation, false)
 		if err != nil {
@@ -301,20 +328,33 @@ ACGTAATGATGAG--TAAA-T
 }
 
 var genbankDataShort []byte
+var gffDataShort []byte
 
 func init() {
-	genbankDataShort = []byte(`LOCUS       TEST               20 bp ss-RNA     linear   VRL 21-MAR-1987
+	genbankDataShort = []byte(`LOCUS       TEST               23 bp ss-RNA     linear   VRL 21-MAR-1987
 FEATURES             Location/Qualifiers
-		source          1..20
+		source          1..23
 						/organism="Not a real organism"
 		5'UTR           1..5
-		gene            6..15
+		gene            6..17
 						/gene="gene1"
-		CDS             6..14
+		CDS             6..17
 						/gene="gene1"
 						/translation="MMM"
-		3'UTR           15..20
+		3'UTR           18..23
 ORIGIN      
-		1 acgtaatgat gatgaaaaaa 
+		1 acgtaatgat gatgtagaaa aaa 
+`)
+
+	gffDataShort = []byte(`##gff-version 3
+##sequence-region somefakething 1 23
+somefakething	RefSeq	region	1	23	.	+	.	ID=somefakething:1..23
+somefakething	RefSeq	five_prime_UTR	1	5	.	+	.	ID=somefakething:1..5
+somefakething	RefSeq	gene	6	17	.	+	.	ID=gene1
+somefakething	RefSeq	CDS	6	17	.	+	0	ID=CDS-gene1;Parent=gene1;Name=gene1
+somefakething	RefSeq	three_prime_UTR	18	23	.	+	.	ID=somefakething:18..23
+##FASTA
+>somefakething
+acgtaatgatgatgtagaaaaaa
 `)
 }

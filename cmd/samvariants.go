@@ -1,22 +1,29 @@
 package cmd
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 
 	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"github.com/virus-evolution/gofasta/pkg/sam"
 )
 
-var samVariantsGenbankFile string
+var samVariantsAnnotation string
 var samVariantsOutfile string
 var samVariantsAggregate bool
 var samVariantsThreshold float64
 var samVariantsAppendSNP bool
 
+// for backwards compatibility:
+var samVariantsGenbank string
+
 func init() {
 	samCmd.AddCommand(samVariantsCmd)
 
-	samVariantsCmd.Flags().StringVarP(&samVariantsGenbankFile, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
+	samVariantsCmd.Flags().StringVarP(&samVariantsAnnotation, "annotation", "a", "", "Genbank or GFF3 format annotation file. Must have suffix .gb or .gff")
 	samVariantsCmd.Flags().StringVarP(&samVariantsOutfile, "outfile", "o", "stdout", "Where to write the variants")
 	samVariantsCmd.Flags().BoolVarP(&samVariantsAggregate, "aggregate", "", false, "Report the proportions of each change")
 	samVariantsCmd.Flags().Float64VarP(&samVariantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
@@ -26,26 +33,36 @@ func init() {
 	samVariantsCmd.Flags().Lookup("append-snps").NoOptDefVal = "true"
 
 	samVariantsCmd.Flags().SortFlags = false
+
+	samVariantsCmd.Flags().StringVarP(&samVariantsGenbank, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
+	samVariantsCmd.Flags().MarkHidden("genbank")
 }
 
 var samVariantsCmd = &cobra.Command{
 	Use:   "variants",
-	Short: "Find mutations relative to a reference from an alignment in sam format",
-	Long: `Find mutations relative to a reference from an alignment in sam format
+	Short: "Annotate mutations relative to a reference from an alignment in sam format",
+	Long: `Annotate mutations relative to a reference from an alignment in sam format
 
 Example usage:
-	gofasta sam variants -s aligned.sam -r reference.fasta -g annotation.gb -o variants.csv
+	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gb -o variants.csv
+	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gff -o variants.csv
 
 If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
 the variants to stdout.
 
+--reference should be the same sequence that was used to generate the sam file, and should be in the same coordinates
+as the --annotation. You don't have to provide a file to --reference if your annotation has the fasta record in it.
+
+gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details
+of the format.
+
 Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide change that
 isn't in a codon that is represented by an amino acid change). The formats are:
 
-ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in reference coordinates
-del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
-aa:s:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
-nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
+	ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in reference coordinates
+	del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
+	aa:s:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
+	nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
 
 Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.
 `,
@@ -58,17 +75,44 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer samIn.Close()
 
-		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
-		if err != nil {
-			return err
+		refFromFile := false
+		var ref *os.File
+		if samReference != "" {
+			ref, err = gfio.OpenIn(*cmd.Flag("reference"))
+			if err != nil {
+				return err
+			}
+			refFromFile = true
 		}
 		defer ref.Close()
 
-		genbank, err := gfio.OpenIn(*cmd.Flag("genbank"))
-		if err != nil {
-			return err
+		// some backwards compatibility wrangling of --genbank vs --annotation
+		var anno *os.File
+		var annoSuffix string
+		if samVariantsGenbank != "" {
+			if samVariantsAnnotation != "" {
+				return errors.New("--annotation replaces --genbank")
+			}
+			anno, err = gfio.OpenIn(*cmd.Flag("genbank"))
+			if err != nil {
+				return err
+			}
+			annoSuffix = "gb"
+		} else {
+			anno, err = gfio.OpenIn(*cmd.Flag("annotation"))
+			if err != nil {
+				return err
+			}
+			switch filepath.Ext(samVariantsAnnotation) {
+			case ".gb":
+				annoSuffix = "gb"
+			case ".gff":
+				annoSuffix = "gff"
+			default:
+				return errors.New("couldn't tell if --annotation was a .gb or a .gff file")
+			}
 		}
-		defer genbank.Close()
+		defer anno.Close()
 
 		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
 		if err != nil {
@@ -76,7 +120,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer out.Close()
 
-		err = sam.Variants(samIn, ref, genbank, out, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads)
+		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads)
 
 		return err
 	},

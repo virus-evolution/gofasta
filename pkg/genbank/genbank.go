@@ -1,5 +1,5 @@
 /*
-Package genbank provides functionality for reading genbank flat format files
+TO DO
 */
 package genbank
 
@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 )
 
-// Genbank is a master struct containing all the info from a single genbank record
+// Genbank is a master struct containing information from a single genbank record
 type Genbank struct {
 	LOCUS struct {
 		Name     string
@@ -48,8 +48,8 @@ type genbankField struct {
 	lines  []string
 }
 
-// GenbankFeature is a sub-struct that contains information about one feature
-// under the genbank FEATURES section
+// GenbankFeature is contains information about one feature
+// from a genbank record's FEATURES section
 type GenbankFeature struct {
 	Feature string
 	Pos     string
@@ -196,18 +196,10 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 	features = append(features, gb)
 
-	// for _, feature := range(features){
-	// 	fmt.Println(feature.feature + ", " + feature.pos)
-	// 	for key, value := range(feature.info) {
-	// 		fmt.Println(key + ": " + value)
-	// 	}
-	// 	fmt.Println(" ")
-	// }
-
 	return features
 }
 
-// ParsePositions returns the genomic positions of a position, handling regions that are join()ed together
+// ParsePositions returns the genomic positions of a feature, handling regions that are join()ed together
 func ParsePositions(position string) ([]int, error) {
 	var A []int
 	if position[0:4] == "join" {
@@ -259,8 +251,7 @@ func parseGenbankORIGIN(field genbankField) []byte {
 }
 
 // ReadGenBank reads a genbank annotation file and returns a struct that contains
-// parsed versions of the fields therein.
-// Not all fields are currently parsed.
+// parsed versions of the fields it contains. Not all fields are currently parsed.
 func ReadGenBank(r io.Reader) (Genbank, error) {
 
 	gb := Genbank{}
@@ -282,7 +273,6 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 		r, _ := utf8.DecodeRune([]byte{line[0]})
 
 		if unicode.IsUpper(r) {
-			// fmt.Println(line)
 			if first {
 				header = strings.Fields(line)[0]
 				first = false
@@ -293,11 +283,9 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 			case header == "FEATURES":
 				field = genbankField{header: header, lines: lines}
 				gb.FEATURES = parseGenbankFEATURES(field)
-				// fmt.Println(gb.FEATURES)
 			case header == "ORIGIN":
 				field = genbankField{header: header, lines: lines}
 				gb.ORIGIN = parseGenbankORIGIN(field)
-				// fmt.Println(string(gb.ORIGIN))
 			}
 
 			header = strings.Fields(line)[0]
@@ -313,22 +301,10 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 	case header == "FEATURES":
 		field = genbankField{header: header, lines: lines}
 		gb.FEATURES = parseGenbankFEATURES(field)
-		// fmt.Println(gb.FEATURES)
 	case header == "ORIGIN":
 		field = genbankField{header: header, lines: lines}
 		gb.ORIGIN = parseGenbankORIGIN(field)
-		// fmt.Println(string(gb.ORIGIN))
 	}
-
-	// for _, feature := range(gb.FEATURES){
-	// 	fmt.Println(feature.Feature + ", " + feature.Pos)
-	// 	for key, value := range(feature.Info) {
-	// 		fmt.Println(key + ": " + value)
-	// 	}
-	// 	fmt.Println(" ")
-	// }
-	//
-	// fmt.Println(string(gb.ORIGIN))
 
 	return gb, nil
 }

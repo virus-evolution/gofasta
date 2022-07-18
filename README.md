@@ -300,7 +300,7 @@ Alternatives to minimap2 for pairwise viral genome alignment exist. Notably, [Ne
 
 gofasta’s functions for finding the closest genetic neighbours to a set of query sequences were designed for the specific use-case of querying a large dataset of target genomes by genetic distance to place a smaller set of focal sequences in context, without having to infer all the phylogenetic relationships between hundreds of thousands or millions of sequences. An alternative approach is currently provided by an up-to-date a [maximum parsimony phylogenetic tree consisting of publicly available SARS-CoV-2 genomes](https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/) [(McBroome et al. 2021)](https://academic.oup.com/mbe/article/38/12/5819/6361626) [and associated software](https://github.com/yatisht/usher) which can be used for placing new samples and querying the dataset [(Turakhia et al. 2021)](https://www.nature.com/articles/s41588-021-00862-7).
 
-Other software exists for calculating pairwise genetic distances, including [tn93](https://github.com/veg/tn93), [a threaded tn93](https://github.com/benjamincjackson/tn93), [pairsnp](https://github.com/gtonkinhill/pairsnp) and a potentially faster but memory-unfriendly pairsnp in [julialign](https://github.com/snake-flu/julialign).
+Other software exists for calculating pairwise genetic distances, including [tn93](https://github.com/veg/tn93) and [pairsnp](https://github.com/gtonkinhill/pairsnp).
 
 ## Acknowledgements and third party licences
 

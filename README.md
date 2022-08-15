@@ -122,7 +122,7 @@ Just as with `toMultiAlign`, you can clip the alignments to coordinates of your 
 
 ```
 minimap2 -a -x asm20 --score-N=0 MN908947.fa unaligned.consensus.fasta |\
-  gofasta sam topa --start 21563 --end 25384 -o outputdir
+  gofasta sam topa -r MN908947.fa --start 21563 --end 25384 -o outputdir
 ```
 
 `--start` and `--end` are 1-based inclusive, and they are <i>in reference coordinates</i>. So you will get the region corresponding to the reference Spike regardless of insertions or deletions anywhere in your query genome.

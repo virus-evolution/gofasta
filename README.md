@@ -113,7 +113,7 @@ gofasta will also convert the minimap2 alignment into pairwise alignments, writi
 
 ```
 minimap2 -a -x asm20 --score-N=0 MN908947.fa unaligned.consensus.fasta |\
-  gofasta sam toPairAlign -o outputdir
+  gofasta sam toPairAlign -r MN908947.fa -o outputdir
 ```
 
 `outputdir` is a directory which will be created if it does not already exist. Individual fasta files will be written to `outputdir/*fasta`. Filenames are derived from the fasta descriptions (with `/` replaced by `_`).

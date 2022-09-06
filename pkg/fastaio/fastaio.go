@@ -92,6 +92,7 @@ func getAlignmentDims(f io.Reader) (int, int, error) {
 	l := 0
 
 	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 0), 1024*1024)
 
 	for s.Scan() {
 		line := s.Text()
@@ -205,6 +206,7 @@ func ReadAlignment(f io.Reader, chnl chan FastaRecord, cErr chan error, cdone ch
 
 	var err error
 	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 0), 1024*1024)
 
 	counter := 0
 
@@ -292,6 +294,7 @@ func ReadEncodeAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFastaRecor
 	}
 
 	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 0), 1024*1024)
 
 	first := true
 
@@ -394,6 +397,7 @@ func ReadEncodeScoreAlignment(f io.Reader, hardGaps bool, chnl chan EncodedFasta
 	scoring := encoding.MakeEncodedScoreArray()
 
 	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 0), 1024*1024)
 
 	first := true
 
@@ -511,6 +515,7 @@ func ReadEncodeAlignmentToList(f io.Reader, hardGaps bool) ([]EncodedFastaRecord
 	}
 
 	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 0), 1024*1024)
 
 	first := true
 

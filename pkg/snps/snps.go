@@ -5,6 +5,7 @@ in a fasta format alignment and a reference sequence.
 package snps
 
 import (
+	"errors"
 	"io"
 	"runtime"
 	"sort"
@@ -29,6 +30,12 @@ func getSNPs(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cSNPs chan snpL
 	DA := encoding.MakeDecodingArray()
 
 	for FR := range cFR {
+		if len(FR.Seq) != len(refSeq) {
+			rl := strconv.Itoa(len(refSeq))
+			ql := strconv.Itoa(len(FR.Seq))
+			cErr <- errors.New("Reference sequence (" + rl + " bases) and " + FR.ID + " (" + ql + " bases) are different lengths")
+			break
+		}
 		SL := snpLine{}
 		SL.queryname = FR.ID
 		SL.idx = FR.Idx
@@ -150,9 +157,6 @@ func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold flo
 
 	cErr := make(chan error)
 
-	cRef := make(chan fastaio.EncodedFastaRecord)
-	cRefDone := make(chan bool)
-
 	cFR := make(chan fastaio.EncodedFastaRecord)
 	cFRDone := make(chan bool)
 
@@ -161,21 +165,14 @@ func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold flo
 
 	cWriteDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(ref, hardGaps, cRef, cErr, cRefDone)
-
-	var refSeq []byte
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case FR := <-cRef:
-			refSeq = FR.Seq
-		case <-cRefDone:
-			close(cRef)
-			n--
-		}
+	refs, err := fastaio.ReadEncodeAlignmentToList(ref, hardGaps)
+	if err != nil {
+		return err
 	}
+	if len(refs) > 1 {
+		return errors.New("more than one record in --reference")
+	}
+	refSeq := refs[0].Seq
 
 	go fastaio.ReadEncodeAlignment(alignment, hardGaps, cFR, cErr, cFRDone)
 

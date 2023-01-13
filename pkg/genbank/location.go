@@ -1,8 +1,13 @@
 package genbank
 
 import (
+	"errors"
 	"strconv"
 	"strings"
+)
+
+var (
+	locationErr = errors.New("Error parsing Genbank location")
 )
 
 type Location struct {
@@ -69,7 +74,7 @@ func isNested(s string) bool {
 	return false
 }
 
-func SplitOnOuterCommas(s string) []string {
+func splitOnOuterCommas(s string) []string {
 	commas := make([]int, 0)
 	open_count := 0
 	for i, r := range s {
@@ -114,40 +119,24 @@ func compFromRange(as []int) []int {
 	return as
 }
 
-type positionBuilder struct {
-	finished   []int
-	inprogress [][]int
-}
+func unNestRecur(s string) ([][]int, error) {
 
-func (pb *positionBuilder) join() {
-	pb.finished = append(pb.finished, joinFromRanges(pb.inprogress)...)
-	pb.inprogress = make([][]int, 0)
-}
+	fields := splitOnOuterCommas(s)
 
-func (pb *positionBuilder) complement() {
-	if len(pb.inprogress) != 1 {
-		panic("arghh!!")
-	}
-	pb.finished = append(pb.finished, compFromRange(pb.inprogress[0])...)
-	pb.inprogress = make([][]int, 0)
-}
-
-func unNestRecur(s string, pb *positionBuilder) {
-
-	fields := SplitOnOuterCommas(s)
+	this_result := make([][]int, 0)
 
 	for _, f := range fields {
 
-		// base state - if s is not nested, then we can record the range?
+		// base state - if f is not nested, then we only need to calculate the range
 		if !isNested(f) {
 			switch f[0:4] {
 			case "join":
 				pos, _ := posFromJoin(f)
-				pb.inprogress = append(pb.inprogress, pos)
+				this_result = append(this_result, pos)
 				continue
 			case "comp":
 				pos, _ := posFromComp(f)
-				pb.inprogress = append(pb.inprogress, pos)
+				this_result = append(this_result, pos)
 				continue
 			}
 		}
@@ -166,36 +155,39 @@ func unNestRecur(s string, pb *positionBuilder) {
 				}
 			}
 		}
+
 		outer := f[0:open_idx] + f[closed_idx:]
 		inner := f[open_idx:closed_idx]
 
-		unNestRecur(inner, pb)
+		inner_result, err := unNestRecur(inner)
+		if err != nil {
+			return make([][]int, 0), locationErr
+		}
+		var pos []int
 
 		switch outer {
 		case "join()":
-			pb.join()
+			pos = joinFromRanges(inner_result)
 		case "complement()":
-			pb.complement()
+			if len(inner_result) != 1 {
+				return make([][]int, 0), locationErr
+			}
+			pos = compFromRange(inner_result[0])
 		}
+
+		this_result = append(this_result, pos)
 	}
+
+	return this_result, nil
 }
 
-func UnNest(l Location, pb *positionBuilder) []int {
+func UnNest(l Location) ([]int, error) {
 	s := l.Representation
-	var pos []int
-	switch isNested(s) {
-	case true:
-		unNestRecur(s, pb)
-		pos = pb.finished
-	case false:
-		switch s[0:4] {
-		case "join":
-			pos, _ = posFromJoin(s)
-		case "comp":
-			pos, _ = posFromComp(s)
-		}
+	temp, err := unNestRecur(s)
+	if len(temp) != 1 || err != nil {
+		return []int{}, locationErr
 	}
-	return pos
+	return temp[0], nil
 }
 
 /*
@@ -204,4 +196,17 @@ complement(34..126)
 complement(join(2691..4571,4918..5163))
 join(complement(4918..5163),complement(2691..4571))
 join(complement(join(4918..5163,1..2)),complement(2691..4571))
+
+----------------------------------------------------
+
+join(complement(71..91),complement(join(1..2,5..7)))
+
+join()
+complement(71..91),complement(join(1..2,5..7))
+
+join()
+complement(71..91),
+complement()
+join(1..2,5..7)
+
 */

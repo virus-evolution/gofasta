@@ -10,115 +10,28 @@ var (
 	locationErr = errors.New("Error parsing Genbank location")
 )
 
+// Genbank location field
 type Location struct {
 	Representation string
 }
 
+// Return the Location's representation as a string
 func (l Location) String() string {
 	return l.Representation
 }
 
-func posFromComp(s string) ([]int, error) {
-	s = strings.TrimRight(strings.TrimLeft(s, "complement("), ")")
-	f := strings.Split(s, "..")
-	fivep, err := strconv.Atoi(f[0])
-	if err != nil {
-		return []int{}, err
+// Convert a Genbank location to the list of each genomic position that it spans
+// Positions are 1-based inclusive
+func UnNest(l Location) ([]int, error) {
+	s := l.Representation
+	temp, err := unNestRecur(s)
+	if len(temp) != 1 || err != nil {
+		return []int{}, locationErr
 	}
-	threep, err := strconv.Atoi(f[1])
-	if err != nil {
-		return []int{}, err
-	}
-	ps := make([]int, 0)
-	for i := threep; i >= fivep; i-- {
-		ps = append(ps, i)
-	}
-	return ps, nil
+	return temp[0], nil
 }
 
-func posFromJoin(s string) ([]int, error) {
-	s = strings.TrimRight(strings.TrimLeft(s, "join("), ")")
-	j := strings.Split(s, ",")
-	ps := make([]int, 0)
-	for k := range j {
-		temp := make([]int, 0)
-		f := strings.Split(j[k], "..")
-		fivep, err := strconv.Atoi(f[0])
-		if err != nil {
-			return []int{}, err
-		}
-		threep, err := strconv.Atoi(f[1])
-		if err != nil {
-			return []int{}, err
-		}
-		for i := fivep; i <= threep; i++ {
-			temp = append(temp, i)
-		}
-		ps = append(ps, temp...)
-	}
-	return ps, nil
-}
-
-func isNested(s string) bool {
-	open_count := 0
-	for _, r := range s {
-		if r == '(' {
-			open_count++
-		} else if r == ')' {
-			open_count--
-		}
-		if open_count > 1 {
-			return true
-		}
-	}
-	return false
-}
-
-func splitOnOuterCommas(s string) []string {
-	commas := make([]int, 0)
-	open_count := 0
-	for i, r := range s {
-		if r == '(' {
-			open_count++
-		} else if r == ')' {
-			open_count--
-		} else if r == ',' {
-			if open_count == 0 {
-				commas = append(commas, i)
-			}
-		}
-	}
-
-	starts := []int{0}
-	stops := make([]int, 0)
-	for _, x := range commas {
-		starts = append(starts, x+1)
-		stops = append(stops, x)
-	}
-	stops = append(stops, len(s))
-
-	fields := make([]string, 0)
-	for i := 0; i < len(starts); i++ {
-		fields = append(fields, s[starts[i]:stops[i]])
-	}
-	return fields
-}
-
-func joinFromRanges(as [][]int) []int {
-	x := make([]int, 0)
-	for i := range as {
-		x = append(x, as[i]...)
-	}
-	return x
-}
-
-func compFromRange(as []int) []int {
-	for i, j := 0, len(as)-1; i < j; i, j = i+1, j-1 {
-		as[i], as[j] = as[j], as[i]
-	}
-	return as
-}
-
+// Recursively unpacks the component regions of a Genbank Location
 func unNestRecur(s string) ([][]int, error) {
 
 	fields := splitOnOuterCommas(s)
@@ -181,32 +94,112 @@ func unNestRecur(s string) ([][]int, error) {
 	return this_result, nil
 }
 
-func UnNest(l Location) ([]int, error) {
-	s := l.Representation
-	temp, err := unNestRecur(s)
-	if len(temp) != 1 || err != nil {
-		return []int{}, locationErr
+// Converts a simple "complement(5prime..3prime)" location feature to a list of the genomic
+// positions it represents
+func posFromComp(s string) ([]int, error) {
+	s = strings.TrimRight(strings.TrimLeft(s, "complement("), ")")
+	f := strings.Split(s, "..")
+	fivep, err := strconv.Atoi(f[0])
+	if err != nil {
+		return []int{}, err
 	}
-	return temp[0], nil
+	threep, err := strconv.Atoi(f[1])
+	if err != nil {
+		return []int{}, err
+	}
+	ps := make([]int, 0)
+	for i := threep; i >= fivep; i-- {
+		ps = append(ps, i)
+	}
+	return ps, nil
 }
 
-/*
-join(12..78,134..202)
-complement(34..126)
-complement(join(2691..4571,4918..5163))
-join(complement(4918..5163),complement(2691..4571))
-join(complement(join(4918..5163,1..2)),complement(2691..4571))
+// Converts a simple "join(5prime..3prime, 5prime..3prime, ...)" location feature to a list of the genomic
+// positions it represents
+func posFromJoin(s string) ([]int, error) {
+	s = strings.TrimRight(strings.TrimLeft(s, "join("), ")")
+	j := strings.Split(s, ",")
+	ps := make([]int, 0)
+	for k := range j {
+		temp := make([]int, 0)
+		f := strings.Split(j[k], "..")
+		fivep, err := strconv.Atoi(f[0])
+		if err != nil {
+			return []int{}, err
+		}
+		threep, err := strconv.Atoi(f[1])
+		if err != nil {
+			return []int{}, err
+		}
+		for i := fivep; i <= threep; i++ {
+			temp = append(temp, i)
+		}
+		ps = append(ps, temp...)
+	}
+	return ps, nil
+}
 
-----------------------------------------------------
+// Flattens a slice of slices of integers
+func joinFromRanges(as [][]int) []int {
+	x := make([]int, 0)
+	for i := range as {
+		x = append(x, as[i]...)
+	}
+	return x
+}
 
-join(complement(71..91),complement(join(1..2,5..7)))
+// Reverses a slice of integers
+func compFromRange(as []int) []int {
+	for i, j := 0, len(as)-1; i < j; i, j = i+1, j-1 {
+		as[i], as[j] = as[j], as[i]
+	}
+	return as
+}
 
-join()
-complement(71..91),complement(join(1..2,5..7))
+// True/false this Genbank Location contains nested features
+func isNested(s string) bool {
+	open_count := 0
+	for _, r := range s {
+		if r == '(' {
+			open_count++
+		} else if r == ')' {
+			open_count--
+		}
+		if open_count > 1 {
+			return true
+		}
+	}
+	return false
+}
 
-join()
-complement(71..91),
-complement()
-join(1..2,5..7)
+// Divides a Genbank Location feature into top level fields separated by commas.
+// Comma-separated fields in subfeatures remain un-split.
+func splitOnOuterCommas(s string) []string {
+	commas := make([]int, 0)
+	open_count := 0
+	for i, r := range s {
+		if r == '(' {
+			open_count++
+		} else if r == ')' {
+			open_count--
+		} else if r == ',' {
+			if open_count == 0 {
+				commas = append(commas, i)
+			}
+		}
+	}
 
-*/
+	starts := []int{0}
+	stops := make([]int, 0)
+	for _, x := range commas {
+		starts = append(starts, x+1)
+		stops = append(stops, x)
+	}
+	stops = append(stops, len(s))
+
+	fields := make([]string, 0)
+	for i := 0; i < len(starts); i++ {
+		fields = append(fields, s[starts[i]:stops[i]])
+	}
+	return fields
+}

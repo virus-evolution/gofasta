@@ -140,9 +140,8 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 				encodedrefseq[i] = EA[gb.ORIGIN[i]]
 			}
 			ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
+			os.Stderr.WriteString("using --annotation fasta as reference\n")
 		}
-
-		os.Stderr.WriteString("using --annotation fasta as reference\n")
 
 		// get the offsets accounting for insertions relative to the reference
 		refToMSA, MSAToRef = GetMSAOffsets(ref.Seq)
@@ -277,6 +276,7 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 	coding := encoding.MakeEncodingArray()
 
 	s := bufio.NewScanner(msaIn)
+	s.Buffer(make([]byte, 0), 1024*1024)
 
 	first := true
 

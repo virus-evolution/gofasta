@@ -2,34 +2,141 @@
 // amino acids
 package alphabet
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/virus-evolution/gofasta/pkg/encoding"
+)
+
+var ErrorCDSNotModThree error = errors.New("nucleotide string not divisible by 3")
 
 // Translate a nucleotide sequence to a protein sequence
 // Codons with ambiguous nucleotides are resolved if it can only possibly
 // represent one amino acid
-func Translate(nuc string) (string, error) {
+func Translate(nuc string, strict bool) (string, error) {
 	if len(nuc)%3 != 0 {
-		return "", errors.New("nucleotide string not divisible by 3")
+		return "", ErrorCDSNotModThree
 	}
 	translation := ""
-	aa := ""
+	codon := ""
 	counter := 0
 	CD := MakeCodonDict()
 	for i := 0; i < len(nuc); i++ {
-		aa = aa + string(nuc[i])
+		codon = codon + string(nuc[i])
 		counter++
 		if counter == 3 {
-			if t, ok := CD[aa]; ok {
+			if t, ok := CD[codon]; ok {
 				translation = translation + t
 			} else {
-				translation = translation + "X"
+				if strict {
+					return "", errors.New("Untranslatable codon: " + codon)
+				} else {
+					translation = translation + "X"
+				}
 			}
 			counter = 0
-			aa = ""
+			codon = ""
 		}
 	}
 
 	return translation, nil
+}
+
+func Complement(nuc string) string {
+	CA := MakeCompArray()
+	ba := make([]byte, len(nuc))
+	for i := 0; i < len(nuc); i++ {
+		ba[i] = CA[nuc[i]]
+	}
+	return string(ba)
+}
+
+func ReverseComplement(nuc string) string {
+	temp := []byte(Complement(nuc))
+	for i, j := 0, len(temp)-1; i < j; i, j = i+1, j-1 {
+		temp[i], temp[j] = temp[j], temp[i]
+	}
+	return string(temp)
+}
+
+func MakeCompArray() [256]byte {
+	var compArray [256]byte
+
+	compArray['A'] = 'T'
+	compArray['a'] = 't'
+	compArray['G'] = 'C'
+	compArray['g'] = 'c'
+	compArray['C'] = 'G'
+	compArray['c'] = 'g'
+	compArray['T'] = 'A'
+	compArray['t'] = 'a'
+	compArray['R'] = 'Y'
+	compArray['r'] = 'y'
+	compArray['Y'] = 'R'
+	compArray['y'] = 'r'
+	compArray['S'] = 'S'
+	compArray['s'] = 's'
+	compArray['W'] = 'W'
+	compArray['w'] = 'w'
+	compArray['K'] = 'M'
+	compArray['k'] = 'm'
+	compArray['M'] = 'K'
+	compArray['m'] = 'k'
+	compArray['B'] = 'V'
+	compArray['b'] = 'v'
+	compArray['V'] = 'B'
+	compArray['v'] = 'b'
+	compArray['D'] = 'H'
+	compArray['d'] = 'h'
+	compArray['H'] = 'D'
+	compArray['h'] = 'd'
+	compArray['N'] = 'N'
+	compArray['n'] = 'n'
+	compArray['?'] = '?'
+	compArray['-'] = '-'
+
+	return compArray
+}
+
+func MakeEncodedCompArray() [256]byte {
+	var compArray [256]byte
+
+	EA := encoding.MakeEncodingArray()
+
+	compArray[EA['A']] = EA['T']
+	compArray[EA['a']] = EA['t']
+	compArray[EA['G']] = EA['C']
+	compArray[EA['g']] = EA['c']
+	compArray[EA['C']] = EA['G']
+	compArray[EA['c']] = EA['g']
+	compArray[EA['T']] = EA['A']
+	compArray[EA['t']] = EA['a']
+	compArray[EA['R']] = EA['Y']
+	compArray[EA['r']] = EA['y']
+	compArray[EA['Y']] = EA['R']
+	compArray[EA['y']] = EA['r']
+	compArray[EA['S']] = EA['S']
+	compArray[EA['s']] = EA['s']
+	compArray[EA['W']] = EA['W']
+	compArray[EA['w']] = EA['w']
+	compArray[EA['K']] = EA['M']
+	compArray[EA['k']] = EA['m']
+	compArray[EA['M']] = EA['K']
+	compArray[EA['m']] = EA['k']
+	compArray[EA['B']] = EA['V']
+	compArray[EA['b']] = EA['v']
+	compArray[EA['V']] = EA['B']
+	compArray[EA['v']] = EA['b']
+	compArray[EA['D']] = EA['H']
+	compArray[EA['d']] = EA['h']
+	compArray[EA['H']] = EA['D']
+	compArray[EA['h']] = EA['d']
+	compArray[EA['N']] = EA['N']
+	compArray[EA['n']] = EA['n']
+	compArray[EA['?']] = EA['?']
+	compArray[EA['-']] = EA['-']
+
+	return compArray
 }
 
 // MakeCodonDict returns a map from codon (string) to amino acid code (string)

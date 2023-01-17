@@ -11,6 +11,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
@@ -20,6 +21,54 @@ type FastaRecord struct {
 	Description string
 	Seq         string
 	Idx         int
+}
+
+// Convert a FastaRecord to an EncodedFastaRecord
+func (FR FastaRecord) Encode() EncodedFastaRecord {
+	EFR := EncodedFastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
+	EA := encoding.MakeEncodingArray()
+	seq := make([]byte, len(FR.Seq))
+	for i, nuc := range FR.Seq {
+		seq[i] = EA[nuc]
+	}
+	EFR.Seq = seq
+	return EFR
+}
+
+// TO DO - test
+func (FR FastaRecord) Degap() FastaRecord {
+	NFR := FastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
+	t := ""
+	for _, char := range FR.Seq {
+		if char != '-' {
+			t = t + string(char)
+		}
+	}
+	NFR.Seq = t
+	return NFR
+}
+
+// TO DO - test
+func (FR FastaRecord) Complement() FastaRecord {
+	NFR := FastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
+	CA := alphabet.MakeCompArray()
+	ba := make([]byte, len(FR.Seq))
+	for i := 0; i < len(FR.Seq); i++ {
+		ba[i] = CA[FR.Seq[i]]
+	}
+	NFR.Seq = string(ba)
+	return NFR
+}
+
+// TO DO - test
+func (FR FastaRecord) ReverseComplement() FastaRecord {
+	NFR := FR.Complement()
+	temp := []byte(NFR.Seq)
+	for i, j := 0, len(temp)-1; i < j; i, j = i+1, j-1 {
+		temp[i], temp[j] = temp[j], temp[i]
+	}
+	NFR.Seq = string(temp)
+	return NFR
 }
 
 // A struct for one Fasta record whose sequence is encoded using EP's scheme
@@ -35,18 +84,6 @@ type EncodedFastaRecord struct {
 	Count_C     int
 }
 
-// Convert a FastaRecord to an EncodedFastaRecord
-func (FR FastaRecord) Encode() EncodedFastaRecord {
-	EFR := EncodedFastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
-	EA := encoding.MakeEncodingArray()
-	seq := make([]byte, len(FR.Seq))
-	for i, nuc := range FR.Seq {
-		seq[i] = EA[nuc]
-	}
-	EFR.Seq = seq
-	return EFR
-}
-
 // Convert an EncodedFastaRecord to a FastaRecord
 func (EFR EncodedFastaRecord) Decode() FastaRecord {
 	FR := FastaRecord{ID: EFR.ID, Description: EFR.Description, Idx: EFR.Idx}
@@ -60,29 +97,38 @@ func (EFR EncodedFastaRecord) Decode() FastaRecord {
 }
 
 // Calculate the ATGC content of an EncodedFastaRecord
-func (EEFT *EncodedFastaRecord) CalculateBaseContent() {
-	count_A := 0
-	count_T := 0
-	count_G := 0
-	count_C := 0
+func (EFR *EncodedFastaRecord) CalculateBaseContent() {
 
-	for _, nuc := range EEFT.Seq {
-		switch nuc {
-		case 136:
-			count_A++
-		case 72:
-			count_G++
-		case 40:
-			count_C++
-		case 24:
-			count_T++
-		}
+	var counting [256]int
+
+	for _, nuc := range EFR.Seq {
+		counting[nuc]++
 	}
 
-	EEFT.Count_A = count_A
-	EEFT.Count_C = count_C
-	EEFT.Count_G = count_G
-	EEFT.Count_T = count_T
+	EFR.Count_A = counting[136]
+	EFR.Count_T = counting[24]
+	EFR.Count_G = counting[72]
+	EFR.Count_C = counting[40]
+}
+
+// TO DO - test
+func (EFR EncodedFastaRecord) Complement() EncodedFastaRecord {
+	NFR := EncodedFastaRecord{ID: EFR.ID, Description: EFR.Description, Idx: EFR.Idx}
+	CA := alphabet.MakeEncodedCompArray()
+	NFR.Seq = make([]byte, len(EFR.Seq))
+	for i := 0; i < len(EFR.Seq); i++ {
+		NFR.Seq[i] = CA[EFR.Seq[i]]
+	}
+	return NFR
+}
+
+// TO DO - test
+func (EFR EncodedFastaRecord) ReverseComplement() EncodedFastaRecord {
+	NEFR := EFR.Complement()
+	for i, j := 0, len(NEFR.Seq)-1; i < j; i, j = i+1, j-1 {
+		NEFR.Seq[i], NEFR.Seq[j] = NEFR.Seq[j], NEFR.Seq[i]
+	}
+	return NEFR
 }
 
 // getAlignmentDims gets the dimensions (i.e. the number of sequences and the width of the alignment
@@ -619,6 +665,58 @@ func WriteAlignment(ch chan FastaRecord, w io.Writer, cdone chan bool, cerr chan
 				}
 				delete(outputMap, counter)
 				counter++
+			} else {
+				break
+			}
+		}
+
+	}
+
+	cdone <- true
+}
+
+// TO DO - test
+func WriteWrapAlignment(ch chan FastaRecord, w io.Writer, wrap int, cdone chan bool, cerr chan error) {
+
+	outputMap := make(map[int]FastaRecord)
+
+	var (
+		counter, written int
+		err              error
+	)
+
+	for FR := range ch {
+
+		outputMap[FR.Idx] = FR
+
+		for {
+			if fastarecord, ok := outputMap[counter]; ok {
+				_, err = w.Write([]byte(">" + fastarecord.ID + "\n"))
+				if err != nil {
+					cerr <- err
+				}
+				for {
+					if written < len(fastarecord.Seq) {
+						if written+wrap >= len(fastarecord.Seq) {
+							_, err = w.Write([]byte(fastarecord.Seq[written:] + "\n"))
+							if err != nil {
+								cerr <- err
+							}
+							written = written + wrap
+						} else {
+							_, err = w.Write([]byte(fastarecord.Seq[written:written+wrap] + "\n"))
+							if err != nil {
+								cerr <- err
+							}
+							written = written + wrap
+						}
+					} else {
+						break
+					}
+				}
+				delete(outputMap, counter)
+				counter++
+				written = 0
 			} else {
 				break
 			}

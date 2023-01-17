@@ -30,28 +30,6 @@ type resultsStruct struct {
 	snps         []string
 }
 
-// scoreEncodedAlignment scores a single fasta record by how complete its genome is.
-func scoreEncodedAlignment(cIn chan fastaio.EncodedFastaRecord, cOut chan fastaio.EncodedFastaRecord, measure string) {
-	scoring := encoding.MakeEncodedScoreArray()
-	var score int64
-
-	for EFR := range cIn {
-		score = 0
-		for _, nuc := range EFR.Seq {
-			score += scoring[nuc]
-		}
-		EFR.Score = score
-
-		if measure == "tn93" {
-			EFR.CalculateBaseContent()
-		}
-
-		cOut <- EFR
-	}
-
-	return
-}
-
 func rawDistance(query, target fastaio.EncodedFastaRecord) float64 {
 	n := 0
 	d := 0

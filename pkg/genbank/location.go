@@ -2,6 +2,7 @@ package genbank
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -20,16 +21,92 @@ func (l Location) String() string {
 	return l.Representation
 }
 
+func isNumeric(s string) bool {
+	_, err := strconv.ParseFloat(s, 64)
+	return err == nil
+}
+
 // Convert a Genbank location to the list of each genomic position that it spans
 // Positions are 1-based inclusive
-func UnNest(l Location) ([]int, error) {
+func (l Location) GetPositions() ([]int, error) {
 	s := l.Representation
-	temp, err := unNestRecur(s)
-	if len(temp) != 1 || err != nil {
-		return []int{}, locationErr
+	if isNested(s) {
+		temp, err := unNestRecur(s)
+		if len(temp) != 1 || err != nil {
+			return []int{}, locationErr
+		}
+		return temp[0], nil
+	} else if isNumeric(string(s[0])) {
+		if isRange(s) {
+			pos, err := posFromRange(s)
+			if err != nil {
+				return []int{}, err
+			}
+			return pos, nil
+		} else {
+			return []int{}, locationErr
+		}
+	} else {
+		switch s[0:4] {
+		case "join":
+			pos, err := posFromJoin(s)
+			if err != nil {
+				return []int{}, err
+			}
+			return pos, nil
+		case "comp":
+			pos, err := posFromComp(s)
+			if err != nil {
+				return []int{}, err
+			}
+			return pos, nil
+		default:
+			return []int{}, locationErr
+		}
 	}
-	return temp[0], nil
 }
+
+// True/false this location is on the reverse strand
+func (l Location) IsReverse() (bool, error) {
+	pos, err := l.GetPositions()
+	if err != nil {
+		return true, err
+	}
+	if pos[0] > pos[len(pos)-1] {
+		return true, nil
+	}
+	return false, nil
+}
+
+// // 5'-most position relative to the forward strand
+// func (l Location) FivePrimeMost() (int, error) {
+// 	pos, err := l.GetPositions()
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	min := pos[0]
+// 	for _, p := range pos {
+// 		if p < min {
+// 			min = p
+// 		}
+// 	}
+// 	return min, nil
+// }
+
+// // 3'-most position relative to the forward strand
+// func (l Location) ThreePrimeMost() (int, error) {
+// 	pos, err := l.GetPositions()
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	max := pos[0]
+// 	for _, p := range pos {
+// 		if p > max {
+// 			max = p
+// 		}
+// 	}
+// 	return max, nil
+// }
 
 // Recursively unpacks the component regions of a Genbank Location
 func unNestRecur(s string) ([][]int, error) {
@@ -39,7 +116,7 @@ func unNestRecur(s string) ([][]int, error) {
 	this_result := make([][]int, 0)
 
 	for _, f := range fields {
-
+		fmt.Println(f)
 		// base state - if f is not nested, then we only need to calculate the range
 		if !isNested(f) {
 			switch f[0:4] {
@@ -137,6 +214,30 @@ func posFromJoin(s string) ([]int, error) {
 		ps = append(ps, temp...)
 	}
 	return ps, nil
+}
+
+func isRange(s string) bool {
+	return strings.Contains(s, "..")
+}
+
+func posFromRange(s string) ([]int, error) {
+	fields := strings.Split(s, "..")
+	if len(fields) != 2 {
+		return []int{}, locationErr
+	}
+	start, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return []int{}, err
+	}
+	stop, err := strconv.Atoi(fields[1])
+	if err != nil {
+		return []int{}, err
+	}
+	pos := make([]int, 0)
+	for i := start; i <= stop; i++ {
+		pos = append(pos, i)
+	}
+	return pos, nil
 }
 
 // Flattens a slice of slices of integers

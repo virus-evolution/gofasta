@@ -124,7 +124,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer out.Close()
 
-		err = variants.Variants(msa, stdin, variantsReference, anno, annoSuffix, out, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads)
+		err = variants.Variants2(msa, stdin, variantsReference, anno, annoSuffix, out, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads)
 
 		return
 	},

@@ -51,9 +51,16 @@ type genbankField struct {
 // GenbankFeature is contains information about one feature
 // from a genbank record's FEATURES section
 type GenbankFeature struct {
-	Feature string
-	Pos     string
-	Info    map[string]string
+	Feature  string
+	Location Location
+	Info     map[string]string
+}
+
+func (F *GenbankFeature) HasAttribute(tag string) bool {
+	if _, ok := F.Info[tag]; ok {
+		return true
+	}
+	return false
 }
 
 // isFeatureLine returns true/false does this line of the file code a new FEATURE (CDS, gene, 5'UTR etc)
@@ -100,7 +107,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			gb = GenbankFeature{}
 			gb.Feature = feature
-			gb.Pos = pos
+			gb.Location = Location{Representation: pos}
 			gb.Info = make(map[string]string)
 
 			keyBuffer = make([]rune, 0)
@@ -186,7 +193,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			gb = GenbankFeature{}
 			gb.Feature = feature
-			gb.Pos = pos
+			gb.Location = Location{Representation: pos}
 			gb.Info = make(map[string]string)
 
 			keyBuffer = make([]rune, 0)
@@ -199,6 +206,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 	return features
 }
 
+// TO DO - delete this
 // ParsePositions returns the genomic positions of a feature, handling regions that are join()ed together
 func ParsePositions(position string) ([]int, error) {
 	var A []int

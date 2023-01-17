@@ -31,8 +31,9 @@ type Region struct {
 	Name        string // name of feature, if it has one
 	Start       int    // 1-based first position of region, inclusive
 	Stop        int    // 1-based last position of region, inclusive
-	Codonstarts []int  // a slice of the 1-based start positions of all its codons, if this region is a CDS
-	Translation string // amino acid sequence of this region if it is a CDS
+	Codonstarts []int  // a slice of the 1-based start positions of all its codons, if this region is CDS
+	Translation string // amino acid sequence of this region if it is CDS
+	Strand      int    // values in the set {-1, +1} only
 }
 
 // A Variant is a struct that contains information about one mutation (nuc, amino acid, indel) between
@@ -182,7 +183,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		// get the offsets accounting for insertions relative to the reference
 		refToMSA, MSAToRef = GetMSAOffsets(ref.Seq)
 
-		refSeqDegapped := degap(ref.Decode().Seq)
+		refSeqDegapped := ref.Decode().Degap().Seq
 
 		// check that the reference sequence is in the same coordinates as the annotation, if the gff
 		// file has a ##sequence-region line
@@ -268,7 +269,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 }
 
 // findReference gets the reference sequence from the msa if it is in there. If it isn't, we will try get it
-// from the annotation (in which case can be no insertions relative to the reference in the msa)
+// from the annotation (in which case there can be no insertions relative to the reference in the msa)
 func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRecord, error) {
 
 	var err error
@@ -358,16 +359,16 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 	return refRec, nil
 }
 
-func degap(s string) string {
-	t := ""
-	for _, char := range s {
-		if char != '-' {
-			t = t + string(char)
-		}
-	}
+// func degap(s string) string {
+// 	t := ""
+// 	for _, char := range s {
+// 		if char != '-' {
+// 			t = t + string(char)
+// 		}
+// 	}
 
-	return t
-}
+// 	return t
+// }
 
 // Parses a genbank flat format file of genome annotations to extract information about the
 // the positions of CDS and intergenic regions, in order to annotate mutations within each
@@ -386,7 +387,7 @@ func GetRegionsFromGenbank(gb genbank.Genbank) ([]Region, error) {
 		REGION := Region{Whichtype: "protein-coding", Name: feat.Info["gene"], Codonstarts: make([]int, 0), Translation: feat.Info["translation"] + "*"}
 
 		// these are genbank positions, so they are 1-based, inclusive
-		positions, err := genbank.ParsePositions(feat.Pos)
+		positions, err := genbank.ParsePositions(feat.Location.Representation)
 		if err != nil {
 			return make([]Region, 0), err
 		}
@@ -532,7 +533,7 @@ func GetRegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, error) {
 				return make([]Region, 0), errors.New("protein-coding position range is not a multiple of 3")
 			}
 
-			translation, err := alphabet.Translate(refSeqDegapped[feat.Start-1 : feat.End])
+			translation, err := alphabet.Translate(refSeqDegapped[feat.Start-1:feat.End], true)
 			if err != nil {
 				return make([]Region, 0), err
 			}

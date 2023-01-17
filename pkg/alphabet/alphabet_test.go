@@ -19,7 +19,7 @@ func TestTranslate(t *testing.T) {
 	spike_nuc_gb := SpaceMap(temp_spike_nuc_gb)
 	spike_AA_gb := SpaceMap(temp_spike_AA_gb)
 
-	translation, err := Translate(spike_nuc_gb)
+	translation, err := Translate(spike_nuc_gb, false)
 	if err != nil {
 		t.Error(err)
 	}

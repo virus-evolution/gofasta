@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -300,22 +301,39 @@ func featureFromLine(l string) (Feature, error) {
 	return F, nil
 }
 
-func seqidFromField(f string) (string, error) {
-
-	// to do: check anything not in [a-zA-Z0-9.:^*$@!+_?-|] (including spaces) is escaped
+func isEscapedCorrectly(f string) error {
 
 	if strings.HasPrefix(f, ">") {
-		return "", errors.New("GFF parsing error: seqids may not start with \">\"")
+		return errors.New("GFF parsing error: seqids must not start with \">\"")
+	}
+
+	matched, err := regexp.MatchString("[^\\][^a-zA-Z0-9.:^*$@!+_?-|]", f)
+	if err != nil {
+		return err
+	}
+
+	if matched {
+		return errors.New("GFF parsing error: seqids must not contain unescaped characters not in [a-zA-Z0-9.:^*$@!+_?-|]")
+	}
+
+	return nil
+}
+
+func seqidFromField(f string) (string, error) {
+
+	err := isEscapedCorrectly(f)
+	if err != nil {
+		return f, err
 	}
 
 	return f, nil
 }
 
 func strandFromField(f, l string) (string, error) {
-	if f == "+" || f == "-" || f == "." {
+	if f == "+" || f == "-" || f == "." || f == "?" {
 		return f, nil
 	}
-	return f, errors.New("GFF parsing error: Strand must be one of {+, -, .}: " + l)
+	return f, errors.New("GFF parsing error: Strand must be one of {+, -, ., ?}: " + l)
 }
 
 func phaseFromField(t, f, l string) (int, error) {
@@ -332,7 +350,7 @@ func phaseFromField(t, f, l string) (int, error) {
 				return result, err
 			}
 		} else if f == "." {
-			return -1, nil
+			return 0, nil
 		}
 	}
 	return 0, errors.New("GFF parsing error: couldn't parse phase: " + l)
@@ -346,7 +364,7 @@ func attributesFromField(f, l string) (map[string][]string, error) {
 	for _, tvp := range tagvaluepairs {
 		tagvalues := strings.Split(tvp, "=")
 		if len(tagvalues) != 2 {
-			return m, errors.New("GFF parsing error: couldn't parse attributes: " + l)
+			return m, errors.New("GFF parsing error: couldn't parse attributes: " + f)
 		}
 		m[tagvalues[0]] = strings.Split(tagvalues[1], ",")
 	}

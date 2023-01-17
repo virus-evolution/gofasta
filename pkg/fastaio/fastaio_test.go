@@ -24,11 +24,11 @@ func TestEncodeDecode(t *testing.T) {
 }
 
 func TestCalculateBaseContent(t *testing.T) {
-	FR := FastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: "ATGCATGCATG"}
+	FR := FastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: "ATGCATGATA"}
 	EFR := FR.Encode()
 	EFR.CalculateBaseContent()
 
-	if EFR.Count_A != 3 {
+	if EFR.Count_A != 4 {
 		t.Errorf("probem in TestCalculateBaseContent()")
 	}
 
@@ -36,11 +36,11 @@ func TestCalculateBaseContent(t *testing.T) {
 		t.Errorf("probem in TestCalculateBaseContent()")
 	}
 
-	if EFR.Count_G != 3 {
+	if EFR.Count_G != 2 {
 		t.Errorf("probem in TestCalculateBaseContent()")
 	}
 
-	if EFR.Count_C != 2 {
+	if EFR.Count_C != 1 {
 		t.Errorf("probem in TestCalculateBaseContent()")
 	}
 }

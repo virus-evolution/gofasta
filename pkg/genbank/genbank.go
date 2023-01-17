@@ -201,6 +201,10 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 		}
 	}
 
+	if len(keyBuffer) > 0 && len(valueBuffer) > 0 {
+		gb.Info[string(keyBuffer)] = string(valueBuffer)
+	}
+
 	features = append(features, gb)
 
 	return features

@@ -88,6 +88,7 @@ func Variants2(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, anno
 				encodedrefseq[i] = EA[gb.ORIGIN[i]]
 			}
 			ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
+			os.Stderr.WriteString("using --annotation fasta as reference\n")
 		}
 
 		refLenDegapped := len(ref.Decode().Degap().Seq)
@@ -97,8 +98,6 @@ func Variants2(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, anno
 		if err != nil {
 			return err
 		}
-
-		os.Stderr.WriteString("using --annotation fasta as reference\n")
 
 		// get the offsets accounting for insertions relative to the reference
 		refToMSA, MSAToRef = GetMSAOffsets(ref.Seq)
@@ -227,6 +226,11 @@ func Variants2(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, anno
 func getVariants2(ref fastaio.EncodedFastaRecord, cdsregions []Region2, intregions []int, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fastaio.EncodedFastaRecord, cVariants chan AnnoStructs, cErr chan error) {
 
 	for record := range cMSA {
+
+		if len(record.Seq) != len(offsetMSACoord) {
+			cErr <- errors.New("Gapped reference sequence and alignment are not the same width")
+			break
+		}
 
 		AS, err := GetVariantsPair2(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
 		if err != nil {

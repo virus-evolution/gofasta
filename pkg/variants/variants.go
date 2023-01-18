@@ -41,8 +41,8 @@ type Variant struct {
 	Queryname      string
 	RefAl          string
 	QueAl          string
-	Position       int    // (0-based) genomic location
-	Residue        int    // (0-based) amino acid location
+	Position       int    // (1-based) genomic location (for an amino acid change, this is the first position of the codon)
+	Residue        int    // (1-based) amino acid location
 	Changetype     string // one of {nuc,aa,ins,del}
 	Feature        string // this should be, for example, the name of the CDS that the thing is in
 	Length         int    // for indels
@@ -690,16 +690,16 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 
 	switch v.Changetype {
 	case "del":
-		s = "del:" + strconv.Itoa(v.Position+1) + ":" + strconv.Itoa(v.Length)
+		s = "del:" + strconv.Itoa(v.Position) + ":" + strconv.Itoa(v.Length)
 	case "ins":
-		s = "ins:" + strconv.Itoa(v.Position) + ":" + strconv.Itoa(v.Length)
+		s = "ins:" + strconv.Itoa(v.Position-1) + ":" + strconv.Itoa(v.Length)
 	case "nuc":
-		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position+1) + v.QueAl
+		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position) + v.QueAl
 	case "aa":
 		if appendSNP {
-			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue+1) + v.QueAl + "(" + v.SNPs + ")"
+			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl + "(" + v.SNPs + ")"
 		} else {
-			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue+1) + v.QueAl
+			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl
 		}
 	default:
 		return "", errors.New("couldn't parse variant type")

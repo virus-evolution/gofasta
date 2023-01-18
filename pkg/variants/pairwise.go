@@ -36,7 +36,7 @@ func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int
 			}
 		} else { // not an insertion relative to the reference at this position
 			if insOpen { // first base after an insertion, so we need to log the insertion
-				variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
+				variants = append(variants, Variant{Changetype: "ins", Position: (insStart - offsetMSACoord[insStart]) + 1, Length: insLength})
 				insOpen = false
 			}
 			if query[pos] == 244 { // deletion in this seq
@@ -50,7 +50,7 @@ func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int
 			} else { // no deletion in this seq
 				if delOpen { // first base after a deletion, so we need to log the deletion
 					if delStart-offsetMSACoord[delStart] != 0 {
-						variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
+						variants = append(variants, Variant{Changetype: "del", Position: (delStart - offsetMSACoord[delStart]) + 1, Length: delLength})
 					}
 					delOpen = false // and reset things
 				}
@@ -64,7 +64,7 @@ func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int
 	// }
 	// catch insertions that abut the end of the alignment
 	if insOpen {
-		variants = append(variants, Variant{Changetype: "ins", Position: insStart - offsetMSACoord[insStart], Length: insLength})
+		variants = append(variants, Variant{Changetype: "ins", Position: (insStart - offsetMSACoord[insStart]) + 1, Length: insLength})
 	}
 
 	return variants
@@ -76,7 +76,7 @@ func getNucsPair(ref, query []byte, pos []int, refToMSA []int, MSAToRef []int) [
 	for _, p := range pos {
 		alignPos := (p - 1) + refToMSA[p-1]
 		if (ref[alignPos] & query[alignPos]) < 16 { // check for SNPs
-			variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref[alignPos]], QueAl: DA[query[alignPos]], Position: p - 1})
+			variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref[alignPos]], QueAl: DA[query[alignPos]], Position: p})
 		}
 	}
 	return variants
@@ -106,7 +106,7 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 			continue
 		}
 		if (query[alignmentPos] & ref[alignmentPos]) < 16 {
-			codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref[alignmentPos]], QueAl: DA[query[alignmentPos]], Position: refPos - 1})
+			codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref[alignmentPos]], QueAl: DA[query[alignmentPos]], Position: refPos})
 			// IF ON THE REVERSE STRAND- WHICH NUCLEOTIDE SHOULD BE REPRESENTED IN THE NUC VARIANT?
 		}
 		decodedCodon = decodedCodon + DA[query[alignmentPos]]
@@ -131,9 +131,9 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 			if aa != refaa && aa != "X" {
 				temp := []string{}
 				for _, v := range codonSNPs {
-					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position+1)+v.QueAl)
+					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position)+v.QueAl)
 				}
-				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: refPos - 3, Residue: aaCounter, SNPs: strings.Join(temp, ";")})
+				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: refPos - (2 * region.Strand), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
 
 			} else {
 				for _, v := range codonSNPs {

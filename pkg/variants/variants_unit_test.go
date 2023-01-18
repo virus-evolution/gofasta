@@ -196,9 +196,9 @@ ACGTAATGATGAG-TAG-TAAA-T
 	}
 
 	desiredResult := AnnoStructs{Queryname: "seq1", Vs: []Variant{
-		{RefAl: "C", QueAl: "T", Position: 1, Changetype: "nuc"},
-		{RefAl: "M", QueAl: "L", Position: 5, Residue: 0, Changetype: "aa", Feature: "gene1", SNPs: "nuc:A6T"},
-		{RefAl: "A", QueAl: "T", Position: 21, Changetype: "nuc"},
+		{RefAl: "C", QueAl: "T", Position: 2, Changetype: "nuc"},
+		{RefAl: "M", QueAl: "L", Position: 6, Residue: 1, Changetype: "aa", Feature: "gene1", SNPs: "nuc:A6T"},
+		{RefAl: "A", QueAl: "T", Position: 22, Changetype: "nuc"},
 	}, Idx: 1}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq1)")
@@ -211,7 +211,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 	}
 
 	desiredResult = AnnoStructs{Queryname: "seq2", Vs: []Variant{
-		{Position: 5, Length: 3, Changetype: "del"},
+		{Position: 6, Length: 3, Changetype: "del"},
 	}, Idx: 2}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq2)")
@@ -223,7 +223,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 	}
 
 	desiredResult = AnnoStructs{Queryname: "seq3", Vs: []Variant{
-		{Position: 17, Length: 1, Changetype: "ins"},
+		{Position: 18, Length: 1, Changetype: "ins"},
 	}, Idx: 3}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq3)")
@@ -235,11 +235,11 @@ ACGTAATGATGAG-TAG-TAAA-T
 	}
 
 	desiredResult = AnnoStructs{Queryname: "seq4", Vs: []Variant{
-		{Position: 12, RefAl: "T", QueAl: "G", Changetype: "nuc"},
-		{Position: 13, Length: 1, Changetype: "del"},
-		{Position: 17, RefAl: "A", QueAl: "T", Changetype: "nuc"},
-		{Position: 21, Length: 1, Changetype: "del"},
-		{Position: 22, RefAl: "A", QueAl: "T", Changetype: "nuc"},
+		{Position: 13, RefAl: "T", QueAl: "G", Changetype: "nuc"},
+		{Position: 14, Length: 1, Changetype: "del"},
+		{Position: 18, RefAl: "A", QueAl: "T", Changetype: "nuc"},
+		{Position: 22, Length: 1, Changetype: "del"},
+		{Position: 23, RefAl: "A", QueAl: "T", Changetype: "nuc"},
 	}, Idx: 4}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq4)")

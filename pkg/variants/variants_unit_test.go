@@ -12,12 +12,13 @@ import (
 )
 
 // type Region struct {
-// 	Whichtype   string // int(ergenic) or CDS
-// 	Name        string // name of CDS, if it is one
-// 	Start       int    // 1-based first position of region, inclusive
-// 	Stop        int    // 1-based last position of region, inclusive
-// 	Codonstarts []int  // a slice of the 1-based start positions of all its codons, if this region is a CDS
-// 	Translation string // amino acid sequence of this region if it is a CDS
+// 	Whichtype   string // only "protein-coding" for now
+// 	Name        string // name of feature, if it has one
+// 	Start       int    // 1-based 5'-most position of region on the forward strand, inclusive
+// 	Stop        int    // 1-based 3'-most position of region on the forward strand, inclusive
+// 	Translation string // amino acid sequence of this region if it is CDS
+// 	Strand      int    // values in the set {-1, +1} only (and "0" for a mixture?!)
+// 	Positions   []int  // all the (1-based, unadjusted) positions in order, on the reverse strand if needs be
 // }
 
 // TO DO: maybe move this to the genbank package?
@@ -28,20 +29,24 @@ func TestGetRegionsGenbank(t *testing.T) {
 		t.Error(err)
 	}
 
-	regions, err := GetRegionsFromGenbank(gb)
+	cdsregions, intregions, err := RegionsFromGenbank(gb, 23)
 	if err != nil {
 		t.Error(err)
 	}
 
-	var desiredResult = []Region{
-		{Whichtype: "int", Start: 1, Stop: 5},
-		{Whichtype: "protein-coding", Name: "gene1", Start: 6, Stop: 17, Translation: "MMM*", Codonstarts: []int{6, 9, 12, 15}},
-		{Whichtype: "int", Start: 18, Stop: 23},
+	var desiredCDSResult = []Region{
+		{Whichtype: "protein-coding", Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
 	}
 
-	if !reflect.DeepEqual(regions, desiredResult) {
+	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
 		t.Errorf("problem in TestGetRegionsGenbank")
-		fmt.Println(regions)
+		fmt.Println(cdsregions)
+	}
+
+	var desiredInterResult = []int{1, 2, 3, 4, 5, 18, 19, 20, 21, 22, 23}
+	if !reflect.DeepEqual(intregions, desiredInterResult) {
+		t.Errorf("problem in TestGetRegionsGenbank")
+		fmt.Println(intregions)
 	}
 }
 
@@ -52,20 +57,24 @@ func TestGetRegionsGFF(t *testing.T) {
 		t.Error(err)
 	}
 
-	regions, err := GetRegionsFromGFF(gff, gff.FASTA["somefakething"].Seq)
+	cdsregions, intregions, err := RegionsFromGFF(gff, gff.FASTA["somefakething"].Seq)
 	if err != nil {
 		t.Error(err)
 	}
 
-	var desiredResult = []Region{
-		{Whichtype: "protein-coding", Name: "gene1", Start: 6, Stop: 17, Translation: "MMM*", Codonstarts: []int{6, 9, 12, 15}},
-		{Whichtype: "int", Start: 1, Stop: 5},
-		{Whichtype: "int", Start: 18, Stop: 23},
+	var desiredCDSResult = []Region{
+		{Whichtype: "protein-coding", Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
 	}
 
-	if !reflect.DeepEqual(regions, desiredResult) {
+	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
 		t.Errorf("problem in TestGetRegionsGFF")
-		fmt.Println(regions)
+		fmt.Println(cdsregions)
+	}
+
+	var desiredInterResult = []int{1, 2, 3, 4, 5, 18, 19, 20, 21, 22, 23}
+	if !reflect.DeepEqual(intregions, desiredInterResult) {
+		t.Errorf("problem in TestGetRegionsGenbank")
+		fmt.Println(intregions)
 	}
 }
 
@@ -161,17 +170,18 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	regions, err := GetRegionsFromGenbank(gb)
-	if err != nil {
-		t.Error(err)
-	}
-
 	msaReader := bytes.NewReader(msaData)
 	ref, err := findReference(msaReader, "reference")
 	if err != nil {
 		t.Error(err)
 	}
 	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+	refLenDegapped := len(ref.Decode().Degap().Seq)
+
+	cdsregions, intregions, err := RegionsFromGenbank(gb, refLenDegapped)
+	if err != nil {
+		t.Error(err)
+	}
 
 	msaReader = bytes.NewReader(msaData)
 
@@ -180,7 +190,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, regions, refToMSA, MSAToRef)
+	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA, MSAToRef)
 	if err != nil {
 		t.Error(err)
 	}
@@ -192,9 +202,10 @@ ACGTAATGATGAG-TAG-TAAA-T
 	}, Idx: 1}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq1)")
+		fmt.Println(mutations)
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[2].Seq, "reference", queries[2].ID, 2, regions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[2].Seq, "reference", queries[2].ID, 2, cdsregions, intregions, refToMSA, MSAToRef)
 	if err != nil {
 		t.Error(err)
 	}
@@ -206,7 +217,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Errorf("problem in TestGetVariantsPair (seq2)")
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[3].Seq, "reference", queries[3].ID, 3, regions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[3].Seq, "reference", queries[3].ID, 3, cdsregions, intregions, refToMSA, MSAToRef)
 	if err != nil {
 		t.Error(err)
 	}
@@ -218,7 +229,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Errorf("problem in TestGetVariantsPair (seq3)")
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, regions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA, MSAToRef)
 	if err != nil {
 		t.Error(err)
 	}
@@ -254,17 +265,18 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	regions, err := GetRegionsFromGenbank(gb)
-	if err != nil {
-		t.Error(err)
-	}
-
 	msaReader := bytes.NewReader(msaData)
 	ref, err := findReference(msaReader, "reference")
 	if err != nil {
 		t.Error(err)
 	}
 	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+	refLenDegapped := len(ref.Decode().Degap().Seq)
+
+	cdsregions, intregions, err := RegionsFromGenbank(gb, refLenDegapped)
+	if err != nil {
+		t.Error(err)
+	}
 
 	msaReader = bytes.NewReader(msaData)
 
@@ -273,7 +285,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, regions, refToMSA, MSAToRef)
+	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA, MSAToRef)
 	if err != nil {
 		t.Error(err)
 	}
@@ -310,7 +322,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		}
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, regions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA, MSAToRef)
 	if err != nil {
 		t.Error(err)
 	}
@@ -340,6 +352,7 @@ FEATURES             Location/Qualifiers
 						/gene="gene1"
 		CDS             6..17
 						/gene="gene1"
+						/codon_start=1
 						/translation="MMM"
 		3'UTR           18..23
 ORIGIN      

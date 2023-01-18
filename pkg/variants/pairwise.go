@@ -133,7 +133,7 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 				for _, v := range codonSNPs {
 					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position+1)+v.QueAl)
 				}
-				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: refPos, Residue: aaCounter, SNPs: strings.Join(temp, ";")})
+				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: refPos - 3, Residue: aaCounter, SNPs: strings.Join(temp, ";")})
 
 			} else {
 				for _, v := range codonSNPs {

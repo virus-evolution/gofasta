@@ -26,7 +26,7 @@ import (
 )
 
 type Region struct {
-	Whichtype   string // int(ergenic) or protein-coding
+	Whichtype   string // only "protein-coding" for now
 	Name        string // name of feature, if it has one
 	Start       int    // 1-based 5'-most position of region on the forward strand, inclusive
 	Stop        int    // 1-based 3'-most position of region on the forward strand, inclusive
@@ -461,7 +461,7 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 	if err != nil {
 		return r, err
 	}
-	r.Translation = t + "*"
+	r.Translation = t
 
 	return r, nil
 }

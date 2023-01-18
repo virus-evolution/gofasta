@@ -58,7 +58,7 @@ type AnnoStructs struct {
 	Idx       int
 }
 
-func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, aggregate bool, threshold float64, appendSNP bool, threads int) error {
+func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
 	var err error
 
@@ -103,7 +103,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		select {
 		case ref = <-cMSA:
 			if ref.ID != refID {
-				return errors.New("--reference is not the first record in --msa (if --msa is reference-length you don't need to provide --reference)")
+				return errors.New("--reference is not the first record in --msa")
 			}
 			firstmissing = true
 		case err := <-cErr:
@@ -174,7 +174,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 				}
 				os.Stderr.WriteString("using --annotation fasta as reference\n")
 			default:
-				return errors.New("more that one sequence in gff ##FASTA section")
+				return errors.New("more than one sequence in gff ##FASTA section")
 			}
 
 		}
@@ -213,9 +213,9 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 
 	switch aggregate {
 	case true:
-		go AggregateWriteVariants(out, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
+		go AggregateWriteVariants(out, start, end, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
 	case false:
-		go WriteVariants(out, firstmissing, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
+		go WriteVariants(out, start, end, firstmissing, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
 	}
 
 	var wgVariants sync.WaitGroup
@@ -261,8 +261,6 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 			n--
 		}
 	}
-
-	// fmt.Println(ref.ID)
 
 	return nil
 }
@@ -709,7 +707,7 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 }
 
 // WriteVariants writes each query's mutations to file or stdout
-func WriteVariants(w io.Writer, firstmissing bool, appendSNP bool, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP bool, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	outputMap := make(map[int]AnnoStructs)
 
@@ -749,6 +747,11 @@ func WriteVariants(w io.Writer, firstmissing bool, appendSNP bool, refID string,
 				}
 				sa = make([]string, 0)
 				for _, v := range VL.Vs {
+					if start > 0 && end > 0 {
+						if v.Position < start || v.Position > end {
+							continue
+						}
+					}
 					newVar, err := FormatVariant(v, appendSNP)
 					if err != nil {
 						cErr <- err
@@ -776,7 +779,7 @@ func WriteVariants(w io.Writer, firstmissing bool, appendSNP bool, refID string,
 
 // AggregateWriteOutput aggregates the mutations that are present greater than or equal to threshold, and
 // writes their frequencies to file or stdout
-func AggregateWriteVariants(w io.Writer, appendSNP bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	propMap := make(map[Variant]float64)
 
@@ -795,13 +798,18 @@ func AggregateWriteVariants(w io.Writer, appendSNP bool, threshold float64, refI
 			continue
 		}
 		counter++
-		for _, V := range AS.Vs {
-			rep, err := FormatVariant(V, appendSNP)
+		for _, v := range AS.Vs {
+			if start > 0 && end > 0 {
+				if v.Position < start || v.Position > end {
+					continue
+				}
+			}
+			rep, err := FormatVariant(v, appendSNP)
 			if err != nil {
 				cErr <- err
 				return
 			}
-			Vskinny := Variant{RefAl: V.RefAl, QueAl: V.QueAl, Position: V.Position, Residue: V.Residue, Changetype: V.Changetype, Feature: V.Feature, Length: V.Length, Representation: rep}
+			Vskinny := Variant{RefAl: v.RefAl, QueAl: v.QueAl, Position: v.Position, Residue: v.Residue, Changetype: v.Changetype, Feature: v.Feature, Length: v.Length, Representation: rep}
 			propMap[Vskinny]++
 		}
 	}

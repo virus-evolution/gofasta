@@ -17,7 +17,7 @@ import (
 // Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons with an amino acid change)
 // mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a annotation file
 // in genbank or gff version 3 format
-func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, aggregate bool, threshold float64, appendSNP bool, threads int) error {
+func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, start, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
 	var ref fastaio.EncodedFastaRecord
 	if refFromFile {
@@ -96,9 +96,9 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 
 	switch aggregate {
 	case true:
-		go variants.AggregateWriteVariants(out, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
+		go variants.AggregateWriteVariants(out, start, end, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
 	case false:
-		go variants.WriteVariants(out, false, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
+		go variants.WriteVariants(out, start, end, false, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
 	}
 
 	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)

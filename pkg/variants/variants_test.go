@@ -23,7 +23,7 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbankReader, "gb", out, false, 0.0, false, 1)
+	err := Variants(msa, false, "", genbankReader, "gb", out, -1, -1, false, 0.0, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -43,7 +43,7 @@ aa:ORF7a:A8K,aa:ORF7a:A8K
 
 	out = new(bytes.Buffer)
 
-	err = Variants(msa, false, "", gffReader, "gff", out, false, 0.0, false, 1)
+	err = Variants(msa, false, "", gffReader, "gff", out, -1, -1, false, 0.0, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -76,7 +76,7 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbankReader, "gb", out, false, 0.0, true, 1)
+	err := Variants(msa, false, "", genbankReader, "gb", out, -1, -1, false, 0.0, true, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -96,7 +96,7 @@ aa:ORF7a:A8K,aa:ORF7a:A8K(nuc:G27415A;nuc:C27416A;nuc:A27417G)
 
 	out = new(bytes.Buffer)
 
-	err = Variants(msa, false, "", gffReader, "gff", out, false, 0.0, true, 1)
+	err = Variants(msa, false, "", gffReader, "gff", out, -1, -1, false, 0.0, true, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -133,7 +133,7 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbankReader, "gb", out, true, 0.0, false, 1)
+	err := Variants(msa, false, "", genbankReader, "gb", out, -1, -1, true, 0.0, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -152,7 +152,7 @@ aa:ORF7a:A8K,0.500000000
 
 	out = new(bytes.Buffer)
 
-	err = Variants(msa, false, "", gffReader, "gff", out, true, 0.0, false, 1)
+	err = Variants(msa, false, "", gffReader, "gff", out, -1, -1, true, 0.0, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -188,7 +188,7 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbankReader, "gb", out, true, 0.0, true, 1)
+	err := Variants(msa, false, "", genbankReader, "gb", out, -1, -1, true, 0.0, true, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -207,7 +207,7 @@ aa:ORF7a:A8K(nuc:G27415A;nuc:C27416A;nuc:A27417G),0.500000000
 
 	out = new(bytes.Buffer)
 
-	err = Variants(msa, false, "", gffReader, "gff", out, true, 0.0, true, 1)
+	err = Variants(msa, false, "", gffReader, "gff", out, -1, -1, true, 0.0, true, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -243,7 +243,7 @@ ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAACCAACTTTCGATCTCTTGTAGATCTGTTCTCTAAACGAACTTTAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(msa, false, "", genbankReader, "gb", out, true, 0.5, false, 1)
+	err := Variants(msa, false, "", genbankReader, "gb", out, -1, -1, true, 0.5, false, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -260,7 +260,7 @@ aa:ORF7a:A8K,0.500000000
 
 	out = new(bytes.Buffer)
 
-	err = Variants(msa, false, "", gffReader, "gff", out, true, 0.5, false, 1)
+	err = Variants(msa, false, "", gffReader, "gff", out, -1, -1, true, 0.5, false, 1)
 	if err != nil {
 		t.Error(err)
 	}

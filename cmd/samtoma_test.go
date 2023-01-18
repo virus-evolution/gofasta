@@ -17,6 +17,7 @@ func TestToMultiAlignCmdTrim(t *testing.T) {
 	toMultiAlignPad := false
 	toMultiAlignTrimStart := 265
 	toMultiAlignTrimEnd := 29674
+	toMultiAlignWrap := -1
 
 	samReader := bytes.NewReader(samData)
 	outWriterOld := new(bytes.Buffer)
@@ -42,7 +43,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
 	if err != nil {
 		t.Error(err)
 	}
@@ -52,6 +53,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 	toMultiAlignPad = false
 	toMultiAlignTrimStart = -1
 	toMultiAlignTrimEnd = -1
+	toMultiAlignWrap = -1
 
 	samReader = bytes.NewReader(samData)
 	outWriterNew := new(bytes.Buffer)
@@ -77,7 +79,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
 	if err != nil {
 		t.Error(err)
 	}
@@ -96,6 +98,7 @@ func TestToMultiAlignCmdTrimPad(t *testing.T) {
 	toMultiAlignPad := true
 	toMultiAlignTrimStart := 265
 	toMultiAlignTrimEnd := 29674
+	toMultiAlignWrap := -1
 
 	samReader := bytes.NewReader(samData)
 	outWriterOld := new(bytes.Buffer)
@@ -121,7 +124,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
 	if err != nil {
 		t.Error(err)
 	}
@@ -131,6 +134,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 	toMultiAlignPad = true
 	toMultiAlignTrimStart = -1
 	toMultiAlignTrimEnd = -1
+	toMultiAlignWrap = -1
 
 	samReader = bytes.NewReader(samData)
 	outWriterNew := new(bytes.Buffer)
@@ -156,7 +160,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
 	if err != nil {
 		t.Error(err)
 	}

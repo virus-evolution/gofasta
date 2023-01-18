@@ -12,6 +12,7 @@ var toPairAlignOmitReference bool
 var toPairAlignSkipInsertions bool
 var toPairAlignStart int
 var toPairAlignEnd int
+var toPairAlignWrap int
 
 func init() {
 	samCmd.AddCommand(toPairAlignCmd)
@@ -21,6 +22,9 @@ func init() {
 	toPairAlignCmd.Flags().BoolVarP(&toPairAlignSkipInsertions, "skip-insertions", "", false, "Skip insertions relative to the reference from the output alignments")
 	toPairAlignCmd.Flags().IntVarP(&toPairAlignStart, "start", "", -1, "1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted")
 	toPairAlignCmd.Flags().IntVarP(&toPairAlignEnd, "end", "", -1, "1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted")
+	toPairAlignCmd.Flags().IntVarP(&toPairAlignWrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
+
+	toPairAlignCmd.Flags().Lookup("wrap").NoOptDefVal = "80"
 
 	toPairAlignCmd.Flags().Lookup("omit-reference").NoOptDefVal = "true"
 	toPairAlignCmd.Flags().Lookup("skip-insertions").NoOptDefVal = "true"
@@ -48,7 +52,7 @@ var toPairAlignCmd = &cobra.Command{
 		}
 		defer ref.Close()
 
-		err = sam.ToPairAlign(samIn, ref, toPairAlignOutpath, toPairAlignStart, toPairAlignEnd, toPairAlignOmitReference, toPairAlignSkipInsertions, samThreads)
+		err = sam.ToPairAlign(samIn, ref, toPairAlignOutpath, toPairAlignWrap, toPairAlignStart, toPairAlignEnd, toPairAlignOmitReference, toPairAlignSkipInsertions, samThreads)
 
 		return err
 	},

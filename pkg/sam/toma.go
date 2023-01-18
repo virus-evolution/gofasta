@@ -10,34 +10,84 @@ import (
 	biogosam "github.com/biogo/hts/sam"
 )
 
-// getFastaRecord returns a FastaRecord struct with a sequence ID and a sequence
-// that has been optionally trimmed and padded
-func getFastaRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trimstart int,
-	trimend int) fastaio.FastaRecord {
+// ToMultiAlign converts a SAM file containing pairwise alignments between assembled genomes to a fasta-format alignment.
+// Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
+func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trimend int, pad bool, threads int) error {
 
-	var seq []byte
+	cSR := make(chan samRecords, threads)
+	cReadDone := make(chan bool)
 
-	if pad {
-		seq = swapInNs(rawseq)
-	} else {
-		seq = swapInGapsNs(rawseq)
+	cSH := make(chan biogosam.Header)
+
+	cFR := make(chan fastaio.FastaRecord)
+	cWriteDone := make(chan bool)
+
+	cErr := make(chan error)
+
+	cWaitGroupDone := make(chan bool)
+
+	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
+
+	header := <-cSH
+	refLen := header.Refs()[0].Len()
+
+	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
+	if err != nil {
+		return err
 	}
 
-	if trim {
-		if pad {
-			for i, _ := range seq {
-				if i < trimstart-1 || i >= trimend {
-					seq[i] = 'N'
-				}
-			}
-		} else {
-			seq = seq[trimstart-1 : trimend]
+	if wrap > 0 {
+		go fastaio.WriteWrapAlignment(cFR, out, wrap, cWriteDone, cErr)
+	} else {
+		go fastaio.WriteAlignment(cFR, out, cWriteDone, cErr)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(threads)
+
+	for n := 0; n < threads; n++ {
+		go func() {
+			blockToFastaRecord(cSR, cFR, cErr, refLen, trim, pad, trimstart, trimend, false)
+			wg.Done()
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		cWaitGroupDone <- true
+	}()
+
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			return err
+		case <-cReadDone:
+			close(cSR)
+			close(cSH)
+			n--
 		}
 	}
 
-	FR := fastaio.FastaRecord{ID: id, Description: id, Seq: string(seq), Idx: idx}
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			return err
+		case <-cWaitGroupDone:
+			close(cFR)
+			n--
+		}
+	}
 
-	return FR
+	for n := 1; n > 0; {
+		select {
+		case err := <-cErr:
+			return err
+		case <-cWriteDone:
+			n--
+		}
+	}
+
+	return nil
 }
 
 // checkArgs sanity checks the trimming and padding arguments, given the length of the reference sequence
@@ -87,78 +137,32 @@ func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, 
 	return
 }
 
-// ToMultiAlign converts a SAM file containing pairwise alignments between assembled genomes to a fasta-format alignment.
-// Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
-func ToMultiAlign(samIn io.Reader, out io.Writer, trimstart int, trimend int, pad bool, threads int) error {
+// getFastaRecord returns a FastaRecord struct with a sequence ID and a sequence
+// that has been optionally trimmed and padded
+func getFastaRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trimstart int,
+	trimend int) fastaio.FastaRecord {
 
-	cSR := make(chan samRecords, threads)
-	cReadDone := make(chan bool)
+	var seq []byte
 
-	cSH := make(chan biogosam.Header)
-
-	cFR := make(chan fastaio.FastaRecord)
-	cWriteDone := make(chan bool)
-
-	cErr := make(chan error)
-
-	cWaitGroupDone := make(chan bool)
-
-	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
-
-	header := <-cSH
-	refLen := header.Refs()[0].Len()
-
-	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
-	if err != nil {
-		return err
+	if pad {
+		seq = swapInNs(rawseq)
+	} else {
+		seq = swapInGapsNs(rawseq)
 	}
 
-	go fastaio.WriteAlignment(cFR, out, cWriteDone, cErr)
-
-	var wg sync.WaitGroup
-	wg.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			blockToFastaRecord(cSR, cFR, cErr, refLen, trim, pad, trimstart, trimend, false)
-			wg.Done()
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		cWaitGroupDone <- true
-	}()
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cReadDone:
-			close(cSR)
-			close(cSH)
-			n--
+	if trim {
+		if pad {
+			for i, _ := range seq {
+				if i < trimstart-1 || i >= trimend {
+					seq[i] = 'N'
+				}
+			}
+		} else {
+			seq = seq[trimstart-1 : trimend]
 		}
 	}
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cWaitGroupDone:
-			close(cFR)
-			n--
-		}
-	}
+	FR := fastaio.FastaRecord{ID: id, Description: id, Seq: string(seq), Idx: idx}
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cWriteDone:
-			n--
-		}
-	}
-
-	return nil
+	return FR
 }

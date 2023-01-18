@@ -1,6 +1,7 @@
 package sam
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -318,9 +319,33 @@ func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair
 	}
 }
 
+func wrap(old string, wrap int) string {
+	if wrap <= 0 {
+		return old + "\n"
+	}
+	var (
+		written int
+		new     []byte
+	)
+	for {
+		if written < len(old) {
+			if written+wrap >= len(old) {
+				new = append(new, []byte(old[written:]+"\n")...)
+				written = written + wrap
+			} else {
+				new = append(new, []byte(old[written:written+wrap]+"\n")...)
+				written = written + wrap
+			}
+		} else {
+			break
+		}
+	}
+	return string(new)
+}
+
 // writePairwiseAlignment writes the pairwise alignments between reference and queries to a directory, p, one fasta
 // file per query
-func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
+func writePairwiseAlignment(p string, w int, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
 
 	_ = path.Join()
 
@@ -333,7 +358,7 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 				if err != nil {
 					cErr <- err
 				}
-				_, err = fmt.Fprintln(os.Stdout, string(AP.ref))
+				_, err = fmt.Fprint(os.Stdout, wrap(string(AP.ref), w))
 				if err != nil {
 					cErr <- err
 				}
@@ -342,7 +367,7 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 			if err != nil {
 				cErr <- err
 			}
-			_, err = fmt.Fprintln(os.Stdout, string(AP.query))
+			_, err = fmt.Fprint(os.Stdout, wrap(string(AP.query), w))
 			if err != nil {
 				cErr <- err
 			}
@@ -367,7 +392,7 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 				if err != nil {
 					cErr <- err
 				}
-				_, err = f.WriteString(string(AP.ref) + "\n")
+				_, err = f.WriteString(wrap(string(AP.ref), w))
 				if err != nil {
 					cErr <- err
 				}
@@ -376,7 +401,7 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 			if err != nil {
 				cErr <- err
 			}
-			_, err = f.WriteString(string(AP.query) + "\n")
+			_, err = f.WriteString(wrap(string(AP.query), w))
 			if err != nil {
 				cErr <- err
 			}
@@ -388,7 +413,7 @@ func writePairwiseAlignment(p string, cPair chan alignPair, cWriteDone chan bool
 
 // ToPairAlign converts a SAM file containing pairwise alignments between assembled genomes into pairwise fasta-format alignments,
 // optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space
-func ToPairAlign(samIn, ref io.Reader, outpath string, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
+func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
 	// NB probably uncomment the below and use it for checks (e.g. for
 	// reference length)
@@ -401,26 +426,14 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, trimStart int, trimEnd in
 
 	cErr := make(chan error)
 
-	cRef := make(chan fastaio.FastaRecord)
-	cRefDone := make(chan bool)
-
-	go fastaio.ReadAlignment(ref, cRef, cErr, cRefDone)
-
-	var refSeq string
-	// var refName string
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case FR := <-cRef:
-			refSeq = FR.Seq
-			// refName = FR.ID
-		case <-cRefDone:
-			close(cRef)
-			n--
-		}
+	refs, err := fastaio.ReadEncodeAlignmentToList(ref, false)
+	if err != nil {
+		return err
 	}
+	if len(refs) != 1 {
+		return errors.New("Need one record in --reference")
+	}
+	refSeq := refs[0].Decode().Seq
 
 	trimStart, trimEnd, trim, err := checkArgs(len(refSeq), trimStart, trimEnd)
 	if err != nil {
@@ -442,7 +455,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, trimStart int, trimEnd in
 
 	_ = <-cSH
 
-	go writePairwiseAlignment(outpath, cPairTrim, cWriteDone, cErr, omitRef)
+	go writePairwiseAlignment(outpath, wrap, cPairTrim, cWriteDone, cErr, omitRef)
 
 	var wgAlign sync.WaitGroup
 	wgAlign.Add(threads)

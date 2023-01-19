@@ -690,7 +690,7 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 	case "del":
 		s = "del:" + strconv.Itoa(v.Position) + ":" + strconv.Itoa(v.Length)
 	case "ins":
-		s = "ins:" + strconv.Itoa(v.Position-1) + ":" + strconv.Itoa(v.Length)
+		s = "ins:" + strconv.Itoa(v.Position) + ":" + strconv.Itoa(v.Length)
 	case "nuc":
 		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position) + v.QueAl
 	case "aa":

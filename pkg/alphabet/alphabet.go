@@ -8,7 +8,7 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
-var ErrorCDSNotModThree error = errors.New("nucleotide string not divisible by 3")
+var ErrorCDSNotModThree error = errors.New("Translation error: Nucleotide sequence not divisible by 3")
 
 // Translate a nucleotide sequence to a protein sequence
 // Codons with ambiguous nucleotides are resolved if it can only possibly
@@ -29,7 +29,7 @@ func Translate(nuc string, strict bool) (string, error) {
 				translation = translation + t
 			} else {
 				if strict {
-					return "", errors.New("Untranslatable codon: " + codon)
+					return "", errors.New("Translation error: Untranslatable codon: " + codon)
 				} else {
 					translation = translation + "X"
 				}

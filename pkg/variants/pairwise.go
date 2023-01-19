@@ -29,14 +29,14 @@ func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int
 				if insOpen { // not the first position of an insertion
 					insLength++ // we increment the length counter
 				} else { // the first position of an insertion
-					insStart = pos // we record the position of the insertion 0-based
+					insStart = pos // we record the first position of the insertion 0-based in alignment coordinates
 					insLength = 1
 					insOpen = true
 				}
 			}
 		} else { // not an insertion relative to the reference at this position
 			if insOpen { // first base after an insertion, so we need to log the insertion
-				variants = append(variants, Variant{Changetype: "ins", Position: (insStart - offsetMSACoord[insStart]) + 1, Length: insLength})
+				variants = append(variants, Variant{Changetype: "ins", Position: (insStart - offsetMSACoord[insStart]), Length: insLength})
 				insOpen = false
 			}
 			if query[pos] == 244 { // deletion in this seq
@@ -70,11 +70,11 @@ func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int
 	return variants
 }
 
-func getNucsPair(ref, query []byte, pos []int, refToMSA []int, MSAToRef []int) []Variant {
+func getNucsPair(ref, query []byte, pos []int, offsetRefCoord []int, offsetMSACoord []int) []Variant {
 	DA := encoding.MakeDecodingArray()
 	variants := make([]Variant, 0)
 	for _, p := range pos {
-		alignPos := (p - 1) + refToMSA[p-1]
+		alignPos := (p - 1) + offsetRefCoord[p-1]
 		if (ref[alignPos] & query[alignPos]) < 16 { // check for SNPs
 			variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref[alignPos]], QueAl: DA[query[alignPos]], Position: p})
 		}

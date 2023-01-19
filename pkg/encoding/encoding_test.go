@@ -5,6 +5,14 @@ import (
 	"testing"
 )
 
+func TestDecodeToString(t *testing.T) {
+	in := []byte{136, 72, 40, 24, 192, 160, 144, 96, 80, 48, 224, 176, 208, 112, 240, 244, 242}
+	out := "AGCTRMWSKYVHDBN-?"
+	if DecodeToString(in) != out {
+		t.Errorf("Problem in TestDecodeToString()")
+	}
+}
+
 func intersectionStringArrays(A []string, B []string) []string {
 	intersection := make([]string, 0)
 	for i := 0; i < len(A); i++ {
@@ -132,7 +140,7 @@ func makeLookupCharHardGaps() map[byte][]string {
 	return lookupChar
 }
 
-// tests new encoding using arrays
+// tests encoding using arrays
 func TestEncodingHardGaps(t *testing.T) {
 
 	nucs := []byte{'A', 'G', 'C', 'T', 'R', 'M', 'W', 'S', 'K', 'Y', 'V', 'H', 'D', 'B', 'N', '-', '?',
@@ -168,7 +176,7 @@ func TestEncodingHardGaps(t *testing.T) {
 	}
 }
 
-// tests new decoding using maps
+// tests decoding using arrays
 func TestDecoding(t *testing.T) {
 	nucs := []byte{'A', 'G', 'C', 'T', 'R', 'M', 'W', 'S', 'K', 'Y', 'V', 'H', 'D', 'B', 'N', '-', '?',
 		'a', 'g', 'c', 't', 'r', 'm', 'w', 's', 'k', 'y', 'v', 'h', 'd', 'b', 'n'}

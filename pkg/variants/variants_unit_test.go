@@ -223,7 +223,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 	}
 
 	desiredResult = AnnoStructs{Queryname: "seq3", Vs: []Variant{
-		{Position: 18, Length: 1, Changetype: "ins"},
+		{Position: 17, Length: 1, Changetype: "ins"},
 	}, Idx: 3}
 	if !reflect.DeepEqual(mutations, desiredResult) {
 		t.Errorf("problem in TestGetVariantsPair (seq3)")

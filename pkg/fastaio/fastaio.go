@@ -35,7 +35,6 @@ func (FR FastaRecord) Encode() EncodedFastaRecord {
 	return EFR
 }
 
-// TO DO - test
 func (FR FastaRecord) Degap() FastaRecord {
 	NFR := FastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
 	t := ""
@@ -48,7 +47,6 @@ func (FR FastaRecord) Degap() FastaRecord {
 	return NFR
 }
 
-// TO DO - test
 func (FR FastaRecord) Complement() FastaRecord {
 	NFR := FastaRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
 	CA := alphabet.MakeCompArray()
@@ -60,7 +58,6 @@ func (FR FastaRecord) Complement() FastaRecord {
 	return NFR
 }
 
-// TO DO - test
 func (FR FastaRecord) ReverseComplement() FastaRecord {
 	NFR := FR.Complement()
 	temp := []byte(NFR.Seq)

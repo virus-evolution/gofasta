@@ -23,6 +23,51 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
+func TestDegap(t *testing.T) {
+	in := FastaRecord{Seq: "ACGT-ACGT-ACGT"}
+	out := FastaRecord{Seq: "ACGTACGTACGT"}
+
+	if !reflect.DeepEqual(in.Degap(), out) {
+		t.Errorf("Problem in TestDegap()")
+	}
+}
+
+func TestFRComplement(t *testing.T) {
+	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}
+	out := FastaRecord{Seq: "TGCAYRSWMKVHDBN-?tgcayrswmkvhdbn-?"}
+
+	if !reflect.DeepEqual(inn.Complement(), out) {
+		t.Errorf("Problem in TestFRComplement()")
+	}
+}
+
+func TestFRReverseComplement(t *testing.T) {
+	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}
+	out := FastaRecord{Seq: "?-nbdhvkmwsryacgt?-NBDHVKMWSRYACGT"}
+
+	if !reflect.DeepEqual(inn.ReverseComplement(), out) {
+		t.Errorf("Problem in TestFRReverseComplement()")
+	}
+}
+
+func TestEFRComplement(t *testing.T) {
+	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}.Encode()
+	out := FastaRecord{Seq: "TGCAYRSWMKVHDBN-?TGCAYRSWMKVHDBN-?"}.Encode()
+
+	if !reflect.DeepEqual(inn.Complement(), out) {
+		t.Errorf("Problem in TestEFRComplement()")
+	}
+}
+
+func TestEFRReverseComplement(t *testing.T) {
+	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}.Encode()
+	out := FastaRecord{Seq: "?-NBDHVKMWSRYACGT?-NBDHVKMWSRYACGT"}.Encode()
+
+	if !reflect.DeepEqual(inn.ReverseComplement(), out) {
+		t.Errorf("Problem in TestEFRReverseComplement()")
+	}
+}
+
 func TestCalculateBaseContent(t *testing.T) {
 	FR := FastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: "ATGCATGATA"}
 	EFR := FR.Encode()
@@ -412,5 +457,75 @@ ATTR-N
 				t.Errorf("problem in TestReadEncodeAlignment() (counts)")
 			}
 		}
+	}
+}
+
+func TestWriteWrapAlignment(t *testing.T) {
+	source := []FastaRecord{
+		FastaRecord{ID: "Seq3", Seq: "ATGATGATG", Idx: 2},
+		FastaRecord{ID: "Seq2", Seq: "ATGATGATG", Idx: 1},
+		FastaRecord{ID: "Seq1", Seq: "ATGATGATG", Idx: 0},
+	}
+
+	sink := bytes.NewBuffer(make([]byte, 0))
+
+	cFR := make(chan FastaRecord)
+	cErr := make(chan error)
+	cDone := make(chan bool)
+
+	go WriteWrapAlignment(cFR, sink, 80, cDone, cErr)
+
+	for _, record := range source {
+		cFR <- record
+	}
+	close(cFR)
+
+	select {
+	case err := <-cErr:
+		t.Error(err)
+	case <-cDone:
+	}
+
+	desiredResult := []byte(`>Seq1
+ATGATGATG
+>Seq2
+ATGATGATG
+>Seq3
+ATGATGATG
+`)
+
+	if !reflect.DeepEqual(sink.Bytes(), desiredResult) {
+		t.Errorf("Problem in TestWriteWrapAlignment()")
+	}
+
+	sink.Reset()
+	cFR = make(chan FastaRecord)
+
+	go WriteWrapAlignment(cFR, sink, 5, cDone, cErr)
+
+	for _, record := range source {
+		cFR <- record
+	}
+	close(cFR)
+
+	select {
+	case err := <-cErr:
+		t.Error(err)
+	case <-cDone:
+	}
+
+	desiredResult = []byte(`>Seq1
+ATGAT
+GATG
+>Seq2
+ATGAT
+GATG
+>Seq3
+ATGAT
+GATG
+`)
+
+	if !reflect.DeepEqual(sink.Bytes(), desiredResult) {
+		t.Errorf("Problem in TestWriteWrapAlignment()")
 	}
 }

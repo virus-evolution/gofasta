@@ -26,26 +26,40 @@ type GFF struct {
 
 type SequenceRegion struct {
 	Seqid string
-	Start int
-	End   int
+	Start int // 1-based start position of this region
+	End   int // 1-based end position of this region
+}
+
+var (
+	errGFFParsingVersion = errors.New("Error parsing gff version")
+	errGFFParsingSeqReg  = errors.New("Error parsing gff sequence-region")
+	errGFFParsingSeqID   = errors.New("Error parsing gff SeqID")
+)
+
+func errorBuilder(err error, s string) error {
+	return errors.New(err.Error() + ": " + s)
 }
 
 func (g *GFF) versionStringFromHeader() error {
-
-	if len(g.HeaderLines[0]) < 1 {
-		return errors.New("GFF parsing error: no header in gff file")
+	for _, line := range g.HeaderLines {
+		if strings.HasPrefix(line, "gff-version") {
+			fields := strings.Fields(line)
+			if len(fields) != 2 {
+				return errGFFParsingVersion
+			}
+			g.GFF_version = fields[1]
+			return nil
+		}
 	}
-	g.GFF_version = strings.TrimSpace(g.HeaderLines[0])
-
-	return nil
+	return errGFFParsingVersion
 }
 
 func (g *GFF) setSequenceRegionsFromHeader() error {
-	for _, hl := range g.HeaderLines {
-		if strings.HasPrefix(hl, "sequence-region") {
-			fields := strings.Fields(hl)
+	for _, line := range g.HeaderLines {
+		if strings.HasPrefix(line, "sequence-region") {
+			fields := strings.Fields(line)
 			if len(fields) < 4 {
-				return errors.New("GFF parsing error: error parsing sequence-region: " + hl)
+				return errorBuilder(errGFFParsingSeqReg, line)
 			}
 			start, err := strconv.Atoi(fields[2])
 			if err != nil {
@@ -63,6 +77,7 @@ func (g *GFF) setSequenceRegionsFromHeader() error {
 }
 
 func (g *GFF) populateIDMap() {
+	g.IDmap = make(map[string][]int)
 	for i, f := range g.Features {
 		if f.HasAttribute("ID") {
 			if len(g.IDmap[f.Attributes["ID"][0]]) > 0 {
@@ -304,7 +319,7 @@ func featureFromLine(l string) (Feature, error) {
 func isEscapedCorrectly(f string) error {
 
 	if strings.HasPrefix(f, ">") {
-		return errors.New("GFF parsing error: seqids must not start with \">\"")
+		return errorBuilder(errGFFParsingSeqID, f)
 	}
 
 	matched, err := regexp.MatchString("[^\\][^a-zA-Z0-9.:^*$@!+_?-|]", f)
@@ -313,7 +328,7 @@ func isEscapedCorrectly(f string) error {
 	}
 
 	if matched {
-		return errors.New("GFF parsing error: seqids must not contain unescaped characters not in [a-zA-Z0-9.:^*$@!+_?-|]")
+		return errorBuilder(errGFFParsingSeqID, f)
 	}
 
 	return nil

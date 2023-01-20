@@ -31,9 +31,12 @@ type SequenceRegion struct {
 }
 
 var (
-	errGFFParsingVersion = errors.New("Error parsing gff version")
-	errGFFParsingSeqReg  = errors.New("Error parsing gff sequence-region")
-	errGFFParsingSeqID   = errors.New("Error parsing gff SeqID")
+	errGFFParsingVersion    = errors.New("Error parsing gff version")
+	errGFFParsingSeqReg     = errors.New("Error parsing gff sequence-region")
+	errGFFParsingSeqID      = errors.New("Error parsing gff SeqID")
+	errGFFParsingStrand     = errors.New("Error parsing gff strand")
+	errGFFParsingPhase      = errors.New("Error parsing gff phase")
+	errGFFParsingAttributes = errors.New("Error parsing gff attributes")
 )
 
 func errorBuilder(err error, s string) error {
@@ -348,7 +351,7 @@ func strandFromField(f, l string) (string, error) {
 	if f == "+" || f == "-" || f == "." || f == "?" {
 		return f, nil
 	}
-	return f, errors.New("GFF parsing error: Strand must be one of {+, -, ., ?}: " + l)
+	return f, errorBuilder(errGFFParsingStrand, l)
 }
 
 func phaseFromField(t, f, l string) (int, error) {
@@ -358,7 +361,7 @@ func phaseFromField(t, f, l string) (int, error) {
 				return result, err
 			}
 		}
-		return 0, errors.New("GFF parsing error: Phase must be one of {0, 1, 2} for CDS: " + l)
+		return 0, errorBuilder(errGFFParsingPhase, l)
 	} else {
 		if result, err := strconv.Atoi(f); err == nil {
 			if result >= 0 && result <= 2 {
@@ -368,7 +371,7 @@ func phaseFromField(t, f, l string) (int, error) {
 			return 0, nil
 		}
 	}
-	return 0, errors.New("GFF parsing error: couldn't parse phase: " + l)
+	return 0, errorBuilder(errGFFParsingPhase, l)
 }
 
 func attributesFromField(f, l string) (map[string][]string, error) {
@@ -379,7 +382,7 @@ func attributesFromField(f, l string) (map[string][]string, error) {
 	for _, tvp := range tagvaluepairs {
 		tagvalues := strings.Split(tvp, "=")
 		if len(tagvalues) != 2 {
-			return m, errors.New("GFF parsing error: couldn't parse attributes: " + f)
+			return m, errorBuilder(errGFFParsingAttributes, l)
 		}
 		m[tagvalues[0]] = strings.Split(tagvalues[1], ",")
 	}

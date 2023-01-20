@@ -2,7 +2,6 @@ package genbank
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -116,7 +115,6 @@ func unNestRecur(s string) ([][]int, error) {
 	this_result := make([][]int, 0)
 
 	for _, f := range fields {
-		fmt.Println(f)
 		// base state - if f is not nested, then we only need to calculate the range
 		if !isNested(f) {
 			switch f[0:4] {

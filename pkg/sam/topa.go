@@ -32,7 +32,7 @@ type alignPairs struct {
 }
 
 // insertionOccurence stores information about a single insertion from cigars in a block of SAM records,
-// which is used to appropriate gap the other sam lines belonging to the same query sequence
+// which is used to appropriately gap the other sam lines belonging to the same query sequence
 type insertionOccurence struct {
 	start     int
 	length    int
@@ -58,7 +58,7 @@ type alignedBlockInfo struct {
 // blockToSeqPair converts a block of sam records corresponding to the same query sequence to a pairwise
 // alignment between reference and query, including insertions in the query relative to the reference
 func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
-	// get all insertions in order of occurence - earliest first
+	// get all insertions in order of occurrence - earliest first
 	//
 	// and then collapse the sequences in the block down to one sequence
 	//

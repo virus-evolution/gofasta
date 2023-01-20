@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/virus-evolution/gofasta/pkg/fastaio"
 )
 
 func TestVersionStringFromHeader(t *testing.T) {
@@ -374,6 +377,94 @@ func TestIsEscapedCorrectly(t *testing.T) {
 
 }
 
-func TestSeqidFromField(t *testing.T) {
+func TestStrandFromField(t *testing.T) {
+	for _, s := range []string{"+", "-", ".", "?"} {
+		_, err := strandFromField(s, "NC_045512.2	RefSeq	CDS	266	13468	.	+	0	ID=CDS-pp1ab")
+		if err != nil {
+			t.Errorf("Problem in TestStrandFromField()")
+		}
+	}
+	_, err := strandFromField("u", "NC_045512.2	RefSeq	CDS	266	13468	.	u	0	ID=CDS-pp1ab")
+	if !reflect.DeepEqual(err, errorBuilder(errGFFParsingStrand, "NC_045512.2	RefSeq	CDS	266	13468	.	u	0	ID=CDS-pp1ab")) {
+		t.Errorf("Problem in TestStrandFromField()")
+	}
+}
 
+func TestPhaseFromField(t *testing.T) {
+	_, err := phaseFromField("CDS", "0", "NC_045512.2	RefSeq	CDS	266	13468	.	+	0	ID=CDS-pp1ab")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = phaseFromField("CDS", "3", "NC_045512.2	RefSeq	CDS	266	13468	.	+	3	ID=CDS-pp1ab")
+	if err == nil {
+		t.Errorf("Problem in TestPhaseFromField()")
+	}
+	phase, err := phaseFromField("mat_protein_region_of_cds", ".", "NC_045512.2	RefSeq	CDS	266	13468	.	+	.	ID=CDS-pp1ab")
+	if err != nil || phase != 0 {
+		t.Errorf("Problem in TestPhaseFromField()")
+	}
+}
+
+func TestAttributesFromField(t *testing.T) {
+	lines := []string{
+		"NC_045512.2	RefSeq	CDS	266	13468	.	+	0	ID=CDS-pp1ab",
+		"NC_045512.2	RefSeq	CDS	13468	21555	.	+	0	Something=this,that,other",
+		"NC_045512.2	RefSeq	mature_protein_region_of_CDS	266	805	.	+	.	ID=nsp1,Parent=CDS-pp1ab;Name=nsp1",
+	}
+	column9s := make([]string, 0)
+	for _, line := range lines {
+		fs := strings.Fields(line)
+		column9s = append(column9s, fs[8])
+	}
+
+	m, err := attributesFromField(column9s[0], lines[0])
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(m, map[string][]string{
+		"ID": []string{"CDS-pp1ab"},
+	}) {
+		t.Errorf("Problem in TestAttributesFromField()")
+	}
+
+	m, err = attributesFromField(column9s[1], lines[1])
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(m, map[string][]string{
+		"Something": []string{"this", "that", "other"},
+	}) {
+		t.Errorf("Problem in TestAttributesFromField()")
+	}
+
+	m, err = attributesFromField(column9s[2], lines[2])
+	if !reflect.DeepEqual(err, errorBuilder(errGFFParsingAttributes, lines[2])) {
+		t.Error("Problem in TestAttributesFromField()")
+	}
+}
+
+func TestFasta(t *testing.T) {
+	data := []byte(`##gff-version 3
+# gff-spec-version 1.26 (https://github.com/The-Sequence-Ontology/Specifications/blob/fe73505276dd324bf6a55773f3413fe2bed47af4/gff3.md)
+##sequence-region NC_045512.2 1 11
+NC_045512.2	RefSeq	CDS	1	6	.	+	0	ID=CDS-pp1ab
+NC_045512.2	RefSeq	CDS	6	11	.	+	0	ID=CDS-pp1ab
+NC_045512.2	RefSeq	mature_protein_region_of_CDS	6	11	.	+	.	ID=nsp1;Parent=CDS-pp1ab;Name=nsp1
+##FASTA
+>NC_045512.2
+ATGATGATGAT
+`)
+
+	reader := bytes.NewReader(data)
+
+	gff, err := ReadGFF(reader)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(gff.FASTA, map[string]fastaio.FastaRecord{
+		"NC_045512.2": fastaio.FastaRecord{ID: "NC_045512.2", Description: "NC_045512.2", Seq: "ATGATGATGAT"},
+	}) {
+		t.Errorf("Problem in TestFasta()")
+	}
 }

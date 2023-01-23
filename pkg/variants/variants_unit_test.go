@@ -52,28 +52,54 @@ func TestGetRegionsGenbank(t *testing.T) {
 
 func TestGetRegionsGFF(t *testing.T) {
 	gffReader := bytes.NewReader(gffDataShort)
-	gff, err := gff.ReadGFF(gffReader)
+	GFF, err := gff.ReadGFF(gffReader)
 	if err != nil {
 		t.Error(err)
 	}
 
-	cdsregions, intregions, err := RegionsFromGFF(gff, gff.FASTA["somefakething"].Seq)
+	cdsregions, intregions, err := RegionsFromGFF(GFF, GFF.FASTA["somefakething"].Seq)
 	if err != nil {
 		t.Error(err)
 	}
 
-	var desiredCDSResult = []Region{
+	desiredCDSResult := []Region{
 		{Whichtype: "protein-coding", Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
 	}
 
 	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
-		t.Errorf("problem in TestGetRegionsGFF")
+		t.Errorf("problem in TestGetRegionsGFF()")
 		fmt.Println(cdsregions)
 	}
 
-	var desiredInterResult = []int{1, 2, 3, 4, 5, 18, 19, 20, 21, 22, 23}
+	desiredInterResult := []int{1, 2, 3, 4, 5, 18, 19, 20, 21, 22, 23}
 	if !reflect.DeepEqual(intregions, desiredInterResult) {
-		t.Errorf("problem in TestGetRegionsGenbank")
+		t.Errorf("problem in TestGetRegionsGFF()")
+		fmt.Println(intregions)
+	}
+
+	gffReader = bytes.NewReader(gffDataShortRev)
+	GFF, err = gff.ReadGFF(gffReader)
+	if err != nil {
+		t.Error(err)
+	}
+
+	cdsregions, intregions, err = RegionsFromGFF(GFF, GFF.FASTA["somefakething"].Seq)
+	if err != nil {
+		t.Error(err)
+	}
+
+	desiredCDSResult = []Region{
+		{Whichtype: "protein-coding", Name: "gene1", Strand: -1, Start: 7, Stop: 18, Translation: "MMM*", Positions: []int{18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7}},
+	}
+
+	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
+		t.Errorf("problem in TestGetRegionsGFF(rev)")
+		fmt.Println(cdsregions)
+	}
+
+	desiredInterResult = []int{1, 2, 3, 4, 5, 6, 19, 20, 21, 22, 23}
+	if !reflect.DeepEqual(intregions, desiredInterResult) {
+		t.Errorf("problem in TestGetRegionsGFF(rev)")
 		fmt.Println(intregions)
 	}
 }
@@ -341,6 +367,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 
 var genbankDataShort []byte
 var gffDataShort []byte
+var gffDataShortRev []byte
 
 func init() {
 	genbankDataShort = []byte(`LOCUS       TEST               23 bp ss-RNA     linear   VRL 21-MAR-1987
@@ -369,5 +396,17 @@ somefakething	RefSeq	three_prime_UTR	18	23	.	+	.	ID=somefakething:18..23
 ##FASTA
 >somefakething
 acgtaatgatgatgtagaaaaaa
+`)
+
+	gffDataShortRev = []byte(`##gff-version 3
+##sequence-region somefakething 1 23
+somefakething	RefSeq	region	1	23	.	+	.	ID=somefakething:1..23
+somefakething	RefSeq	five_prime_UTR	1	6	.	+	.	ID=somefakething:1..5
+somefakething	RefSeq	gene	7	18	.	-	.	ID=gene1
+somefakething	RefSeq	CDS	7	18	.	-	0	ID=CDS-gene1;Parent=gene1;Name=gene1
+somefakething	RefSeq	three_prime_UTR	19	23	.	+	.	ID=somefakething:18..23
+##FASTA
+>somefakething
+ttttttctacatcatcattacgt
 `)
 }

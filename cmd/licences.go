@@ -17,7 +17,9 @@ var licenceCmd = &cobra.Command{
 	Long:    `Print licence information`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		frontmatter := `
+		frontmatter := `Jackson B (2022). gofasta: command-line utilities for genomic epidemiology research. Bioinformatics 38 (16), 4033-4035
+https://doi.org/10.1093/bioinformatics/btac424.
+
 gofasta is distributed under the MIT licence
 
 it incorporates the following libraries that are distributed under licence:

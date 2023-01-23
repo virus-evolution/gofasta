@@ -9,10 +9,15 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:     "gofasta",
-		Short:   "genomic epidemiology utilities for short genome alignments",
-		Long:    `genomic epidemiology utilities for short genome alignments`,
-		Version: "1.1.0",
+		Use:   "gofasta",
+		Short: "Command-line utilities for genomic epidemiology research",
+		Long: `Command-line utilities for genomic epidemiology research
+		
+If you use gofasta in your work, please cite:
+
+Jackson B (2022). gofasta: command-line utilities for genomic epidemiology research. Bioinformatics 38 (16), 4033-4035
+https://doi.org/10.1093/bioinformatics/btac424`,
+		Version: "1.2.0",
 	}
 )
 

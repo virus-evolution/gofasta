@@ -16,6 +16,8 @@ var samVariantsOutfile string
 var samVariantsAggregate bool
 var samVariantsThreshold float64
 var samVariantsAppendSNP bool
+var samVariantsStart int
+var samVariantsEnd int
 
 // for backwards compatibility:
 var samVariantsGenbank string
@@ -25,6 +27,8 @@ func init() {
 
 	samVariantsCmd.Flags().StringVarP(&samVariantsAnnotation, "annotation", "a", "", "Genbank or GFF3 format annotation file. Must have suffix .gb or .gff")
 	samVariantsCmd.Flags().StringVarP(&samVariantsOutfile, "outfile", "o", "stdout", "Where to write the variants")
+	samVariantsCmd.Flags().IntVarP(&samVariantsStart, "start", "", -1, "Only report variants after (and including) this position")
+	samVariantsCmd.Flags().IntVarP(&samVariantsEnd, "end", "", -1, "Only report variants before (and including) this position")
 	samVariantsCmd.Flags().BoolVarP(&samVariantsAggregate, "aggregate", "", false, "Report the proportions of each change")
 	samVariantsCmd.Flags().Float64VarP(&samVariantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
 	samVariantsCmd.Flags().BoolVarP(&samVariantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
@@ -120,7 +124,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer out.Close()
 
-		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads)
+		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsStart, samVariantsEnd, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads)
 
 		return err
 	},

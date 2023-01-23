@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -25,26 +26,43 @@ type GFF struct {
 
 type SequenceRegion struct {
 	Seqid string
-	Start int
-	End   int
+	Start int // 1-based start position of this region
+	End   int // 1-based end position of this region
+}
+
+var (
+	errGFFParsingVersion    = errors.New("Error parsing gff version")
+	errGFFParsingSeqReg     = errors.New("Error parsing gff sequence-region")
+	errGFFParsingSeqID      = errors.New("Error parsing gff SeqID")
+	errGFFParsingStrand     = errors.New("Error parsing gff strand")
+	errGFFParsingPhase      = errors.New("Error parsing gff phase")
+	errGFFParsingAttributes = errors.New("Error parsing gff attributes")
+)
+
+func errorBuilder(err error, s string) error {
+	return errors.New(err.Error() + ": " + s)
 }
 
 func (g *GFF) versionStringFromHeader() error {
-
-	if len(g.HeaderLines[0]) < 1 {
-		return errors.New("GFF parsing error: no header in gff file")
+	for _, line := range g.HeaderLines {
+		if strings.HasPrefix(line, "gff-version") {
+			fields := strings.Fields(line)
+			if len(fields) != 2 {
+				return errGFFParsingVersion
+			}
+			g.GFF_version = fields[1]
+			return nil
+		}
 	}
-	g.GFF_version = strings.TrimSpace(g.HeaderLines[0])
-
-	return nil
+	return errGFFParsingVersion
 }
 
 func (g *GFF) setSequenceRegionsFromHeader() error {
-	for _, hl := range g.HeaderLines {
-		if strings.HasPrefix(hl, "sequence-region") {
-			fields := strings.Fields(hl)
+	for _, line := range g.HeaderLines {
+		if strings.HasPrefix(line, "sequence-region") {
+			fields := strings.Fields(line)
 			if len(fields) < 4 {
-				return errors.New("GFF parsing error: error parsing sequence-region: " + hl)
+				return errorBuilder(errGFFParsingSeqReg, line)
 			}
 			start, err := strconv.Atoi(fields[2])
 			if err != nil {
@@ -62,6 +80,7 @@ func (g *GFF) setSequenceRegionsFromHeader() error {
 }
 
 func (g *GFF) populateIDMap() {
+	g.IDmap = make(map[string][]int)
 	for i, f := range g.Features {
 		if f.HasAttribute("ID") {
 			if len(g.IDmap[f.Attributes["ID"][0]]) > 0 {
@@ -300,22 +319,39 @@ func featureFromLine(l string) (Feature, error) {
 	return F, nil
 }
 
-func seqidFromField(f string) (string, error) {
-
-	// to do: check anything not in [a-zA-Z0-9.:^*$@!+_?-|] (including spaces) is escaped
+func isEscapedCorrectly(f string) error {
 
 	if strings.HasPrefix(f, ">") {
-		return "", errors.New("GFF parsing error: seqids may not start with \">\"")
+		return errorBuilder(errGFFParsingSeqID, f)
+	}
+
+	matched, err := regexp.MatchString("[^\\][^a-zA-Z0-9.:^*$@!+_?-|]", f)
+	if err != nil {
+		return err
+	}
+
+	if matched {
+		return errorBuilder(errGFFParsingSeqID, f)
+	}
+
+	return nil
+}
+
+func seqidFromField(f string) (string, error) {
+
+	err := isEscapedCorrectly(f)
+	if err != nil {
+		return f, err
 	}
 
 	return f, nil
 }
 
 func strandFromField(f, l string) (string, error) {
-	if f == "+" || f == "-" || f == "." {
+	if f == "+" || f == "-" || f == "." || f == "?" {
 		return f, nil
 	}
-	return f, errors.New("GFF parsing error: Strand must be one of {+, -, .}: " + l)
+	return f, errorBuilder(errGFFParsingStrand, l)
 }
 
 func phaseFromField(t, f, l string) (int, error) {
@@ -325,17 +361,17 @@ func phaseFromField(t, f, l string) (int, error) {
 				return result, err
 			}
 		}
-		return 0, errors.New("GFF parsing error: Phase must be one of {0, 1, 2} for CDS: " + l)
+		return 0, errorBuilder(errGFFParsingPhase, l)
 	} else {
 		if result, err := strconv.Atoi(f); err == nil {
 			if result >= 0 && result <= 2 {
 				return result, err
 			}
 		} else if f == "." {
-			return -1, nil
+			return 0, nil
 		}
 	}
-	return 0, errors.New("GFF parsing error: couldn't parse phase: " + l)
+	return 0, errorBuilder(errGFFParsingPhase, l)
 }
 
 func attributesFromField(f, l string) (map[string][]string, error) {
@@ -346,7 +382,7 @@ func attributesFromField(f, l string) (map[string][]string, error) {
 	for _, tvp := range tagvaluepairs {
 		tagvalues := strings.Split(tvp, "=")
 		if len(tagvalues) != 2 {
-			return m, errors.New("GFF parsing error: couldn't parse attributes: " + l)
+			return m, errorBuilder(errGFFParsingAttributes, l)
 		}
 		m[tagvalues[0]] = strings.Split(tagvalues[1], ",")
 	}

@@ -7,6 +7,15 @@ http://ape-package.ird.fr/misc/BitLevelCodingScheme.html
 */
 package encoding
 
+func DecodeToString(bs []byte) string {
+	da := MakeDecodingArray()
+	s := ""
+	for _, n := range bs {
+		s = s + da[n]
+	}
+	return s
+}
+
 // MakeEncodingArray returns an array whose indices are the byte representations
 // of IUPAC codes and whose contents are Emmanual Paradis encodings.
 // Lower case nucleotides are mapped to their upper case nucleotides's encoding

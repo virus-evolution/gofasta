@@ -1,9 +1,14 @@
 package alphabet
 
 import (
+	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
 func SpaceMap(str string) string {
@@ -19,12 +24,33 @@ func TestTranslate(t *testing.T) {
 	spike_nuc_gb := SpaceMap(temp_spike_nuc_gb)
 	spike_AA_gb := SpaceMap(temp_spike_AA_gb)
 
-	translation, err := Translate(spike_nuc_gb)
+	translation, err := Translate(spike_nuc_gb, false)
 	if err != nil {
 		t.Error(err)
 	}
 	if translation != spike_AA_gb {
 		t.Errorf("problem in TestTranslate()")
+	}
+
+	nuc := "AAAAA"
+	translation, err = Translate(nuc, false)
+	if err != ErrorCDSNotModThree {
+		t.Error(err)
+	}
+
+	nuc = "ATN"
+	translation, err = Translate(nuc, false)
+	if err != nil {
+		t.Error(err)
+	}
+	if translation != "X" {
+		t.Errorf("Problem in TestTranslate()")
+	}
+
+	nuc = "ATN"
+	translation, err = Translate(nuc, true)
+	if !reflect.DeepEqual(err, errors.New("Translation error: Untranslatable codon: ATN")) {
+		t.Error(err)
 	}
 }
 
@@ -123,6 +149,48 @@ func TestCodonDict(t *testing.T) {
 		}
 	}
 
+}
+
+func TestComplement(t *testing.T) {
+	inn := "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"
+	out := "TGCAYRSWMKVHDBN-?tgcayrswmkvhdbn-?"
+
+	if Complement(inn) != out {
+		t.Errorf("Problem in TestComplement()")
+	}
+}
+
+func TestReverseComplement(t *testing.T) {
+	inn := "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"
+	out := "?-nbdhvkmwsryacgt?-NBDHVKMWSRYACGT"
+
+	if ReverseComplement(inn) != out {
+		t.Errorf("Problem in TestReverseComplement()")
+	}
+}
+
+func TestMakeEncodedCompArray(t *testing.T) {
+	inn := "ACGTRYSWKMBDHVN"
+	out := "TGCAYRSWMKVHDBN"
+
+	CA := MakeEncodedCompArray()
+	EA := encoding.MakeEncodingArray()
+	DA := encoding.MakeDecodingArray()
+
+	cb := make([]byte, 0)
+	for _, b := range []byte(inn) {
+		cb = append(cb, CA[EA[b]])
+	}
+
+	result := ""
+	for _, b := range cb {
+		result = result + DA[b]
+	}
+
+	if result != out {
+		t.Errorf("Problem in TestMakeEncodedCompArray()")
+		fmt.Println(result)
+	}
 }
 
 var temp_spike_nuc_gb string

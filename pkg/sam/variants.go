@@ -17,7 +17,7 @@ import (
 // Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons with an amino acid change)
 // mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a annotation file
 // in genbank or gff version 3 format
-func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, aggregate bool, threshold float64, appendSNP bool, threads int) error {
+func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, start, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
 	var ref fastaio.EncodedFastaRecord
 	if refFromFile {
@@ -31,14 +31,11 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 		ref = refs[0]
 	}
 
-	var regions []variants.Region
+	var cdsregions []variants.Region
+	var intregions []int
 	switch annoSuffix {
 	case "gb":
 		gb, err := genbank.ReadGenBank(annoIn)
-		if err != nil {
-			return err
-		}
-		regions, err = variants.GetRegionsFromGenbank(gb)
 		if err != nil {
 			return err
 		}
@@ -46,6 +43,11 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 			temp := fastaio.FastaRecord{Seq: string(gb.ORIGIN), ID: "annotation_fasta"}
 			ref = temp.Encode()
 			os.Stderr.WriteString("using --annotation fasta as reference\n")
+		}
+		refLenDegapped := len(ref.Decode().Degap().Seq)
+		cdsregions, intregions, err = variants.RegionsFromGenbank(gb, refLenDegapped)
+		if err != nil {
+			return err
 		}
 	case "gff":
 		gff, err := gff.ReadGFF(annoIn)
@@ -71,7 +73,8 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 				return errors.New("more that one sequence in gff ##FASTA section")
 			}
 		}
-		regions, err = variants.GetRegionsFromGFF(gff, ref.Decode().Seq)
+		refSeqDegapped := ref.Decode().Degap().Seq
+		cdsregions, intregions, err = variants.RegionsFromGFF(gff, refSeqDegapped)
 		if err != nil {
 			return err
 		}
@@ -93,9 +96,9 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 
 	switch aggregate {
 	case true:
-		go variants.AggregateWriteVariants(out, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
+		go variants.AggregateWriteVariants(out, start, end, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
 	case false:
-		go variants.WriteVariants(out, false, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
+		go variants.WriteVariants(out, start, end, false, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
 	}
 
 	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
@@ -117,7 +120,7 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			getVariantsSam(regions, cPairAlign, cVariants, cErr)
+			getVariantsSam(cdsregions, intregions, cPairAlign, cVariants, cErr)
 			wgVariants.Done()
 		}()
 	}
@@ -177,7 +180,7 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 
 // getVariantsSam gets the mutations for each pairwise alignment from a channel at a time, and passes them to a channel
 // of annotated variants, given an array of annotated genome regions
-func getVariantsSam(regions []variants.Region, cAlignPair chan alignPair, cVariants chan variants.AnnoStructs, cErr chan error) {
+func getVariantsSam(cdsregions []variants.Region, intregions []int, cAlignPair chan alignPair, cVariants chan variants.AnnoStructs, cErr chan error) {
 
 	EA := encoding.MakeEncodingArray()
 
@@ -193,7 +196,7 @@ func getVariantsSam(regions []variants.Region, cAlignPair chan alignPair, cVaria
 
 		offsetRefCoord, offsetMSACoord := variants.GetMSAOffsets(pair.ref)
 
-		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, regions, offsetRefCoord, offsetMSACoord)
+		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
 		if err != nil {
 			cErr <- err
 			break

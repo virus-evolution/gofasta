@@ -6,7 +6,6 @@ package genbank
 import (
 	"bufio"
 	"io"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -51,17 +50,23 @@ type genbankField struct {
 // GenbankFeature is contains information about one feature
 // from a genbank record's FEATURES section
 type GenbankFeature struct {
-	Feature string
-	Pos     string
-	Info    map[string]string
+	Feature  string
+	Location Location
+	Info     map[string]string
+}
+
+func (F *GenbankFeature) HasAttribute(tag string) bool {
+	if _, ok := F.Info[tag]; ok {
+		return true
+	}
+	return false
 }
 
 // isFeatureLine returns true/false does this line of the file code a new FEATURE (CDS, gene, 5'UTR etc)
 func isFeatureLine(line string, quoteClosed bool) bool {
 
-	lineFields := strings.Fields(line)
-
 	if quoteClosed {
+		lineFields := strings.Fields(line)
 		if len(lineFields) == 2 {
 			if lineFields[0][0] != '/' {
 				return true
@@ -100,7 +105,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			gb = GenbankFeature{}
 			gb.Feature = feature
-			gb.Pos = pos
+			gb.Location = Location{Representation: pos}
 			gb.Info = make(map[string]string)
 
 			keyBuffer = make([]rune, 0)
@@ -186,7 +191,7 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			gb = GenbankFeature{}
 			gb.Feature = feature
-			gb.Pos = pos
+			gb.Location = Location{Representation: pos}
 			gb.Info = make(map[string]string)
 
 			keyBuffer = make([]rune, 0)
@@ -194,42 +199,13 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 		}
 	}
 
+	if len(keyBuffer) > 0 && len(valueBuffer) > 0 {
+		gb.Info[string(keyBuffer)] = string(valueBuffer)
+	}
+
 	features = append(features, gb)
 
 	return features
-}
-
-// ParsePositions returns the genomic positions of a feature, handling regions that are join()ed together
-func ParsePositions(position string) ([]int, error) {
-	var A []int
-	if position[0:4] == "join" {
-		A = make([]int, 0)
-		position = strings.TrimLeft(position, "join(")
-		position = strings.TrimRight(position, ")")
-		ranges := strings.Split(position, ",")
-		for _, x := range ranges {
-			y := strings.Split(x, "..")
-			for _, z := range y {
-				temp, err := strconv.Atoi(z)
-				if err != nil {
-					return []int{}, err
-				}
-				A = append(A, temp)
-			}
-		}
-	} else {
-		A = make([]int, 0)
-		y := strings.Split(position, "..")
-		for _, z := range y {
-			temp, err := strconv.Atoi(z)
-			if err != nil {
-				return []int{}, err
-			}
-			A = append(A, temp)
-		}
-	}
-
-	return A, nil
 }
 
 // parseGenbankORIGIN gets the ORIGIN info from a genbank file

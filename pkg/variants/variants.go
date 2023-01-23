@@ -434,8 +434,20 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 			}
 		}
 		r.Strand = 1
+		r.Positions = pos
+		r.Start = gmin(r.Positions)
+		r.Stop = gmax(r.Positions)
+		refSeqFeat := ""
+		for _, p := range r.Positions {
+			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
+		}
+		t, err := alphabet.Translate(refSeqFeat, true)
+		if err != nil {
+			return r, err
+		}
+		r.Translation = t
 	case "-":
-		for j := len(fs); j >= 0; j-- {
+		for j := len(fs) - 1; j >= 0; j-- {
 			f := fs[j]
 			if f.Strand != "-" {
 				return r, errors.New("Error parsing gff: mixed strands within a single ID")
@@ -445,21 +457,21 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 			}
 		}
 		r.Strand = -1
+		r.Positions = pos
+		r.Start = gmin(r.Positions)
+		r.Stop = gmax(r.Positions)
+		refSeqFeat := ""
+		for _, p := range r.Positions {
+			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
+		}
+		t, err := alphabet.Translate(alphabet.Complement(refSeqFeat), true)
+		if err != nil {
+			return r, err
+		}
+		r.Translation = t
 	case ".":
 		return r, errors.New("Error parsing gff: protein coding feature needs a strand")
 	}
-	r.Positions = pos
-	r.Start = gmin(r.Positions)
-	r.Stop = gmax(r.Positions)
-	refSeqFeat := ""
-	for _, p := range r.Positions {
-		refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
-	}
-	t, err := alphabet.Translate(refSeqFeat, true)
-	if err != nil {
-		return r, err
-	}
-	r.Translation = t
 
 	return r, nil
 }

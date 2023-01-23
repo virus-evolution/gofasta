@@ -103,7 +103,7 @@ func tn93Distance(query, target fastaio.EncodedFastaRecord) float64 {
 	// estimated rates from this pairwise comparison
 	P1 := float64(count_P1) / float64(count_L)                   // rate of changes which are transitional differences between purines (A ⇄ G)
 	P2 := float64(count_P2) / float64(count_L)                   // rate of changes which are transitional differences between pyramidines (C ⇄ T)
-	Q := float64(count_d-(count_P1+count_P2)) / float64(count_L) // rate of changes which are transversional differences  (A ⇄ C || A ⇄ T || C ⇄ A || C ⇄ G) (i.e. everything else)
+	Q := float64(count_d-(count_P1+count_P2)) / float64(count_L) // rate of changes which are transversional differences  (A ⇄ C || A ⇄ T || G ⇄ T || C ⇄ G) (i.e. everything else)
 
 	// tidies up the equations a bit, after ape
 	w1 := 1.0 - P1/k1 - Q/(2*g_R)

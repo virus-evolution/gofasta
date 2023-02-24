@@ -190,7 +190,7 @@ func getNucFromSite(s []byte, qname string, pos int) byte {
 	}
 
 	if check > 1 {
-		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + strconv.Itoa(pos) + ": " + string(ss) + "\n")
+		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + strconv.Itoa(pos+1) + ": " + string(ss) + "\n")
 		return 'N'
 	}
 

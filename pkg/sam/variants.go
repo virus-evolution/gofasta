@@ -196,11 +196,8 @@ func getVariantsSam(cdsregions []variants.Region, intregions []int, cAlignPair c
 
 		offsetRefCoord, offsetMSACoord := variants.GetMSAOffsets(pair.ref)
 
-		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
-		if err != nil {
-			cErr <- err
-			break
-		}
+		AS := variants.AnnoStructs{}
+		variants.GetVariantsPair(&AS, pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
 
 		// and we're done
 		cVariants <- AS

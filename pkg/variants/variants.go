@@ -56,6 +56,7 @@ type AnnoStructs struct {
 	Queryname string
 	Vs        []Variant
 	Idx       int
+	Error     error
 }
 
 func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
@@ -633,22 +634,27 @@ func getVariants(ref fastaio.EncodedFastaRecord, cdsregions []Region, intregions
 			break
 		}
 
-		AS, err := GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
-		if err != nil {
-			cErr <- err
-			break
-		}
+		AS := AnnoStructs{}
+
+		GetVariantsPair(&AS, ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
 
 		cVariants <- AS
 	}
 }
 
-func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int, offsetMSACoord []int) (AnnoStructs, error) {
+func GetVariantsPair(AS *AnnoStructs, ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int, offsetMSACoord []int) {
 
-	AS := AnnoStructs{}
+	defer func() {
+		if r := recover(); r != nil {
+			AS.Queryname = queryID
+			AS.Error = errors.New("panic")
+		}
+	}()
 
 	indels := getIndelsPair(ref, query, offsetRefCoord, offsetMSACoord)
+
 	nucs := getNucsPair(ref, query, intregions, offsetRefCoord, offsetMSACoord)
+
 	AAs := make([]Variant, 0)
 	for _, r := range cdsregions {
 		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord, offsetMSACoord)...)
@@ -688,9 +694,10 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	}
 
 	// and we're done
-	AS = AnnoStructs{Queryname: queryID, Vs: finalVariants, Idx: idx}
-
-	return AS, nil
+	AS.Queryname = queryID
+	AS.Vs = finalVariants
+	AS.Idx = idx
+	AS.Error = nil
 }
 
 // FormatVariant returns a string representation of a single mutation, the format of which varies
@@ -740,25 +747,33 @@ func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP boo
 		return
 	}
 
-	for variantLine := range cVariants {
-		outputMap[variantLine.Idx] = variantLine
+	for annoStruct := range cVariants {
+		outputMap[annoStruct.Idx] = annoStruct
 
 		for {
-			if VL, ok := outputMap[counter]; ok {
+			if AS, ok := outputMap[counter]; ok {
 
-				if VL.Queryname == refID {
+				if AS.Queryname == refID {
 					delete(outputMap, counter)
 					counter++
 					continue
 				}
 
-				_, err = w.Write([]byte(VL.Queryname + ","))
+				// Handle errors generated further up the call-chain at this point:
+				if AS.Error != nil {
+					os.Stderr.WriteString("Error processing " + AS.Queryname + ": Sequence skipped in output.\n")
+					delete(outputMap, counter)
+					counter++
+					continue
+				}
+
+				_, err = w.Write([]byte(AS.Queryname + ","))
 				if err != nil {
 					cErr <- err
 					return
 				}
 				sa = make([]string, 0)
-				for _, v := range VL.Vs {
+				for _, v := range AS.Vs {
 					if start > 0 && end > 0 {
 						if v.Position < start || v.Position > end {
 							continue
@@ -807,6 +822,11 @@ func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, thresho
 
 	for AS := range cVariants {
 		if AS.Queryname == refID {
+			continue
+		}
+		// Handle errors generated further up the call-chain at this point:
+		if AS.Error != nil {
+			os.Stderr.WriteString("Error processing " + AS.Queryname + ": Sequence skipped in output.\n")
 			continue
 		}
 		counter++

@@ -24,8 +24,6 @@ func init() {
 	toPairAlignCmd.Flags().IntVarP(&toPairAlignEnd, "end", "", -1, "1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted")
 	toPairAlignCmd.Flags().IntVarP(&toPairAlignWrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
 
-	toPairAlignCmd.Flags().Lookup("wrap").NoOptDefVal = "80"
-
 	toPairAlignCmd.Flags().Lookup("omit-reference").NoOptDefVal = "true"
 	toPairAlignCmd.Flags().Lookup("skip-insertions").NoOptDefVal = "true"
 

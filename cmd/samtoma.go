@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -95,8 +94,6 @@ Note the change of coordinate system if moving from old to new flags.
 			return err
 		}
 		defer out.Close()
-
-		fmt.Println(toMultiAlignWrap)
 
 		err = sam.ToMultiAlign(samIn, out, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
 

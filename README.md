@@ -1,5 +1,8 @@
     
-# gofasta <img src="https://anaconda.org/bioconda/gofasta/badges/downloads.svg" alt="" align = "right"/>
+# gofasta <img src="https://img.shields.io/conda/d/bioconda/gofasta" alt="conda downloads" align = "right"/> <img src="https://img.shields.io/github/downloads/virus-evolution/gofasta/total?logo=github" alt="github downloads" align = "right"/>
+
+
+
 
 gofasta is a command-line utility developed to handle SARS-CoV-2 alignments, but should be useful more generally for handling consensus genomes of any microbial pathogen. It is used on datasets of millions of sequences, including by the United Kingdom's [daily SARS-CoV-2 genome processing pipelines](https://github.com/COG-UK), [Pangolin](https://github.com/cov-lineages/pangolin) and [Civet](https://github.com/artic-network/civet).
 

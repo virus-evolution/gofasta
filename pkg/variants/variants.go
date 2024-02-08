@@ -103,7 +103,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		select {
 		case ref = <-cMSA:
 			if ref.ID != refID {
-				return errors.New("--reference is not the first record in --msa")
+				return errors.New("--reference (" + refID + ") is not the first record in --msa which is instead " + ref.ID + ")")
 			}
 			firstmissing = true
 		case err := <-cErr:
@@ -132,7 +132,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 				encodedrefseq[i] = EA[gb.ORIGIN[i]]
 			}
 			ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
-			os.Stderr.WriteString("using --annotation fasta as reference\n")
+			os.Stderr.WriteString("using --annotation in FASTA format as the reference\n")
 		}
 
 		refLenDegapped := len(ref.Decode().Degap().Seq)
@@ -161,7 +161,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		if len(ref.Seq) == 0 {
 			switch len(gff.FASTA) {
 			case 0:
-				return errors.New("couldn't find a reference sequence in the --msa or the gff")
+				return errors.New("couldn't find a reference sequence in the --msa or the gff contents do not match")
 			case 1:
 				var encodedrefseq []byte
 				for _, v := range gff.FASTA {
@@ -172,7 +172,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 					}
 					ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
 				}
-				os.Stderr.WriteString("using --annotation fasta as reference\n")
+				os.Stderr.WriteString("using --annotation containing " + ref.ID + " in FASTA format as the reference\n")
 			default:
 				return errors.New("more than one sequence in gff ##FASTA section")
 			}
@@ -204,7 +204,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 
 	default:
-		return errors.New("couldn't tell if --annotation was a .gb or a .gff file")
+		return errors.New("couldn't tell whether --annotation points to a .gb or a .gff or a .gff3 file")
 	}
 
 	cVariants := make(chan AnnoStructs, 50+threads)
@@ -296,7 +296,7 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 		if first {
 
 			if line[0] != '>' {
-				return fastaio.EncodedFastaRecord{}, errors.New("badly formatted fasta file")
+				return fastaio.EncodedFastaRecord{}, errors.New("the file --msa lacks '>' delimiter, probably not a FASTA formatted file")
 			}
 
 			description = string(line[1:])
@@ -351,7 +351,7 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 	if refFound {
 		refRec = fastaio.EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 	} else {
-		return refRec, errors.New("Couldn't find reference (" + referenceID + ") in msa")
+		return refRec, errors.New("Couldn't find reference in --msa file")
 	}
 
 	return refRec, nil
@@ -427,7 +427,7 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 	case "+":
 		for _, f := range fs {
 			if f.Strand != "+" {
-				return r, errors.New("Error parsing gff: mixed strands within a single ID")
+				return r, errors.New("Error parsing gff: mixed strands within a single protein-coding entry " + r.Name)
 			}
 			for i := f.Start + f.Phase; i <= f.End; i++ {
 				pos = append(pos, i)
@@ -450,7 +450,7 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 		for j := len(fs) - 1; j >= 0; j-- {
 			f := fs[j]
 			if f.Strand != "-" {
-				return r, errors.New("Error parsing gff: mixed strands within a single ID")
+				return r, errors.New("Error parsing gff: mixed strands within a single protein-coding entry " + r.Name)
 			}
 			for i := f.End - f.Phase; i >= f.Start; i-- {
 				pos = append(pos, i)
@@ -470,7 +470,7 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 		}
 		r.Translation = t
 	case ".":
-		return r, errors.New("Error parsing gff: protein coding feature needs a strand")
+		return r, errors.New("Error parsing gff: protein coding feature must have annotated '+' or '-' strand instead of '.'")
 	}
 
 	return r, nil
@@ -500,10 +500,10 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 func CDSRegion2fromGenbank(f genbank.GenbankFeature) (Region, error) {
 
 	if !f.HasAttribute("gene") {
-		return Region{}, errors.New("No \"gene\" attibute in Genbank CDS feature")
+		return Region{}, errors.New("No \"gene\" attribute in Genbank CDS feature")
 	}
 	if !f.HasAttribute("codon_start") {
-		return Region{}, errors.New("No \"codon_start\" attibute in Genbank CDS feature")
+		return Region{}, errors.New("No \"codon_start\" attribute in Genbank CDS feature")
 	}
 
 	r := Region{
@@ -712,7 +712,7 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl
 		}
 	default:
-		return "", errors.New("couldn't parse variant type")
+		return "", errors.New("unexpected variant type " + v.Changetype)
 	}
 
 	return s, nil

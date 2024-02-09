@@ -82,6 +82,14 @@ func getNucsPair(ref, query []byte, pos []int, offsetRefCoord []int, offsetMSACo
 	return variants
 }
 
+func getCodonNucs(ref, query []byte, pos []int, offsetRefCoord []int, offsetMSACoord []int) []Variant {
+        DA := encoding.MakeDecodingArray()
+        variants := make([]Variant, 0)
+	// TODO: figure out if the mutation is in the first, second or third nucleotide position of a codon
+	// TODO: slice out the respective nucleotide region around DA[query[alignPos]]
+        return variants
+}
+
 // a version of the function that uses the Positions slice in the Region instead of the CodonStarts
 func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMSACoord []int) []Variant {
 

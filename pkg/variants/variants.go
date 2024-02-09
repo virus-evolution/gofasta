@@ -43,7 +43,8 @@ type Variant struct {
 	QueAl          string
 	Position       int    // (1-based) genomic location (for an amino acid change, this is the first position of the codon)
 	Residue        int    // (1-based) amino acid location
-	Changetype     string // one of {nuc,aa,ins,del}
+	Codon          string // 3-nucleotide sequence
+	Changetype     string // one of {nuc,aa,codon,ins,del}
 	Feature        string // this should be, for example, the name of the CDS that the thing is in
 	Length         int    // for indels
 	SNPs           string // if this is an amino acid change, what are the snps
@@ -650,6 +651,7 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	indels := getIndelsPair(ref, query, offsetRefCoord, offsetMSACoord)
 	nucs := getNucsPair(ref, query, intregions, offsetRefCoord, offsetMSACoord)
 	AAs := make([]Variant, 0)
+	codons := getCodonNucs(ref, query, intregions, offsetRefCoord, offsetMSACoord) // record the new codon encoding the aminoacid residue in the sample based on the MSA file
 	for _, r := range cdsregions {
 		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord, offsetMSACoord)...)
 	}
@@ -658,6 +660,7 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	variants = append(variants, indels...)
 	variants = append(variants, nucs...)
 	variants = append(variants, AAs...)
+	variants = append(variants, codons...)
 
 	// sort the variants
 	sort.SliceStable(variants, func(i, j int) bool {
@@ -711,6 +714,8 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 		} else {
 			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl
 		}
+	case "codon":
+		s = "codon:" + v.Codon
 	default:
 		return "", errors.New("couldn't parse variant type")
 	}
@@ -821,7 +826,7 @@ func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, thresho
 				cErr <- err
 				return
 			}
-			Vskinny := Variant{RefAl: v.RefAl, QueAl: v.QueAl, Position: v.Position, Residue: v.Residue, Changetype: v.Changetype, Feature: v.Feature, Length: v.Length, Representation: rep}
+			Vskinny := Variant{RefAl: v.RefAl, QueAl: v.QueAl, Position: v.Position, Residue: v.Residue, Codon: v.Codon, Changetype: v.Changetype, Feature: v.Feature, Length: v.Length, Representation: rep}
 			propMap[Vskinny]++
 		}
 	}

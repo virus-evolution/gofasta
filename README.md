@@ -4,7 +4,7 @@
 
 
 
-gofasta is a command-line utility developed to handle SARS-CoV-2 alignments, but should be useful more generally for handling consensus genomes of any microbial pathogen. It is used on datasets of millions of sequences, including by the United Kingdom's [daily SARS-CoV-2 genome processing pipelines](https://github.com/COG-UK), [Pangolin](https://github.com/cov-lineages/pangolin) and [Civet](https://github.com/artic-network/civet).
+gofasta is a command-line utility developed to handle SARS-CoV-2 alignments, but should be useful more generally for handling consensus genomes of any microbial pathogen. It has been used on datasets of millions of sequences, including by the United Kingdom's [daily SARS-CoV-2 genome processing pipelines](https://github.com/COG-UK), [Pangolin](https://github.com/cov-lineages/pangolin) and [Civet](https://github.com/artic-network/civet).
 
 If you use gofasta in your work, please cite [https://doi.org/10.1093/bioinformatics/btac424](https://doi.org/10.1093/bioinformatics/btac424).
 

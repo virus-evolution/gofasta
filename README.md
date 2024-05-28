@@ -309,7 +309,7 @@ Other software exists for calculating pairwise genetic distances, including [tn9
 
 gofasta incorporates [bíogo](https://github.com/biogo/biogo), which is distributed under licence. Its licence is reproduced under `THIRD_PARTY_LICENCES/biogo` or run `gofasta licences` to print it.
 
-gofasta uses a slightly modified version of the bit-level coding scheme for nucleotides by Emmanuel Paradis, which is used in [ape](https://doi.org/10.1093/bioinformatics/btg412). For a description of it, see [here](http://ape-package.ird.fr/misc/BitLevelCodingScheme.html).
+gofasta uses a slightly modified version of the bit-level coding scheme for nucleotides by Emmanuel Paradis, which is used in [ape](https://doi.org/10.1093/bioinformatics/btg412). For a description of it, see [here](https://emmanuelparadis.github.io/misc/BitLevelCodingScheme.html).
 
 The functions with SAM files as input were written to handle pairwise alignments between assembled SARS-CoV-2 genomes from [minimap2](https://github.com/lh3/minimap2).
 

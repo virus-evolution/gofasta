@@ -116,6 +116,8 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 				annoSuffix = "gb"
 			case ".gff":
 				annoSuffix = "gff"
+			case ".gff3":
+				annoSuffix = "gff"
 			default:
 				return errors.New("couldn't tell if --annotation was a .gb or a .gff file")
 			}

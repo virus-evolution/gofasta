@@ -1,5 +1,5 @@
     
-# gofasta <img src="https://img.shields.io/conda/d/bioconda/gofasta" alt="conda downloads" align = "right"/> <img src="https://img.shields.io/github/downloads/virus-evolution/gofasta/total?logo=github" alt="github downloads" align = "right"/>
+# gofasta
 
 
 

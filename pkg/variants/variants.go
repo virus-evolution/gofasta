@@ -379,14 +379,14 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 
 	tempcds := make([]Region, 0)
 	for _, f := range IDed {
-		r, err := CDSRegion2fromGFF(f, refSeqDegapped)
+		r, err := CDSRegionfromGFF(f, refSeqDegapped)
 		if err != nil {
 			return []Region{}, []int{}, err
 		}
 		tempcds = append(tempcds, r)
 	}
 	for _, f := range other {
-		r, err := CDSRegion2fromGFF([]gff.Feature{f}, refSeqDegapped)
+		r, err := CDSRegionfromGFF([]gff.Feature{f}, refSeqDegapped)
 		if err != nil {
 			return []Region{}, []int{}, err
 		}
@@ -413,7 +413,7 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 	return cds, inter, nil
 }
 
-func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
+func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	r := Region{
 		Whichtype: "protein-coding",
 	}
@@ -429,7 +429,7 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 			if f.Strand != "+" {
 				return r, errors.New("Error parsing gff: mixed strands within a single ID")
 			}
-			for i := f.Start + f.Phase; i <= f.End; i++ {
+			for i := f.Start; i <= f.End; i++ {
 				pos = append(pos, i)
 			}
 		}
@@ -483,7 +483,7 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 	cds := make([]Region, 0)
 	for _, f := range gb.FEATURES {
 		if f.Feature == "CDS" {
-			REGION, err := CDSRegion2fromGenbank(f)
+			REGION, err := CDSRegionfromGenbank(f)
 			if err != nil {
 				return []Region{}, []int{}, err
 			}
@@ -497,7 +497,7 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 	return cds, inter, nil
 }
 
-func CDSRegion2fromGenbank(f genbank.GenbankFeature) (Region, error) {
+func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 
 	if !f.HasAttribute("gene") {
 		return Region{}, errors.New("No \"gene\" attibute in Genbank CDS feature")

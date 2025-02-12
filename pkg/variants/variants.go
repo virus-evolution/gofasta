@@ -60,10 +60,11 @@ type AnnoStructs struct {
 
 func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
-	var err error
-
 	// Find the reference
-	var ref fastaio.EncodedFastaRecord
+	var (
+		ref fastaio.EncodedFastaRecord
+		err error
+	)
 
 	// Have to move the reader back to the beginning of the alignment, because we are scanning through it twice
 	if refID != "" {
@@ -113,9 +114,11 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 	}
 
-	var cdsregions []Region
-	var intregions []int
-	var refToMSA, MSAToRef []int
+	var (
+		cdsregions         []Region
+		intregions         []int
+		refToMSA, MSAToRef []int
+	)
 
 	switch annoSuffix {
 	case "gb":
@@ -452,7 +455,7 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 			if f.Strand != "-" {
 				return r, errors.New("Error parsing gff: mixed strands within a single ID")
 			}
-			for i := f.End - f.Phase; i >= f.Start; i-- {
+			for i := f.End; i >= f.Start; i-- {
 				pos = append(pos, i)
 			}
 		}

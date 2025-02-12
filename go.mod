@@ -1,6 +1,6 @@
 module github.com/virus-evolution/gofasta
 
-go 1.19
+go 1.23
 
 require (
 	github.com/biogo/hts v1.2.1

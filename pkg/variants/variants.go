@@ -60,10 +60,11 @@ type AnnoStructs struct {
 
 func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
-	var err error
-
 	// Find the reference
-	var ref fastaio.EncodedFastaRecord
+	var (
+		ref fastaio.EncodedFastaRecord
+		err error
+	)
 
 	// Have to move the reader back to the beginning of the alignment, because we are scanning through it twice
 	if refID != "" {
@@ -113,9 +114,11 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 	}
 
-	var cdsregions []Region
-	var intregions []int
-	var refToMSA, MSAToRef []int
+	var (
+		cdsregions         []Region
+		intregions         []int
+		refToMSA, MSAToRef []int
+	)
 
 	switch annoSuffix {
 	case "gb":
@@ -379,14 +382,14 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 
 	tempcds := make([]Region, 0)
 	for _, f := range IDed {
-		r, err := CDSRegion2fromGFF(f, refSeqDegapped)
+		r, err := CDSRegionfromGFF(f, refSeqDegapped)
 		if err != nil {
 			return []Region{}, []int{}, err
 		}
 		tempcds = append(tempcds, r)
 	}
 	for _, f := range other {
-		r, err := CDSRegion2fromGFF([]gff.Feature{f}, refSeqDegapped)
+		r, err := CDSRegionfromGFF([]gff.Feature{f}, refSeqDegapped)
 		if err != nil {
 			return []Region{}, []int{}, err
 		}
@@ -413,10 +416,13 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 	return cds, inter, nil
 }
 
-func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
+func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	r := Region{
 		Whichtype: "protein-coding",
 	}
+	// TO DO - check that all CDS features in this group have the same "Name"
+	// attribute (or none at all). At the moment only the first CDS line's Name
+	// is used
 	if fs[0].HasAttribute("Name") {
 		r.Name = fs[0].Attributes["Name"][0]
 	} else {
@@ -429,7 +435,7 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 			if f.Strand != "+" {
 				return r, errors.New("Error parsing gff: mixed strands within a single ID")
 			}
-			for i := f.Start + f.Phase; i <= f.End; i++ {
+			for i := f.Start; i <= f.End; i++ {
 				pos = append(pos, i)
 			}
 		}
@@ -452,7 +458,7 @@ func CDSRegion2fromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) 
 			if f.Strand != "-" {
 				return r, errors.New("Error parsing gff: mixed strands within a single ID")
 			}
-			for i := f.End - f.Phase; i >= f.Start; i-- {
+			for i := f.End; i >= f.Start; i-- {
 				pos = append(pos, i)
 			}
 		}
@@ -483,7 +489,7 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 	cds := make([]Region, 0)
 	for _, f := range gb.FEATURES {
 		if f.Feature == "CDS" {
-			REGION, err := CDSRegion2fromGenbank(f)
+			REGION, err := CDSRegionfromGenbank(f)
 			if err != nil {
 				return []Region{}, []int{}, err
 			}
@@ -497,7 +503,7 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 	return cds, inter, nil
 }
 
-func CDSRegion2fromGenbank(f genbank.GenbankFeature) (Region, error) {
+func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 
 	if !f.HasAttribute("gene") {
 		return Region{}, errors.New("No \"gene\" attibute in Genbank CDS feature")

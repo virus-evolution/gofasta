@@ -420,6 +420,9 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	r := Region{
 		Whichtype: "protein-coding",
 	}
+	// TO DO - check that all CDS features in this group have the same "Name"
+	// attribute (or none at all). At the moment only the first CDS line's Name
+	// is used
 	if fs[0].HasAttribute("Name") {
 		r.Name = fs[0].Attributes["Name"][0]
 	} else {

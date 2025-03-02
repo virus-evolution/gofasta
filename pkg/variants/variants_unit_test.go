@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
 )
@@ -120,7 +120,7 @@ CCCCCCCCC
 		t.Error(err)
 	}
 
-	desiredResult := fastaio.EncodedFastaRecord{ID: "MN908947.3", Description: "MN908947.3", Seq: []byte{136, 24, 72, 136, 24, 72, 136, 24, 72}, Idx: 0}
+	desiredResult := fasta.EncodedRecord{ID: "MN908947.3", Description: "MN908947.3", Seq: []byte{136, 24, 72, 136, 24, 72, 136, 24, 72}, Idx: 0}
 	if !reflect.DeepEqual(ref, desiredResult) {
 		t.Errorf("problem in TestfindReference")
 	}
@@ -131,7 +131,7 @@ CCCCCCCCC
 		t.Error(err)
 	}
 
-	desiredResult = fastaio.EncodedFastaRecord{ID: "nottheref", Description: "nottheref hey", Seq: []byte{136, 136, 136, 136, 136, 136, 136, 136, 136}, Idx: 1}
+	desiredResult = fasta.EncodedRecord{ID: "nottheref", Description: "nottheref hey", Seq: []byte{136, 136, 136, 136, 136, 136, 136, 136, 136}, Idx: 1}
 	if !reflect.DeepEqual(ref, desiredResult) {
 		t.Errorf("problem in TestfindReference")
 	}
@@ -211,7 +211,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 
 	msaReader = bytes.NewReader(msaData)
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(msaReader, false)
+	queries, err := fasta.LoadEncodeAlignment(msaReader, false, false, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -306,7 +306,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 
 	msaReader = bytes.NewReader(msaData)
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(msaReader, false)
+	queries, err := fasta.LoadEncodeAlignment(msaReader, false, false, false)
 	if err != nil {
 		t.Error(err)
 	}

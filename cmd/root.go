@@ -17,7 +17,7 @@ If you use gofasta in your work, please cite:
 
 Jackson B (2022). gofasta: command-line utilities for genomic epidemiology research. Bioinformatics 38 (16), 4033-4035
 https://doi.org/10.1093/bioinformatics/btac424`,
-		Version: "1.2.2",
+		Version: "1.2.3",
 	}
 )
 

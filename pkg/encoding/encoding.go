@@ -22,10 +22,6 @@ func DecodeToString(bs []byte) string {
 func MakeEncodingArray() [256]byte {
 	var byteArray [256]byte
 
-	for i := 0; i < 256; i++ {
-		byteArray[i] = 0
-	}
-
 	byteArray['A'] = 136
 	byteArray['a'] = 136
 	byteArray['G'] = 72
@@ -67,10 +63,6 @@ func MakeEncodingArray() [256]byte {
 // character represents NONE of ACTG)
 func MakeEncodingArrayHardGaps() [256]byte {
 	var byteArray [256]byte
-
-	for i := 0; i < 256; i++ {
-		byteArray[i] = 0
-	}
 
 	byteArray['A'] = 136
 	byteArray['a'] = 136
@@ -116,10 +108,6 @@ func MakeEncodingArrayHardGaps() [256]byte {
 func MakeScoreArray() [256]int64 {
 	var byteArray [256]int64
 
-	for i := 0; i < 256; i++ {
-		byteArray[i] = 0
-	}
-
 	byteArray['A'] = 12
 	byteArray['a'] = 12
 	byteArray['G'] = 12
@@ -162,10 +150,6 @@ func MakeEncodedScoreArray() [256]int64 {
 
 	var byteArray [256]int64
 
-	for i := 0; i < 256; i++ {
-		byteArray[i] = 0
-	}
-
 	byteArray[136] = 12
 	byteArray[72] = 12
 	byteArray[40] = 12
@@ -191,10 +175,6 @@ func MakeEncodedScoreArray() [256]int64 {
 // of IUPAC codes and whose contents are IUPAC codes as strings
 func MakeDecodingArray() [256]string {
 	var byteArray [256]string
-
-	for i := 0; i < 256; i++ {
-		byteArray[i] = ""
-	}
 
 	byteArray[136] = "A"
 	byteArray[72] = "G"

@@ -11,11 +11,12 @@ import (
 	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
-// getAmbArr parses the ambiguities field from one line of the output of gofasta updown list to an array of
-// 1-based inclusive start-stop pairs of integers, which represent tracts of ambiguities
+// getAmbArr parses the ambiguities field from one line of the output of gofasta
+// updown list to an array of 1-based inclusive start-stop pairs of integers,
+// which represent tracts of ambiguities
 func getAmbArr(s string) ([]int, error) {
 	// if there are no ambiguities:
 	if len(s) == 0 {
@@ -69,8 +70,9 @@ func headerEqual(a, b []string) bool {
 	return true
 }
 
-// readCSVToUDLChan reads a csv file in the format produced by gofasta updown list to a channel of
-// updownLine structs, each of which contains the snps and ambiguous positions for one query or target sequence
+// readCSVToUDLChan reads a csv file in the format produced by gofasta updown
+// list to a channel of updownLine structs, each of which contains the snps and
+// ambiguous positions for one query or target sequence
 func readCSVToUDLChan(in io.Reader, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
 
 	var snps []string
@@ -136,8 +138,9 @@ func readCSVToUDLChan(in io.Reader, cudL chan updownLine, cErr chan error, cRead
 	cReadDone <- true
 }
 
-// readCSVToUDLList reads a csv file in the format produced by gofasta updown list to an array of
-// updownLine structs, each of which contains the snps and ambiguous positions for one query or target sequence
+// readCSVToUDLList reads a csv file in the format produced by gofasta updown
+// list to an array of updownLine structs, each of which contains the snps and
+// ambiguous positions for one query or target sequence
 func readCSVToUDLList(in io.Reader) ([]updownLine, error) {
 
 	LudL := make([]updownLine, 0)
@@ -203,21 +206,22 @@ func readCSVToUDLList(in io.Reader) ([]updownLine, error) {
 	return LudL, nil
 }
 
-// fastaToUDLslice converts a fasta format alignment to an array of updownLine structs, given a reference sequence,
-// each of which contains the snps and ambiguous positions for one query or target sequence
+// fastaToUDLslice converts a fasta format alignment to an array of updownLine
+// structs, given a reference sequence, each of which contains the snps and
+// ambiguous positions for one query or target sequence
 func fastaToUDLList(in io.Reader, refSeq []byte) ([]updownLine, error) {
 
 	var udla []updownLine
 
 	cInternalErr := make(chan error)
 
-	cFR := make(chan fastaio.EncodedFastaRecord)
+	cFR := make(chan fasta.EncodedRecord)
 	cFRDone := make(chan bool)
 	cudLs := make(chan updownLine, runtime.NumCPU())
 	cudLsDone := make(chan bool)
 	cArrayDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(in, false, cFR, cInternalErr, cFRDone)
+	go fasta.StreamEncodeAlignment(in, cFR, cInternalErr, cFRDone, false, false, false)
 
 	var wgudLs sync.WaitGroup
 	wgudLs.Add(1)
@@ -269,12 +273,12 @@ func fastaToUDLList(in io.Reader, refSeq []byte) ([]updownLine, error) {
 	return udla, nil
 }
 
-// readFastaToUDLChan converts each record in a fasta format alignment to an updownLine struct, given a reference sequence,
-// and passes it to a channel
+// readFastaToUDLChan converts each record in a fasta format alignment to an
+// updownLine struct, given a reference sequence, and passes it to a channel
 func readFastaToUDLChan(target io.Reader, refSeq []byte, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
 	cInternalErr := make(chan error)
 
-	cFR := make(chan fastaio.EncodedFastaRecord)
+	cFR := make(chan fasta.EncodedRecord)
 	cFRDone := make(chan bool)
 
 	cReOrder := make(chan updownLine)
@@ -282,7 +286,7 @@ func readFastaToUDLChan(target io.Reader, refSeq []byte, cudL chan updownLine, c
 
 	cudLsDone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(target, false, cFR, cInternalErr, cFRDone)
+	go fasta.StreamEncodeAlignment(target, cFR, cInternalErr, cFRDone, false, false, false)
 
 	var wgudLs sync.WaitGroup
 	wgudLs.Add(runtime.NumCPU())
@@ -335,10 +339,12 @@ func readFastaToUDLChan(target io.Reader, refSeq []byte, cudL chan updownLine, c
 	}
 }
 
-// reorderRecords reorders the records in a channel of updownLine structs according to the order they were
-// in the input. It does this to ensure that given the same dataset, the results of the updown routines will
-// be the same whether the input target file is in csv or fasta format. This is necessary because when there are
-// ties for genetic distance and ambiguity content, sort.SliceStable will preserve the input order.
+// reorderRecords reorders the records in a channel of updownLine structs
+// according to the order they were in the input. It does this to ensure that
+// given the same dataset, the results of the updown routines will be the same
+// whether the input target file is in csv or fasta format. This is necessary
+// because when there are ties for genetic distance and ambiguity content,
+// sort.SliceStable will preserve the input order.
 func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
 
 	reorderMap := make(map[int]updownLine)
@@ -374,8 +380,9 @@ func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
 	cReorderDone <- true
 }
 
-// getLine gets the mutation + ambiguity lists between the reference and each fasta record at a time
-func getLines(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cUDs chan updownLine, cErr chan error) {
+// getLine gets the mutation + ambiguity lists between the reference and each
+// fasta record at a time
+func getLines(refSeq []byte, cFR chan fasta.EncodedRecord, cUDs chan updownLine, cErr chan error) {
 
 	DA := encoding.MakeDecodingArray()
 

@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 // updownLine is a struct for one records snps relative to a reference sequence and ambiguity tracts.
@@ -82,7 +82,7 @@ func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cErr := make(chan error)
 
-	cFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU()+50)
+	cFR := make(chan fasta.EncodedRecord, runtime.NumCPU()+50)
 	cFRDone := make(chan bool)
 
 	cudLs := make(chan updownLine, runtime.NumCPU()+50)
@@ -90,7 +90,7 @@ func List(reference, alignment io.Reader, out io.Writer) error {
 
 	cWriteDone := make(chan bool)
 
-	temp, err := fastaio.ReadEncodeAlignmentToList(reference, false)
+	temp, err := fasta.LoadEncodeAlignment(reference, false, false, false)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func List(reference, alignment io.Reader, out io.Writer) error {
 		}
 	}
 
-	go fastaio.ReadEncodeAlignment(alignment, false, cFR, cErr, cFRDone)
+	go fasta.StreamEncodeAlignment(alignment, cFR, cErr, cFRDone, false, false, false)
 
 	go writeOutput(out, cudLs, cErr, cWriteDone)
 

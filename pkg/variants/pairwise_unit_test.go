@@ -5,17 +5,25 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 func TestGetIndelsPair(t *testing.T) {
 
-	ref := fastaio.FastaRecord{Seq: "ATG---ATGATGAT"}.Encode().Seq
-	que := fastaio.FastaRecord{Seq: "ATGATGAT--TG--"}.Encode().Seq
+	ref, err := fasta.Record{Seq: "ATG---ATGATGAT"}.Encode()
+	if err != nil {
+		t.Error(err)
+	}
+	refSeq := ref.Seq
+	que, err := fasta.Record{Seq: "ATGATGAT--TG--"}.Encode()
+	if err != nil {
+		t.Error(err)
+	}
+	queSeq := que.Seq
 
-	offsetRefCoord, offsetMSACoord := GetMSAOffsets(ref)
+	offsetRefCoord, offsetMSACoord := GetMSAOffsets(refSeq)
 
-	indels := getIndelsPair(ref, que, offsetRefCoord, offsetMSACoord)
+	indels := getIndelsPair(refSeq, queSeq, offsetRefCoord, offsetMSACoord)
 
 	desiredResultV := []Variant{
 		Variant{Position: 3, Changetype: "ins", Length: 3},
@@ -44,12 +52,21 @@ func TestGetIndelsPair(t *testing.T) {
 
 func TestGetNucsPair(t *testing.T) {
 
-	ref := fastaio.FastaRecord{Seq: "ATGA-TGACC"}.Encode().Seq
-	que := fastaio.FastaRecord{Seq: "TTGA-TGSCS"}.Encode().Seq
+	ref, err := fasta.Record{Seq: "ATGA-TGACC"}.Encode()
+	if err != nil {
+		t.Error(err)
+	}
+	refSeq := ref.Seq
 
-	offsetRefCoord, offsetMSACoord := GetMSAOffsets(ref)
+	que, err := fasta.Record{Seq: "TTGA-TGSCS"}.Encode()
+	if err != nil {
+		t.Error(err)
+	}
+	queSeq := que.Seq
 
-	nucs := getNucsPair(ref, que, []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, offsetRefCoord, offsetMSACoord)
+	offsetRefCoord, offsetMSACoord := GetMSAOffsets(refSeq)
+
+	nucs := getNucsPair(refSeq, queSeq, []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, offsetRefCoord, offsetMSACoord)
 
 	desiredResultV := []Variant{
 		Variant{RefAl: "A", QueAl: "T", Position: 1, Changetype: "nuc"},
@@ -78,14 +95,23 @@ func TestGetNucsPair(t *testing.T) {
 
 func TestGetAAsPair(t *testing.T) {
 
-	ref := fastaio.FastaRecord{Seq: "ATG-TCTAGACCC"}.Encode().Seq
-	que := fastaio.FastaRecord{Seq: "ATGATGTAGAAAA"}.Encode().Seq
+	ref, err := fasta.Record{Seq: "ATG-TCTAGACCC"}.Encode()
+	if err != nil {
+		t.Error(err)
+	}
+	refSeq := ref.Seq
+
+	que, err := fasta.Record{Seq: "ATGATGTAGAAAA"}.Encode()
+	if err != nil {
+		t.Error(err)
+	}
+	queSeq := que.Seq
 
 	r := Region{Whichtype: "protein-coding", Name: "nspX", Start: 1, Stop: 12, Translation: "MSRP", Strand: 1, Positions: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}}
 
-	offsetRefCoord, offsetMSACoord := GetMSAOffsets(ref)
+	offsetRefCoord, offsetMSACoord := GetMSAOffsets(refSeq)
 
-	AAs := getAAsPair(ref, que, r, offsetRefCoord, offsetMSACoord)
+	AAs := getAAsPair(refSeq, queSeq, r, offsetRefCoord, offsetMSACoord)
 
 	desiredResultV := []Variant{
 		Variant{RefAl: "S", QueAl: "C", Position: 4, Changetype: "aa", SNPs: "nuc:C5G", Residue: 2, Feature: "nspX"},

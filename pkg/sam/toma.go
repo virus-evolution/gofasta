@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 
 	biogosam "github.com/biogo/hts/sam"
 )
@@ -19,7 +19,7 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 
 	cSH := make(chan biogosam.Header)
 
-	cFR := make(chan fastaio.FastaRecord)
+	cFR := make(chan fasta.Record)
 	cWriteDone := make(chan bool)
 
 	cErr := make(chan error)
@@ -37,9 +37,9 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 	}
 
 	if wrap > 0 {
-		go fastaio.WriteWrapAlignment(cFR, out, wrap, cWriteDone, cErr)
+		go fasta.WriteWrapAlignment(cFR, out, wrap, cErr, cWriteDone)
 	} else {
-		go fastaio.WriteAlignment(cFR, out, cWriteDone, cErr)
+		go fasta.WriteAlignment(cFR, out, cErr, cWriteDone)
 	}
 
 	var wg sync.WaitGroup
@@ -47,7 +47,7 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			blockToFastaRecord(cSR, cFR, cErr, refLen, trim, pad, trimstart, trimend, false)
+			blockToRecord(cSR, cFR, cErr, refLen, trim, pad, trimstart, trimend, false)
 			wg.Done()
 		}()
 	}
@@ -120,9 +120,9 @@ func checkArgs(refLen int, trimstart int, trimend int) (int, int, bool, error) {
 	return trimstart, trimend, trim, nil
 }
 
-// blockToFastaRecord is a worker function that takes items from a channel of sam block structs (with indices)
+// blockToRecord is a worker function that takes items from a channel of sam block structs (with indices)
 // and writes the corresponding fasta records to a channel
-func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, ch_err chan error,
+func blockToRecord(ch_in chan samRecords, ch_out chan fasta.Record, ch_err chan error,
 	refLen int, trim bool, pad bool, trimstart int, trimend int, includeInsertions bool) {
 
 	for group := range ch_in {
@@ -132,15 +132,15 @@ func blockToFastaRecord(ch_in chan samRecords, ch_out chan fastaio.FastaRecord, 
 		if err != nil {
 			ch_err <- err
 		}
-		ch_out <- getFastaRecord(rawseq, id, group.idx, trim, pad, trimstart, trimend)
+		ch_out <- getRecord(rawseq, id, group.idx, trim, pad, trimstart, trimend)
 	}
 	return
 }
 
-// getFastaRecord returns a FastaRecord struct with a sequence ID and a sequence
+// getRecord returns a Record struct with a sequence ID and a sequence
 // that has been optionally trimmed and padded
-func getFastaRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trimstart int,
-	trimend int) fastaio.FastaRecord {
+func getRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trimstart int,
+	trimend int) fasta.Record {
 
 	var seq []byte
 
@@ -162,7 +162,7 @@ func getFastaRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trim
 		}
 	}
 
-	FR := fastaio.FastaRecord{ID: id, Description: id, Seq: string(seq), Idx: idx}
+	FR := fasta.Record{ID: id, Description: id, Seq: string(seq), Idx: idx}
 
 	return FR
 }

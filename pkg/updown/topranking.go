@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 /*
@@ -857,7 +857,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 
 	var refSeq []byte
 	if q_in_type == "fasta" || t_in_type == "fasta" {
-		temp, err := fastaio.ReadEncodeAlignmentToList(reference, false)
+		temp, err := fasta.LoadEncodeAlignment(reference, false, false, false)
 		if err != nil {
 			return err
 		}

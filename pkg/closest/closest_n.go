@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 // this is defined elsewhere, but for reference:
@@ -46,7 +46,7 @@ func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 }
 
 // findClosestN finds the closest sequences by genetic distance to single a query sequence
-func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, maxdist float64, measure string, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct) {
+func findClosestN(query fasta.EncodedRecord, catchmentSize int, maxdist float64, measure string, cIn chan fasta.EncodedRecord, cOut chan catchmentStruct) {
 
 	neighbours := catchmentStruct{qname: query.ID, qidx: query.Idx}
 	neighbours.catchment = make([]resultsStruct, 0)
@@ -103,14 +103,14 @@ func findClosestN(query fastaio.EncodedFastaRecord, catchmentSize int, maxdist f
 }
 
 // splitInputN fans out target sequences over an array of query sequences, so that each target is passed over each query.
-func splitInputN(queries []fastaio.EncodedFastaRecord, catchmentSize int, maxdist float64, measure string, cIn chan fastaio.EncodedFastaRecord, cOut chan catchmentStruct, cErr chan error, cSplitDone chan bool) {
+func splitInputN(queries []fasta.EncodedRecord, catchmentSize int, maxdist float64, measure string, cIn chan fasta.EncodedRecord, cOut chan catchmentStruct, cErr chan error, cSplitDone chan bool) {
 
 	nQ := len(queries)
 
 	// make an array of channels, one for each query
-	QChanArray := make([]chan fastaio.EncodedFastaRecord, nQ)
+	QChanArray := make([]chan fasta.EncodedRecord, nQ)
 	for i := 0; i < nQ; i++ {
-		QChanArray[i] = make(chan fastaio.EncodedFastaRecord)
+		QChanArray[i] = make(chan fasta.EncodedRecord)
 	}
 
 	for i, q := range queries {
@@ -202,7 +202,7 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 		catchmentSize = math.MaxInt
 	}
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(query, false)
+	queries, err := fasta.LoadEncodeAlignment(query, false, true, false)
 	if err != nil {
 		return err
 	}
@@ -215,12 +215,12 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 
 	cErr := make(chan error)
 
-	cTEFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
+	cTEFR := make(chan fasta.EncodedRecord, runtime.NumCPU())
 	cTEFRdone := make(chan bool)
 	cSplitDone := make(chan bool)
 	cResults := make(chan catchmentStruct)
 
-	go fastaio.ReadEncodeScoreAlignment(target, false, cTEFR, cErr, cTEFRdone)
+	go fasta.StreamEncodeAlignment(target, cTEFR, cErr, cTEFRdone, false, true, true)
 
 	go splitInputN(queries, catchmentSize, maxdist, measure, cTEFR, cResults, cErr, cSplitDone)
 

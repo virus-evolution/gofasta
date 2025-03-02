@@ -47,14 +47,15 @@ type genbankField struct {
 	lines  []string
 }
 
-// GenbankFeature is contains information about one feature
-// from a genbank record's FEATURES section
+// GenbankFeature contains information about one feature from a genbank record's
+// FEATURES section
 type GenbankFeature struct {
 	Feature  string
 	Location Location
 	Info     map[string]string
 }
 
+// True/False a feature contains the given attribute
 func (F *GenbankFeature) HasAttribute(tag string) bool {
 	if _, ok := F.Info[tag]; ok {
 		return true
@@ -62,7 +63,8 @@ func (F *GenbankFeature) HasAttribute(tag string) bool {
 	return false
 }
 
-// isFeatureLine returns true/false does this line of the file code a new FEATURE (CDS, gene, 5'UTR etc)
+// isFeatureLine returns true/false does this line of the file code a new
+// FEATURE (CDS, gene, 5'UTR etc)
 func isFeatureLine(line string, quoteClosed bool) bool {
 
 	if quoteClosed {

@@ -19,7 +19,7 @@ import (
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
 	"golang.org/x/exp/constraints"
@@ -60,13 +60,13 @@ type AnnoStructs struct {
 
 func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
-	// Find the reference
 	var (
-		ref fastaio.EncodedFastaRecord
+		ref fasta.EncodedRecord
 		err error
 	)
 
-	// Have to move the reader back to the beginning of the alignment, because we are scanning through it twice
+	// Find the reference
+	// (Have to move the reader back to the beginning of the alignment, because we are scanning through it twice)
 	if refID != "" {
 		switch x := msaIn.(type) {
 		case *os.File:
@@ -92,11 +92,11 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 	}
 
-	cMSA := make(chan fastaio.EncodedFastaRecord, 50+threads)
+	cMSA := make(chan fasta.EncodedRecord, 50+threads)
 	cErr := make(chan error)
 	cMSADone := make(chan bool)
 
-	go fastaio.ReadEncodeAlignment(msaIn, false, cMSA, cErr, cMSADone)
+	go fasta.StreamEncodeAlignment(msaIn, cMSA, cErr, cMSADone, false, false, false)
 
 	firstmissing := false
 
@@ -134,7 +134,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 			for i := range gb.ORIGIN {
 				encodedrefseq[i] = EA[gb.ORIGIN[i]]
 			}
-			ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
+			ref = fasta.EncodedRecord{ID: "annotation_fasta", Seq: encodedrefseq}
 			os.Stderr.WriteString("using --annotation fasta as reference\n")
 		}
 
@@ -173,7 +173,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 					for i := range v.Seq {
 						encodedrefseq[i] = EA[v.Seq[i]]
 					}
-					ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
+					ref = fasta.EncodedRecord{ID: "annotation_fasta", Seq: encodedrefseq}
 				}
 				os.Stderr.WriteString("using --annotation fasta as reference\n")
 			default:
@@ -268,9 +268,10 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 	return nil
 }
 
-// findReference gets the reference sequence from the msa if it is in there. If it isn't, we will try get it
-// from the annotation (in which case there can be no insertions relative to the reference in the msa)
-func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRecord, error) {
+// findReference gets the reference sequence from the msa if it is in there.
+// If it isn't, we will try get it from the annotation (in which case there can
+// be no insertions relative to the reference in the msa)
+func findReference(msaIn io.Reader, referenceID string) (fasta.EncodedRecord, error) {
 
 	var err error
 
@@ -288,7 +289,7 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 	var nuc byte
 	var width int
 
-	var refRec fastaio.EncodedFastaRecord
+	var refRec fasta.EncodedRecord
 	refFound := false
 
 	counter := 0
@@ -299,7 +300,7 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 		if first {
 
 			if line[0] != '>' {
-				return fastaio.EncodedFastaRecord{}, errors.New("badly formatted fasta file")
+				return fasta.EncodedRecord{}, errors.New("badly formatted fasta file")
 			}
 
 			description = string(line[1:])
@@ -314,14 +315,14 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 		} else if line[0] == '>' {
 
 			if refFound {
-				refRec = fastaio.EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
+				refRec = fasta.EncodedRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 				return refRec, nil
 			}
 
 			if counter == 0 {
 				width = len(seqBuffer)
 			} else if len(seqBuffer) != width {
-				return fastaio.EncodedFastaRecord{}, errors.New("different length sequences in input file: is this an alignment?")
+				return fasta.EncodedRecord{}, errors.New("different length sequences in input file: is this an alignment?")
 			}
 
 			counter++
@@ -338,7 +339,7 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 			for i := range line {
 				nuc = coding[line[i]]
 				if nuc == 0 {
-					return fastaio.EncodedFastaRecord{}, fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
+					return fasta.EncodedRecord{}, fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
 				}
 				encodedLine[i] = nuc
 			}
@@ -348,11 +349,11 @@ func findReference(msaIn io.Reader, referenceID string) (fastaio.EncodedFastaRec
 
 	err = s.Err()
 	if err != nil {
-		return fastaio.EncodedFastaRecord{}, err
+		return fasta.EncodedRecord{}, err
 	}
 
 	if refFound {
-		refRec = fastaio.EncodedFastaRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
+		refRec = fasta.EncodedRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
 	} else {
 		return refRec, errors.New("Couldn't find reference (" + referenceID + ") in msa")
 	}
@@ -628,9 +629,10 @@ func GetMSAOffsets(refseq []byte) ([]int, []int) {
 	return refToMSA, MSAToRef
 }
 
-// getVariants annotates mutations between query and reference sequences, one fasta record at a time. It reads each fasta
-// record from a channel and passes all its mutations grouped together in one struct to another channel.
-func getVariants(ref fastaio.EncodedFastaRecord, cdsregions []Region, intregions []int, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fastaio.EncodedFastaRecord, cVariants chan AnnoStructs, cErr chan error) {
+// getVariants annotates mutations between query and reference sequences, one
+// fasta record at a time. It reads each fasta record from a channel and passes
+// all its mutations grouped together in one struct to another channel.
+func getVariants(ref fasta.EncodedRecord, cdsregions []Region, intregions []int, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fasta.EncodedRecord, cVariants chan AnnoStructs, cErr chan error) {
 
 	for record := range cMSA {
 
@@ -699,8 +701,8 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	return AS, nil
 }
 
-// FormatVariant returns a string representation of a single mutation, the format of which varies
-// given its type (aa/nuc/indel)
+// FormatVariant returns a string representation of a single mutation, the format
+// of which varies given its type (aa/nuc/indel)
 func FormatVariant(v Variant, appendSNP bool) (string, error) {
 	var s string
 
@@ -795,8 +797,8 @@ func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP boo
 	cWriteDone <- true
 }
 
-// AggregateWriteOutput aggregates the mutations that are present greater than or equal to threshold, and
-// writes their frequencies to file or stdout
+// AggregateWriteOutput aggregates the mutations that are present greater than
+// or equal to threshold, and writes their frequencies to file or stdout
 func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	propMap := make(map[Variant]float64)

@@ -1,4 +1,4 @@
-package fastaio
+package fasta
 
 import (
 	"bytes"
@@ -8,87 +8,6 @@ import (
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
-
-func TestEncodeDecode(t *testing.T) {
-	FR := FastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: "ATGCRMWSKYVHDBN-?"}
-
-	desiredResult := EncodedFastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: []byte{136, 24, 72, 40, 192, 160, 144, 96, 80, 48, 224, 176, 208, 112, 240, 244, 242}}
-
-	if !reflect.DeepEqual(desiredResult, FR.Encode()) {
-		t.Errorf("problem in TestEncodeDecode - Encode")
-	}
-
-	if !reflect.DeepEqual(FR, FR.Encode().Decode()) {
-		t.Errorf("problem in TestEncodeDecode - Decode")
-	}
-}
-
-func TestDegap(t *testing.T) {
-	in := FastaRecord{Seq: "ACGT-ACGT-ACGT"}
-	out := FastaRecord{Seq: "ACGTACGTACGT"}
-
-	if !reflect.DeepEqual(in.Degap(), out) {
-		t.Errorf("Problem in TestDegap()")
-	}
-}
-
-func TestFRComplement(t *testing.T) {
-	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}
-	out := FastaRecord{Seq: "TGCAYRSWMKVHDBN-?tgcayrswmkvhdbn-?"}
-
-	if !reflect.DeepEqual(inn.Complement(), out) {
-		t.Errorf("Problem in TestFRComplement()")
-	}
-}
-
-func TestFRReverseComplement(t *testing.T) {
-	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}
-	out := FastaRecord{Seq: "?-nbdhvkmwsryacgt?-NBDHVKMWSRYACGT"}
-
-	if !reflect.DeepEqual(inn.ReverseComplement(), out) {
-		t.Errorf("Problem in TestFRReverseComplement()")
-	}
-}
-
-func TestEFRComplement(t *testing.T) {
-	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}.Encode()
-	out := FastaRecord{Seq: "TGCAYRSWMKVHDBN-?TGCAYRSWMKVHDBN-?"}.Encode()
-
-	if !reflect.DeepEqual(inn.Complement(), out) {
-		t.Errorf("Problem in TestEFRComplement()")
-	}
-}
-
-func TestEFRReverseComplement(t *testing.T) {
-	inn := FastaRecord{Seq: "ACGTRYSWKMBDHVN-?acgtryswkmbdhvn-?"}.Encode()
-	out := FastaRecord{Seq: "?-NBDHVKMWSRYACGT?-NBDHVKMWSRYACGT"}.Encode()
-
-	if !reflect.DeepEqual(inn.ReverseComplement(), out) {
-		t.Errorf("Problem in TestEFRReverseComplement()")
-	}
-}
-
-func TestCalculateBaseContent(t *testing.T) {
-	FR := FastaRecord{ID: "Seq1", Description: "Seq1", Idx: 0, Seq: "ATGCATGATA"}
-	EFR := FR.Encode()
-	EFR.CalculateBaseContent()
-
-	if EFR.Count_A != 4 {
-		t.Errorf("probem in TestCalculateBaseContent()")
-	}
-
-	if EFR.Count_T != 3 {
-		t.Errorf("probem in TestCalculateBaseContent()")
-	}
-
-	if EFR.Count_G != 2 {
-		t.Errorf("probem in TestCalculateBaseContent()")
-	}
-
-	if EFR.Count_C != 1 {
-		t.Errorf("probem in TestCalculateBaseContent()")
-	}
-}
 
 func TestGetAlignmentDims(t *testing.T) {
 	alignmentData := []byte(
@@ -116,7 +35,7 @@ ATTTTC
 	}
 }
 
-func TestReadAlignment(t *testing.T) {
+func TestStreamAlignment(t *testing.T) {
 	alignmentData := []byte(
 		`>Target1
 ATGATC
@@ -129,15 +48,15 @@ ATTTTC
 	alignment := bytes.NewReader(alignmentData)
 
 	cErr := make(chan error)
-	cFR := make(chan FastaRecord)
+	cFR := make(chan Record)
 	cReadDone := make(chan bool)
 
-	go ReadAlignment(alignment, cFR, cErr, cReadDone)
+	go StreamAlignment(alignment, cFR, cErr, cReadDone)
 
 	out := new(bytes.Buffer)
 	cWriteDone := make(chan bool)
 
-	go WriteAlignment(cFR, out, cWriteDone, cErr)
+	go WriteAlignment(cFR, out, cErr, cWriteDone)
 
 	for n := 1; n > 0; {
 		select {
@@ -165,12 +84,13 @@ ATGATG
 >Target3
 ATTTTC
 ` {
-		t.Errorf("problem in TestReadAlignment()")
+		t.Errorf("problem in TestStreamAlignment()")
+		fmt.Print(string(out.Bytes()))
 	}
 
 }
 
-func TestReadAlignmentShortSeqs(t *testing.T) {
+func TestStreamAlignmentShortSeqs(t *testing.T) {
 	alignmentData := []byte(`>Target1
 ATGATC
 >TargetShort1
@@ -182,10 +102,10 @@ ATGATC
 	alignment := bytes.NewReader(alignmentData)
 
 	cErr := make(chan error)
-	cFR := make(chan FastaRecord, 10)
+	cFR := make(chan Record, 10)
 	cReadDone := make(chan bool)
 
-	go ReadAlignment(alignment, cFR, cErr, cReadDone)
+	go StreamAlignment(alignment, cFR, cErr, cReadDone)
 
 	for n := 1; n > 0; {
 		select {
@@ -202,7 +122,7 @@ ATGATC
 	}
 }
 
-func TestReadEncodeAlignment(t *testing.T) {
+func TestStreamEncodeAlignment(t *testing.T) {
 	alignmentData := []byte(
 		`>Target1
 ATGATC
@@ -215,12 +135,12 @@ ATTTTC
 	alignment := bytes.NewReader(alignmentData)
 
 	cErr := make(chan error)
-	cFR := make(chan EncodedFastaRecord)
+	cFR := make(chan EncodedRecord)
 	cReadDone := make(chan bool)
 
 	out := new(bytes.Buffer)
 
-	go ReadEncodeAlignment(alignment, false, cFR, cErr, cReadDone)
+	go StreamEncodeAlignment(alignment, cFR, cErr, cReadDone, false, false, false)
 
 	go func() {
 		for n := 1; n > 0; {
@@ -250,12 +170,12 @@ ATGATG
 >Target3
 ATTTTC
 ` {
-		t.Errorf("problem in TestReadEncodeAlignment()")
+		t.Errorf("problem in TestStreamEncodeAlignment()")
 	}
 
 }
 
-func TestReadEncodeAlignmentShortSeqs(t *testing.T) {
+func TestStreamEncodeAlignmentShortSeqs(t *testing.T) {
 	alignmentData := []byte(`>Target1
 ATGATC
 >TargetShort1
@@ -267,10 +187,10 @@ ATGATC
 	alignment := bytes.NewReader(alignmentData)
 
 	cErr := make(chan error)
-	cFR := make(chan EncodedFastaRecord, 10)
+	cFR := make(chan EncodedRecord, 10)
 	cReadDone := make(chan bool)
 
-	go ReadEncodeAlignment(alignment, false, cFR, cErr, cReadDone)
+	go StreamEncodeAlignment(alignment, cFR, cErr, cReadDone, false, false, false)
 
 	for n := 1; n > 0; {
 		select {
@@ -287,7 +207,7 @@ ATGATC
 	}
 }
 
-func TestReadEncodeAlignmentToList(t *testing.T) {
+func TestLoadEncodeAlignment(t *testing.T) {
 	alignmentData := []byte(
 		`>Target1
 ATGATC
@@ -300,7 +220,7 @@ ATTTTC
 	alignment := bytes.NewReader(alignmentData)
 	out := new(bytes.Buffer)
 
-	EFRs, err := ReadEncodeAlignmentToList(alignment, false)
+	EFRs, err := LoadEncodeAlignment(alignment, false, false, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -322,11 +242,12 @@ ATGATG
 >Target3
 ATTTTC
 ` {
-		t.Errorf("problem in TestReadEncodeAlignmentToList()")
+		t.Errorf("problem in TestStreamEncodeAlignmentToList()")
+		fmt.Print(string(out.Bytes()))
 	}
 }
 
-func TestReadEncodeAlignmentToListShortSeqs(t *testing.T) {
+func TestStreamEncodeAlignmentToListShortSeqs(t *testing.T) {
 	alignmentData := []byte(
 		`>Target1
 ATGATC
@@ -338,36 +259,9 @@ ATTTTC
 
 	alignment := bytes.NewReader(alignmentData)
 
-	_, err := ReadEncodeAlignmentToList(alignment, false)
+	_, err := LoadEncodeAlignment(alignment, false, false, false)
 	if err.Error() != "different length sequences in input file: is this an alignment?" {
 		t.Error(err)
-	}
-}
-
-func TestConsensus(t *testing.T) {
-	alignmentData := []byte(
-		`>Target1
-ATGATN
->Target2
-ATGANN
->Target3
-ATTR-N
-`)
-
-	alignment := bytes.NewReader(alignmentData)
-
-	consensus, err := Consensus(alignment)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if consensus.Seq != "ATGATN" {
-		t.Errorf("problem in TestConsensus()")
-		fmt.Println(consensus.Seq)
-	}
-
-	if consensus.ID != "consensus" {
-		t.Errorf("problem in TestConsensus()")
 	}
 }
 
@@ -384,13 +278,13 @@ ATTR-N
 	alignment := bytes.NewReader(alignmentData)
 
 	cErr := make(chan error)
-	cFR := make(chan EncodedFastaRecord)
+	cFR := make(chan EncodedRecord)
 	cReadDone := make(chan bool)
 
 	alOut := new(bytes.Buffer)
 	scoreOut := make([]int64, 0)
 
-	go ReadEncodeScoreAlignment(alignment, false, cFR, cErr, cReadDone)
+	go StreamEncodeAlignment(alignment, cFR, cErr, cReadDone, false, true, true)
 
 	go func() {
 		for n := 1; n > 0; {
@@ -405,7 +299,7 @@ ATTR-N
 
 	DA := encoding.MakeDecodingArray()
 
-	FRs := make([]EncodedFastaRecord, 0)
+	FRs := make([]EncodedRecord, 0)
 
 	for FR := range cFR {
 		FRs = append(FRs, FR)
@@ -425,7 +319,7 @@ ATGANN
 >Target3
 ATTR-N
 ` {
-		t.Errorf("problem in TestReadEncodeAlignment() (alignment)")
+		t.Errorf("problem in TestReadEncodeScoreAlignment() (alignment)")
 	}
 
 	test := true
@@ -436,7 +330,7 @@ ATTR-N
 		}
 	}
 	if !test {
-		t.Errorf("problem in TestReadEncodeAlignment() (score)")
+		t.Errorf("problem in TestReadEncodeScoreAlignment() (score)")
 	}
 
 	counts := [][]int{{2, 2, 1, 0}, {2, 1, 1, 0}, {1, 2, 0, 0}}
@@ -454,26 +348,26 @@ ATTR-N
 				count = FRs[i].Count_C
 			}
 			if counts[i][j] != count {
-				t.Errorf("problem in TestReadEncodeAlignment() (counts)")
+				t.Errorf("problem in TestReadEncodeScoreAlignment() (counts)")
 			}
 		}
 	}
 }
 
 func TestWriteWrapAlignment(t *testing.T) {
-	source := []FastaRecord{
-		FastaRecord{ID: "Seq3", Seq: "ATGATGATG", Idx: 2},
-		FastaRecord{ID: "Seq2", Seq: "ATGATGATG", Idx: 1},
-		FastaRecord{ID: "Seq1", Seq: "ATGATGATG", Idx: 0},
+	source := []Record{
+		Record{ID: "Seq3", Seq: "ATGATGATG", Idx: 2},
+		Record{ID: "Seq2", Seq: "ATGATGATG", Idx: 1},
+		Record{ID: "Seq1", Seq: "ATGATGATG", Idx: 0},
 	}
 
 	sink := bytes.NewBuffer(make([]byte, 0))
 
-	cFR := make(chan FastaRecord)
+	cFR := make(chan Record)
 	cErr := make(chan error)
 	cDone := make(chan bool)
 
-	go WriteWrapAlignment(cFR, sink, 80, cDone, cErr)
+	go WriteWrapAlignment(cFR, sink, 80, cErr, cDone)
 
 	for _, record := range source {
 		cFR <- record
@@ -499,9 +393,9 @@ ATGATGATG
 	}
 
 	sink.Reset()
-	cFR = make(chan FastaRecord)
+	cFR = make(chan Record)
 
-	go WriteWrapAlignment(cFR, sink, 5, cDone, cErr)
+	go WriteWrapAlignment(cFR, sink, 5, cErr, cDone)
 
 	for _, record := range source {
 		cFR <- record

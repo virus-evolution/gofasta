@@ -8,20 +8,21 @@ import (
 
 	biogosam "github.com/biogo/hts/sam"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
-// Variants annotates amino acid, insertion, deletion, and nucleotide (anything outside of codons with an amino acid change)
-// mutations relative to a reference sequence from pairwise alignments in sam format. Genome annotations are derived from a annotation file
-// in genbank or gff version 3 format
+// Variants annotates amino acid, insertion, deletion, and nucleotide (anything
+// outside of codons with an amino acid change) mutations relative to a reference
+// sequence from pairwise alignments in sam format. Genome annotations are
+// derived from a annotation file in genbank or gff version 3 format
 func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, start, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
 
-	var ref fastaio.EncodedFastaRecord
+	var ref fasta.EncodedRecord
 	if refFromFile {
-		refs, err := fastaio.ReadEncodeAlignmentToList(refIn, false)
+		refs, err := fasta.LoadEncodeAlignment(refIn, false, false, false)
 		if err != nil {
 			return err
 		}
@@ -40,8 +41,11 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 			return err
 		}
 		if !refFromFile {
-			temp := fastaio.FastaRecord{Seq: string(gb.ORIGIN), ID: "annotation_fasta"}
-			ref = temp.Encode()
+			temp := fasta.Record{Seq: string(gb.ORIGIN), ID: "annotation_fasta"}
+			ref, err = temp.Encode()
+			if err != nil {
+				return err
+			}
 			os.Stderr.WriteString("using --annotation fasta as reference\n")
 		}
 		refLenDegapped := len(ref.Decode().Degap().Seq)
@@ -66,7 +70,7 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 					for i := range v.Seq {
 						encodedrefseq[i] = EA[v.Seq[i]]
 					}
-					ref = fastaio.EncodedFastaRecord{ID: "annotation_fasta", Seq: encodedrefseq}
+					ref = fasta.EncodedRecord{ID: "annotation_fasta", Seq: encodedrefseq}
 				}
 				os.Stderr.WriteString("using --annotation fasta as reference\n")
 			default:
@@ -178,8 +182,9 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 	return nil
 }
 
-// getVariantsSam gets the mutations for each pairwise alignment from a channel at a time, and passes them to a channel
-// of annotated variants, given an array of annotated genome regions
+// getVariantsSam gets the mutations for each pairwise alignment from a channel
+// at a time, and passes them to a channel of annotated variants, given an array
+// of annotated genome regions
 func getVariantsSam(cdsregions []variants.Region, intregions []int, cAlignPair chan alignPair, cVariants chan variants.AnnoStructs, cErr chan error) {
 
 	EA := encoding.MakeEncodingArray()

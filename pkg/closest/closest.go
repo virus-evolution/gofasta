@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 // resultsStruct is a struct that contains information about a query sequence and its (current)
@@ -30,7 +30,7 @@ type resultsStruct struct {
 	snps         []string
 }
 
-func rawDistance(query, target fastaio.EncodedFastaRecord) float64 {
+func rawDistance(query, target fasta.EncodedRecord) float64 {
 	n := 0
 	d := 0
 	for i, tNuc := range target.Seq {
@@ -47,7 +47,7 @@ func rawDistance(query, target fastaio.EncodedFastaRecord) float64 {
 }
 
 // TO DO - have this operate on the lists of snps not the entire sequences
-func snpDistance(query, target fastaio.EncodedFastaRecord) float64 {
+func snpDistance(query, target fasta.EncodedRecord) float64 {
 	n := 0
 	for i, tNuc := range target.Seq {
 		if (query.Seq[i] & tNuc) < 16 {
@@ -60,7 +60,7 @@ func snpDistance(query, target fastaio.EncodedFastaRecord) float64 {
 // See equation (7) in Tamura K, Nei M. Estimation of the number of nucleotide substitutions in the control region of mitochondrial DNA in humans and chimpanzees.
 // Mol Biol Evol. 1993 May;10(3):512-26. doi: 10.1093/oxfordjournals.molbev.a040023. PMID: 8336541.
 // See also ape: https://github.com/cran/ape/blob/c2fd899f66d6493a80484033772a3418e5d706a4/src/dist_dna.c
-func tn93Distance(query, target fastaio.EncodedFastaRecord) float64 {
+func tn93Distance(query, target fasta.EncodedRecord) float64 {
 
 	// Total ATGC length of the two sequences
 	L := float64(target.Count_A + target.Count_C + target.Count_G + target.Count_T + query.Count_A + query.Count_C + query.Count_G + query.Count_T)
@@ -121,7 +121,7 @@ func tn93Distance(query, target fastaio.EncodedFastaRecord) float64 {
 }
 
 // findClosest finds the single closest sequence by genetic distance among a set of target sequences to a query sequence
-func findClosest(query fastaio.EncodedFastaRecord, measure string, cIn chan fastaio.EncodedFastaRecord, cOut chan resultsStruct) {
+func findClosest(query fasta.EncodedRecord, measure string, cIn chan fasta.EncodedRecord, cOut chan resultsStruct) {
 	var closest resultsStruct
 	var distance float64
 	var snps []string
@@ -182,14 +182,14 @@ func findClosest(query fastaio.EncodedFastaRecord, measure string, cIn chan fast
 }
 
 // splitInput fans out target sequences over an array of query sequences, so that each target is passed over each query.
-func splitInput(queries []fastaio.EncodedFastaRecord, measure string, cIn chan fastaio.EncodedFastaRecord, cOut chan resultsStruct, cErr chan error, cSplitDone chan bool) {
+func splitInput(queries []fasta.EncodedRecord, measure string, cIn chan fasta.EncodedRecord, cOut chan resultsStruct, cErr chan error, cSplitDone chan bool) {
 
 	nQ := len(queries)
 
 	// make an array of channels, one for each query
-	QChanArray := make([]chan fastaio.EncodedFastaRecord, nQ)
+	QChanArray := make([]chan fasta.EncodedRecord, nQ)
 	for i := 0; i < nQ; i++ {
-		QChanArray[i] = make(chan fastaio.EncodedFastaRecord)
+		QChanArray[i] = make(chan fasta.EncodedRecord)
 	}
 
 	for i, q := range queries {
@@ -253,7 +253,7 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 		runtime.GOMAXPROCS(threads)
 	}
 
-	queries, err := fastaio.ReadEncodeAlignmentToList(query, false)
+	queries, err := fasta.LoadEncodeAlignment(query, false, true, false)
 	if err != nil {
 		return err
 	}
@@ -266,12 +266,12 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 
 	cErr := make(chan error)
 
-	cTEFR := make(chan fastaio.EncodedFastaRecord, runtime.NumCPU())
+	cTEFR := make(chan fasta.EncodedRecord, runtime.NumCPU())
 	cTEFRdone := make(chan bool)
 	cSplitDone := make(chan bool)
 	cResults := make(chan resultsStruct)
 
-	go fastaio.ReadEncodeScoreAlignment(target, false, cTEFR, cErr, cTEFRdone)
+	go fasta.StreamEncodeAlignment(target, cTEFR, cErr, cTEFRdone, false, true, true)
 
 	go splitInput(queries, measure, cTEFR, cResults, cErr, cSplitDone)
 

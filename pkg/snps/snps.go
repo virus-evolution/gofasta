@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 // snpLine is a struct for one fasta record's SNPs
@@ -25,7 +25,7 @@ type snpLine struct {
 }
 
 // getSNPs gets the SNPs between the reference sequence and each fasta record from a channel
-func getSNPs(refSeq []byte, cFR chan fastaio.EncodedFastaRecord, cSNPs chan snpLine, cErr chan error) {
+func getSNPs(refSeq []byte, cFR chan fasta.EncodedRecord, cSNPs chan snpLine, cErr chan error) {
 
 	DA := encoding.MakeDecodingArray()
 
@@ -157,7 +157,7 @@ func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold flo
 
 	cErr := make(chan error)
 
-	cFR := make(chan fastaio.EncodedFastaRecord)
+	cFR := make(chan fasta.EncodedRecord)
 	cFRDone := make(chan bool)
 
 	cSNPs := make(chan snpLine, runtime.NumCPU())
@@ -165,7 +165,7 @@ func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold flo
 
 	cWriteDone := make(chan bool)
 
-	refs, err := fastaio.ReadEncodeAlignmentToList(ref, hardGaps)
+	refs, err := fasta.LoadEncodeAlignment(ref, hardGaps, false, false)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold flo
 	}
 	refSeq := refs[0].Seq
 
-	go fastaio.ReadEncodeAlignment(alignment, hardGaps, cFR, cErr, cFRDone)
+	go fasta.StreamEncodeAlignment(alignment, cFR, cErr, cFRDone, hardGaps, false, false)
 
 	switch aggregate {
 	case true:

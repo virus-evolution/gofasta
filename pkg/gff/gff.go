@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 type GFF struct {
@@ -21,7 +21,7 @@ type GFF struct {
 	SequenceRegions map[string]SequenceRegion
 	Features        []Feature
 	IDmap           map[string][]int // a map from ID attribute tag to that ID's Feature line(s)
-	FASTA           map[string]fastaio.FastaRecord
+	FASTA           map[string]fasta.Record
 }
 
 type SequenceRegion struct {
@@ -251,9 +251,9 @@ func ReadGFF(f io.Reader) (GFF, error) {
 	gff.populateIDMap()
 
 	if len(fastaBuffer.Bytes()) > 0 {
-		fastamap := make(map[string]fastaio.FastaRecord)
+		fastamap := make(map[string]fasta.Record)
 		fastaReader := bytes.NewReader(fastaBuffer.Bytes())
-		EFRs, err := fastaio.ReadEncodeAlignmentToList(fastaReader, false)
+		EFRs, err := fasta.LoadEncodeAlignment(fastaReader, false, false, false)
 		if err != nil {
 			return gff, err
 		}

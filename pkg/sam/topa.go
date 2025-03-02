@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 
 	biogosam "github.com/biogo/hts/sam"
 )
@@ -426,7 +426,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 
 	cErr := make(chan error)
 
-	refs, err := fastaio.ReadEncodeAlignmentToList(ref, false)
+	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)
 	if err != nil {
 		return err
 	}

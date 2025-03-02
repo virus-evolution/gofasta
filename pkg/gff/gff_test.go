@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/virus-evolution/gofasta/pkg/fastaio"
+	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
 func TestVersionStringFromHeader(t *testing.T) {
@@ -462,8 +462,8 @@ ATGATGATGAT
 		t.Error(err)
 	}
 
-	if !reflect.DeepEqual(gff.FASTA, map[string]fastaio.FastaRecord{
-		"NC_045512.2": fastaio.FastaRecord{ID: "NC_045512.2", Description: "NC_045512.2", Seq: "ATGATGATGAT"},
+	if !reflect.DeepEqual(gff.FASTA, map[string]fasta.Record{
+		"NC_045512.2": fasta.Record{ID: "NC_045512.2", Description: "NC_045512.2", Seq: "ATGATGATGAT"},
 	}) {
 		t.Errorf("Problem in TestFasta()")
 	}

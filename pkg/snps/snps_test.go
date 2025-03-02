@@ -2,6 +2,7 @@ package snps
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -66,6 +67,7 @@ Query2,G6C
 Query3,G3T|A4T|G6W
 ` {
 		t.Errorf("problem in TestSNPsHardGaps()")
+		fmt.Print(string(out.Bytes()))
 	}
 }
 

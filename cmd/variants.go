@@ -19,6 +19,7 @@ var variantsThreads int
 var variantsAggregate bool
 var variantsThreshold float64
 var variantsAppendSNP bool
+var variantsAppendCodons bool // Add new flag variable
 var variantsStart int
 var variantsEnd int
 
@@ -37,10 +38,12 @@ func init() {
 	variantsCmd.Flags().BoolVarP(&variantsAggregate, "aggregate", "", false, "Report the proportions of each change")
 	variantsCmd.Flags().Float64VarP(&variantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
 	variantsCmd.Flags().BoolVarP(&variantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
+	variantsCmd.Flags().BoolVarP(&variantsAppendCodons, "append-codons", "", false, "Report the reference and alternate codons after each amino acid mutation") // Add new flag definition
 	variantsCmd.Flags().IntVarP(&variantsThreads, "threads", "t", 1, "Number of threads to use")
 
 	variantsCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
 	variantsCmd.Flags().Lookup("append-snps").NoOptDefVal = "true"
+	variantsCmd.Flags().Lookup("append-codons").NoOptDefVal = "true" // Add NoOptDefVal for the new flag
 
 	variantsCmd.Flags().StringVarP(&variantsGenbank, "genbank", "", "", "Genbank format annotation")
 	variantsCmd.Flags().MarkHidden("genbank")
@@ -128,7 +131,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer out.Close()
 
-		err = variants.Variants(msa, stdin, variantsReference, anno, annoSuffix, out, variantsStart, variantsEnd, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads)
+		err = variants.Variants(msa, stdin, variantsReference, anno, annoSuffix, out, variantsStart, variantsEnd, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsAppendCodons, variantsThreads) // Pass new flag
 
 		return
 	},

@@ -48,6 +48,8 @@ type Variant struct {
 	Length         int    // for indels
 	SNPs           string // if this is an amino acid change, what are the snps
 	Representation string
+	RefCodon       string // Reference codon for aa change
+	QueCodon       string // Query codon for aa change
 }
 
 // AnnoStructs is for passing groups of Variant structs around with an index which is used to retain input
@@ -58,7 +60,7 @@ type AnnoStructs struct {
 	Idx       int
 }
 
-func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
+func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, appendCodons bool, threads int) error {
 
 	var (
 		ref fasta.EncodedRecord
@@ -216,9 +218,9 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 
 	switch aggregate {
 	case true:
-		go AggregateWriteVariants(out, start, end, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
+		go AggregateWriteVariants(out, start, end, appendSNP, appendCodons, threshold, ref.ID, cVariants, cWriteDone, cErr)
 	case false:
-		go WriteVariants(out, start, end, firstmissing, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
+		go WriteVariants(out, start, end, firstmissing, appendSNP, appendCodons, ref.ID, cVariants, cWriteDone, cErr)
 	}
 
 	var wgVariants sync.WaitGroup
@@ -703,7 +705,7 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 
 // FormatVariant returns a string representation of a single mutation, the format
 // of which varies given its type (aa/nuc/indel)
-func FormatVariant(v Variant, appendSNP bool) (string, error) {
+func FormatVariant(v Variant, appendSNP bool, appendCodons bool) (string, error) {
 	var s string
 
 	switch v.Changetype {
@@ -727,7 +729,7 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 }
 
 // WriteVariants writes each query's mutations to file or stdout
-func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP bool, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP bool, appendCodons bool, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	outputMap := make(map[int]AnnoStructs)
 
@@ -772,7 +774,7 @@ func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP boo
 							continue
 						}
 					}
-					newVar, err := FormatVariant(v, appendSNP)
+					newVar, err := FormatVariant(v, appendSNP, appendCodons)
 					if err != nil {
 						cErr <- err
 						return
@@ -799,7 +801,7 @@ func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP boo
 
 // AggregateWriteOutput aggregates the mutations that are present greater than
 // or equal to threshold, and writes their frequencies to file or stdout
-func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
+func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, appendCodons bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
 
 	propMap := make(map[Variant]float64)
 
@@ -824,7 +826,7 @@ func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, thresho
 					continue
 				}
 			}
-			rep, err := FormatVariant(v, appendSNP)
+			rep, err := FormatVariant(v, appendSNP, appendCodons)
 			if err != nil {
 				cErr <- err
 				return

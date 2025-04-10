@@ -124,7 +124,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer out.Close()
 
-		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsStart, samVariantsEnd, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads)
+		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsStart, samVariantsEnd, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, false, samThreads)
 
 		return err
 	},

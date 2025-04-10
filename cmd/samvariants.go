@@ -16,6 +16,7 @@ var samVariantsOutfile string
 var samVariantsAggregate bool
 var samVariantsThreshold float64
 var samVariantsAppendSNP bool
+var samVariantsAppendCodons bool
 var samVariantsStart int
 var samVariantsEnd int
 
@@ -32,9 +33,11 @@ func init() {
 	samVariantsCmd.Flags().BoolVarP(&samVariantsAggregate, "aggregate", "", false, "Report the proportions of each change")
 	samVariantsCmd.Flags().Float64VarP(&samVariantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
 	samVariantsCmd.Flags().BoolVarP(&samVariantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
+	samVariantsCmd.Flags().BoolVarP(&samVariantsAppendCodons, "append-codons", "", false, "Report the codon's sequence in parenthesis after each amino acid mutation")
 
 	samVariantsCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
 	samVariantsCmd.Flags().Lookup("append-snps").NoOptDefVal = "true"
+	samVariantsCmd.Flags().Lookup("append-codons").NoOptDefVal = "true"
 
 	samVariantsCmd.Flags().SortFlags = false
 
@@ -124,7 +127,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer out.Close()
 
-		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsStart, samVariantsEnd, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, false, samThreads)
+		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsStart, samVariantsEnd, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samVariantsAppendCodons, samThreads)
 
 		return err
 	},

@@ -717,11 +717,11 @@ func FormatVariant(v Variant, appendSNP bool, appendCodons bool) (string, error)
 		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position) + v.QueAl
 	case "aa":
 		if appendSNP && appendCodons {
-			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl + "(" + v.SNPs + ")" + "[" + v.RefCodon + "->" + v.QueCodon + "]"
+			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl + "(" + v.SNPs + ")" + "(" + v.RefCodon + "->" + v.QueCodon + ")"
 		} else if appendSNP {
 			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl + "(" + v.SNPs + ")"
 		} else if appendCodons {
-			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl + "[" + v.RefCodon + "->" + v.QueCodon + "]"
+			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl + "(" + v.RefCodon + "->" + v.QueCodon + ")"
 		} else {
 			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl
 		}

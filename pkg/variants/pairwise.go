@@ -91,7 +91,7 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 	variants := make([]Variant, 0)
 	codonSNPs := make([]Variant, 0, 3)
 
-	var decodedCodon, aa, refaa string
+	var decodedCodon, refDecodedCodon, aa, refaa string // Add refDecodedCodon
 	aaCounter := 0
 	codonCounter := 0
 
@@ -110,6 +110,7 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 			// IF ON THE REVERSE STRAND- WHICH NUCLEOTIDE SHOULD BE REPRESENTED IN THE NUC VARIANT?
 		}
 		decodedCodon = decodedCodon + DA[query[alignmentPos]]
+		refDecodedCodon = refDecodedCodon + DA[ref[alignmentPos]] // Build reference codon
 
 		codonCounter++
 
@@ -118,6 +119,7 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 			// we're already going in the reverse direction, so don't need the reverse complement)
 			if region.Strand == -1 {
 				decodedCodon = alphabet.Complement(decodedCodon)
+				refDecodedCodon = alphabet.Complement(refDecodedCodon) // Complement reference codon if reverse strand
 			}
 
 			if _, ok := CD[decodedCodon]; ok {
@@ -133,7 +135,7 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 				for _, v := range codonSNPs {
 					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position)+v.QueAl)
 				}
-				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: refPos - (2 * region.Strand), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
+				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: refPos - (2 * region.Strand), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";"), RefCodon: refDecodedCodon, QueCodon: decodedCodon}) // Add codons to Variant
 
 			} else {
 				for _, v := range codonSNPs {
@@ -143,6 +145,7 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMS
 
 			codonSNPs = make([]Variant, 0, 3)
 			decodedCodon = ""
+			refDecodedCodon = "" // Reset reference codon
 			codonCounter = 0
 			aaCounter++
 		}

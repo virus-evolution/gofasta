@@ -10,9 +10,7 @@ If you use gofasta in your work, please cite [https://doi.org/10.1093/bioinforma
 
 ## Installation
 
-Binaries are available for Mac OSX and Linux under the [latest release](https://github.com/virus-evolution/gofasta/releases/latest),
-
-or you can install gofasta from Bioconda:
+You can install gofasta from Bioconda:
 
 `conda install bioconda::gofasta`
 

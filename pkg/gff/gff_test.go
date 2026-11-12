@@ -362,19 +362,22 @@ func TestHasAttribute(t *testing.T) {
 	}
 }
 
-func TestIsEscapedCorrectly(t *testing.T) {
-	s := ">Seq1"
-	err := isEscapedCorrectly(s)
-	if !reflect.DeepEqual(err, errorBuilder(errGFFParsingSeqID, s)) {
-		t.Errorf("Problem in TestIsEscapedCorrectly()")
+func TestSeqidFromField(t *testing.T) {
+	for _, s := range []string{">Seq1", "Seq1 i think", "Seq1\tx", ""} {
+		if _, err := seqidFromField(s); !reflect.DeepEqual(err, errorBuilder(errGFFParsingSeqID, s)) {
+			t.Errorf("seqidFromField(%q): got %v, want an error", s, err)
+		}
 	}
-
-	s = "Seq1 i think"
-	err = isEscapedCorrectly(s)
-	if !reflect.DeepEqual(err, errorBuilder(errGFFParsingSeqID, s)) {
-		t.Errorf("Problem in TestIsEscapedCorrectly()")
+	for in, want := range map[string]string{
+		"NC_045512.2":            "NC_045512.2",
+		"hCoV-19/England/1/2020": "hCoV-19/England/1/2020",
+		"chr%201":                "chr 1",
+		"a,b%":                   "a,b%",
+	} {
+		if got, err := seqidFromField(in); err != nil || got != want {
+			t.Errorf("seqidFromField(%q) = %q, %v; want %q", in, got, err, want)
+		}
 	}
-
 }
 
 func TestStrandFromField(t *testing.T) {
@@ -438,8 +441,56 @@ func TestAttributesFromField(t *testing.T) {
 	}
 
 	m, err = attributesFromField(column9s[2], lines[2])
-	if !reflect.DeepEqual(err, errorBuilder(errGFFParsingAttributes, lines[2])) {
-		t.Error("Problem in TestAttributesFromField()")
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(m, map[string][]string{
+		"ID":   []string{"nsp1", "Parent=CDS-pp1ab"},
+		"Name": []string{"nsp1"},
+	}) {
+		t.Errorf("Problem in TestAttributesFromField(): %v", m)
+	}
+}
+
+func TestAttributesFromFieldLenient(t *testing.T) {
+	cases := map[string]map[string][]string{
+		"ID=a;Name=b;":                     {"ID": {"a"}, "Name": {"b"}},
+		"ID=a;;Name=b; ":                   {"ID": {"a"}, "Name": {"b"}},
+		"ID=a; Name=b":                     {"ID": {"a"}, "Name": {"b"}},
+		"Note=x=y":                         {"Note": {"x=y"}},
+		"Note=a%3B b%2C c%3D d%25;ID=%41x": {"Note": {"a; b, c= d%"}, "ID": {"Ax"}},
+		"Note=100%":                        {"Note": {"100%"}},
+		"Note=%zz":                         {"Note": {"%zz"}},
+		"Name=":                            {"Name": {""}},
+		".":                                {},
+	}
+	for in, want := range cases {
+		got, err := attributesFromField(in, in)
+		if err != nil {
+			t.Errorf("attributesFromField(%q): %v", in, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("attributesFromField(%q) = %v, want %v", in, got, want)
+		}
+	}
+	for _, in := range []string{"ID", "ID=a;b", "=a"} {
+		if _, err := attributesFromField(in, in); err == nil {
+			t.Errorf("attributesFromField(%q): want an error", in)
+		}
+	}
+}
+
+func TestReadGFFBlankLinesAndLongLines(t *testing.T) {
+	long := strings.Repeat("x", 200*1024)
+	data := "##gff-version 3\n\n##sequence-region r 1 9\n\n" +
+		"r\tsrc\tCDS\t1\t9\t.\t+\t0\tID=c;Note=" + long + "\n  \n\n"
+	g, err := ReadGFF(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Features) != 1 || g.Features[0].Attributes["Note"][0] != long {
+		t.Errorf("got %d features", len(g.Features))
 	}
 }
 

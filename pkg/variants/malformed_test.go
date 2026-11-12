@@ -45,6 +45,10 @@ func TestMalformedGFFCDSGivesError(t *testing.T) {
 		"end before start":   "s\t.\tCDS\t5\t1\t.\t+\t0\tName=a",
 		"start zero":         "s\t.\tCDS\t0\t9\t.\t+\t0\tName=a",
 		"reverse, past":      "s\t.\tCDS\t3\t30\t.\t-\t0\tName=a",
+		"unknown strand":     "s\t.\tCDS\t1\t9\t.\t?\t0\tName=a",
+		"unstranded":         "s\t.\tCDS\t1\t9\t.\t.\t0\tName=a",
+		"? then +":           "s\t.\tCDS\t1\t3\t.\t?\t0\tID=c;Name=a\ns\t.\tCDS\t4\t9\t.\t+\t0\tID=c;Name=a",
+		"+ then ?":           "s\t.\tCDS\t1\t3\t.\t+\t0\tID=c;Name=a\ns\t.\tCDS\t4\t9\t.\t?\t0\tID=c;Name=a",
 	} {
 		g, err := gff.ReadGFF(strings.NewReader("##gff-version 3\n" + line + "\n"))
 		if err != nil {
@@ -52,6 +56,32 @@ func TestMalformedGFFCDSGivesError(t *testing.T) {
 		}
 		if _, _, err := RegionsFromGFF(g, "ATGAAATAA"); err == nil {
 			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+// A CDS is reported, under its Name, only if it has a Name attribute; gene= is not used.
+func TestGFFCDSNaming(t *testing.T) {
+	for attrs, want := range map[string]string{
+		"ID=cds-YP_1.1;Name=YP_1.1;gene=OPG001": "YP_1.1",
+		"Name=S":                                "S",
+		"ID=x;gene=N":                           "",
+		"ID=x":                                  "",
+	} {
+		g, err := gff.ReadGFF(strings.NewReader("##gff-version 3\ns\t.\tCDS\t1\t9\t.\t+\t0\t" + attrs + "\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cds, _, err := RegionsFromGFF(g, "atgaaataa")
+		if err != nil {
+			t.Fatalf("%s: %v", attrs, err)
+		}
+		got := ""
+		if len(cds) == 1 {
+			got = cds[0].Name
+		}
+		if len(cds) > 1 || got != want {
+			t.Errorf("%s: got %d regions named %q, want %q", attrs, len(cds), got, want)
 		}
 	}
 }

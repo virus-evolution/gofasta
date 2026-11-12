@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -127,4 +130,15 @@ func sameFile(a, b string) bool {
 		return false
 	}
 	return os.SameFile(fa, fb)
+}
+
+// annotationFormat tells a GenBank file ("gb") from a GFF3 file ("gff") by its suffix, ignoring case.
+func annotationFormat(path string) (string, error) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".gb", ".gbk", ".gbff":
+		return "gb", nil
+	case ".gff", ".gff3":
+		return "gff", nil
+	}
+	return "", errors.New("couldn't tell if --annotation was a GenBank (.gb, .gbk, .gbff) or a GFF3 (.gff, .gff3) file")
 }

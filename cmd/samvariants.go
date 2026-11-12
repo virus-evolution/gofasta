@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -25,7 +24,7 @@ var samVariantsGenbank string
 func init() {
 	samCmd.AddCommand(samVariantsCmd)
 
-	samVariantsCmd.Flags().StringVarP(&samVariantsAnnotation, "annotation", "a", "", "Genbank or GFF3 format annotation file. Must have suffix .gb or .gff")
+	samVariantsCmd.Flags().StringVarP(&samVariantsAnnotation, "annotation", "a", "", "GenBank or GFF3 format annotation file. Must have suffix .gb, .gbk, .gbff, .gff or .gff3")
 	samVariantsCmd.Flags().StringVarP(&samVariantsOutfile, "outfile", "o", "stdout", "Where to write the variants")
 	samVariantsCmd.Flags().IntVarP(&samVariantsStart, "start", "", -1, "Only report variants after (and including) this position")
 	samVariantsCmd.Flags().IntVarP(&samVariantsEnd, "end", "", -1, "Only report variants before (and including) this position")
@@ -111,17 +110,13 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			}
 			annoSuffix = "gb"
 		} else {
-			anno, err = gfio.OpenIn(*cmd.Flag("annotation"))
+			annoSuffix, err = annotationFormat(samVariantsAnnotation)
 			if err != nil {
 				return err
 			}
-			switch filepath.Ext(samVariantsAnnotation) {
-			case ".gb":
-				annoSuffix = "gb"
-			case ".gff":
-				annoSuffix = "gff"
-			default:
-				return errors.New("couldn't tell if --annotation was a .gb or a .gff file")
+			anno, err = gfio.OpenIn(*cmd.Flag("annotation"))
+			if err != nil {
+				return err
 			}
 		}
 		defer anno.Close()

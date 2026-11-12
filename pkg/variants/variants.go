@@ -413,14 +413,7 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 
 func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	r := Region{}
-	// TO DO - check that all CDS features in this group have the same "Name"
-	// attribute (or none at all). At the moment only the first CDS line's Name
-	// is used
-	if name := fs[0].Attributes["Name"]; len(name) > 0 {
-		r.Name = name[0]
-	} else {
-		r.Name = ""
-	}
+	r.Name = gffFeatureName(fs[0])
 	// every feature must lie within the reference
 	for _, f := range fs {
 		if f.Start < 1 || f.End < f.Start || f.End > len(refSeqDegapped) {
@@ -446,7 +439,7 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 		for _, p := range r.Positions {
 			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
 		}
-		t, err := alphabet.Translate(refSeqFeat, true)
+		t, err := alphabet.Translate(strings.ToUpper(refSeqFeat), true)
 		if err != nil {
 			return r, err
 		}
@@ -469,16 +462,25 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 		for _, p := range r.Positions {
 			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
 		}
-		t, err := alphabet.Translate(alphabet.Complement(refSeqFeat), true)
+		t, err := alphabet.Translate(alphabet.Complement(strings.ToUpper(refSeqFeat)), true)
 		if err != nil {
 			return r, err
 		}
 		r.Translation = t
-	case ".":
-		return r, errors.New("Error parsing gff: protein coding feature needs a strand")
+	default:
+		return r, errors.New("Error parsing gff: protein coding feature needs a strand (+ or -), got \"" + fs[0].Strand + "\"")
 	}
 
 	return r, nil
+}
+
+// gffFeatureName is the name used to report a CDS: its Name attribute, or "" if it has none
+// (a CDS without a Name is not reported). Only the first segment of a multi-segment CDS is consulted.
+func gffFeatureName(f gff.Feature) string {
+	if v := f.Attributes["Name"]; len(v) > 0 {
+		return v[0]
+	}
+	return ""
 }
 
 // Parses a genbank flat format file of genome annotations to extract information about the

@@ -51,8 +51,6 @@ func getSNPs(refSeq []byte, cFR chan fasta.EncodedRecord, cSNPs chan snpLine, cE
 		SL.snps = SNPs
 		cSNPs <- SL
 	}
-
-	return
 }
 
 // writeOutput writes the snps per record to stdout or a file as it arrives.

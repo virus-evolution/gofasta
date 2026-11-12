@@ -64,10 +64,8 @@ func getIndelsPair(ref, query []byte) []Variant {
 		}
 	}
 
-	// don't want deletions at the end of the alignment either
-	// if delOpen {
-	// 	variants = append(variants, Variant{Changetype: "del", Position: delStart - offsetMSACoord[delStart], Length: delLength})
-	// }
+	// (deletions that abut the end of the alignment are deliberately not reported)
+
 	// catch insertions that abut the end of the alignment
 	if insOpen {
 		variants = append(variants, Variant{Changetype: "ins", Position: insRefPos, Length: insLength})
@@ -106,11 +104,9 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int) []Varian
 		// here is the actual position in the msa:
 		alignmentPos := (refPos - 1) + offsetRefCoord[refPos-1]
 
-		// skip insertions relative to the reference
+		// alignmentPos is the column of a reference base, so the reference is never a gap here: insertions
+		// relative to the reference are not visited.
 		// TO DO = if they are in this record log/take them into account in terms of the protein sequence?
-		if ref[alignmentPos] == 244 {
-			continue
-		}
 		if (query[alignmentPos] & ref[alignmentPos]) < 16 {
 			codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref[alignmentPos]], QueAl: DA[query[alignmentPos]], Position: refPos})
 			// IF ON THE REVERSE STRAND- WHICH NUCLEOTIDE SHOULD BE REPRESENTED IN THE NUC VARIANT?

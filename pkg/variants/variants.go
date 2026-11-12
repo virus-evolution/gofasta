@@ -26,7 +26,6 @@ import (
 )
 
 type Region struct {
-	Whichtype   string // only "protein-coding" for now
 	Name        string // name of feature, if it has one
 	Start       int    // 1-based 5'-most position of region on the forward strand, inclusive
 	Stop        int    // 1-based 3'-most position of region on the forward strand, inclusive
@@ -413,9 +412,7 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 }
 
 func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
-	r := Region{
-		Whichtype: "protein-coding",
-	}
+	r := Region{}
 	// TO DO - check that all CDS features in this group have the same "Name"
 	// attribute (or none at all). At the moment only the first CDS line's Name
 	// is used
@@ -527,7 +524,6 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 	}
 
 	r := Region{
-		Whichtype:   "protein-coding",
 		Name:        f.Info["gene"],
 		Translation: f.Info["translation"] + "*",
 	}
@@ -698,26 +694,13 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	})
 
 	// there might be dups if there was a snp in the region of a join()
+	// (deletions that abut the start of the sequence are not reported, see getIndelsPair)
 	finalVariants := make([]Variant, 0)
-	previousVariant := Variant{}
 	for i, v := range variants {
-		if i == 0 {
-			// don't want deletions that abut the start of the sequence
-			if v.Changetype == "del" && v.Position == 0 {
-				continue
-			}
-			finalVariants = append(finalVariants, v)
-			previousVariant = v
-			continue
-		}
-		if v.Changetype == "del" && v.Position == 0 {
-			continue
-		}
-		if v == previousVariant {
+		if i > 0 && v == variants[i-1] {
 			continue
 		}
 		finalVariants = append(finalVariants, v)
-		previousVariant = v
 	}
 
 	// and we're done

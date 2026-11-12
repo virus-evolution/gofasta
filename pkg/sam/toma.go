@@ -137,7 +137,6 @@ func blockToRecord(ch_in chan samRecords, ch_out chan fasta.Record, ch_err chan 
 		}
 		ch_out <- getRecord(rawseq, id, group.idx, trim, pad, trimstart, trimend)
 	}
-	return
 }
 
 // getRecord returns a Record struct with a sequence ID and a sequence

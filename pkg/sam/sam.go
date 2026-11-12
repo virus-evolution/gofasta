@@ -40,8 +40,6 @@ func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]
 		lambda_dict = getCigarOperationMapNoInsertions()
 	}
 
-	// QNAME := samLine.Name
-
 	POS := samLine.Pos
 
 	if POS < 0 {
@@ -97,8 +95,6 @@ func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInserti
 	} else {
 		lambda_dict = getCigarOperationMapNoInsertionsWithRef()
 	}
-
-	// QNAME := samLine.Name
 
 	POS := samLine.Pos
 

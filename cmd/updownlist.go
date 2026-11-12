@@ -7,7 +7,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/updown"
 )
 
-var UDListReference string
 var UDListQuery string
 var UDListOutfile string
 

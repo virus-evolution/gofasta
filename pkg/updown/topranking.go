@@ -213,22 +213,6 @@ func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
 	nS.minAmbig = nS.catchment[catchmentSize-1].ambCount
 }
 
-// // how many different snp distances are represented in this struct
-// func catchmentNDists(nS *updownCatchmentSubStruct) int {
-// 	m := make(map[int]int)
-// 	for _, rS := range nS.catchment {
-// 		m[rS.distance]++
-// 	}
-
-// 	count := 0
-// 	for k := range m {
-// 		_ = k
-// 		count++
-// 	}
-
-// 	return count
-// }
-
 // a pushCatchmentSubStruct is used to keep a record of the targets at different snp distances away, in case there are no
 // targets under/at the threshold distance defined on the command line and the user wants to expand the search to encompass
 // the closest sequences in any particular direction. catchmentMap is a map with snp-distances as keys, and arrays of
@@ -302,7 +286,7 @@ func stringInArray(s string, sa []string) bool {
 // findUpDownCatchmentPushDistance does all the work for one query, by iterating over targets as they arrive and assigning then to
 // the correct bins based on the results of whichWay. It maintains a set of pushCatchmentSubStructs in case the bins are empty under
 // the user-defined snp distance thresholds from the command line, to push the distances out to.
-func findUpDownCatchmentPushDistance(q updownLine, ignore []string, sizeArray [4]int, pushDist int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
+func findUpDownCatchmentPushDistance(q updownLine, ignore []string, pushDist int, thresh float32, cIn chan updownLine, cOut chan updownCatchmentStruct) {
 
 	var rs resultsStruct
 	var distance int
@@ -552,7 +536,7 @@ func findUpDownCatchment(q updownLine, ignore []string, sizeArray [4]int, nofill
 
 // splitInput fans each target out over the array of queries
 func splitInput(queries []updownLine, ignore []string, sizeArray [4]int, nofill bool, distArray [4]int, threshpair float32, threshtarg int,
-	pushDistance int, cIn chan updownLine, cOut chan updownCatchmentStruct, cErr chan error, cSplitDone chan bool) {
+	pushDistance int, cIn chan updownLine, cOut chan updownCatchmentStruct, cSplitDone chan bool) {
 
 	nQ := len(queries)
 
@@ -565,7 +549,7 @@ func splitInput(queries []updownLine, ignore []string, sizeArray [4]int, nofill 
 	for i, q := range queries {
 		switch {
 		case pushDistance > 0:
-			go findUpDownCatchmentPushDistance(q, ignore, sizeArray, pushDistance, threshpair, QChanArray[i], cOut)
+			go findUpDownCatchmentPushDistance(q, ignore, pushDistance, threshpair, QChanArray[i], cOut)
 		default:
 			go findUpDownCatchment(q, ignore, sizeArray, nofill, distArray, threshpair, QChanArray[i], cOut)
 		}
@@ -908,7 +892,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 
 	go splitInput(queries, ignoreArray,
 		sizeArray, nofill, distArray, threshpair, threshtarg, distpush,
-		cudL, cResults, cErr, cSplitDone)
+		cudL, cResults, cSplitDone)
 
 	for n := 1; n > 0; {
 		select {

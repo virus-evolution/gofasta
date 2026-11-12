@@ -25,13 +25,6 @@ type alignPair struct {
 	idx       int // for retaining input order in the output
 }
 
-// alignPairs is for passing groups of alignPair around with an index which is used to retain input
-// order in the output
-type alignPairs struct {
-	aps []alignPair
-	idx int
-}
-
 // insertionOccurence stores information about a single insertion from cigars in a block of SAM records,
 // which is used to appropriately gap the other sam lines belonging to the same query sequence
 type insertionOccurence struct {
@@ -142,7 +135,6 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 				insertions = append(insertions, I)
 			}
 
-			// if op.Type().Consumes().Query == 1 || op.Type().Consumes().Reference == 1 {
 			if op.Type().Consumes().Reference == 1 {
 				pos += op.Len()
 			}
@@ -296,8 +288,6 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 			cPair <- pair
 		}
 	}
-
-	return
 }
 
 // get the number of bases to add to convert each reference position to MSA coordinates
@@ -315,7 +305,7 @@ func getRefOffset(refseq []byte) []int {
 	gapsum := 0
 	refToMSA := make([]int, degappedLen)
 	for i, nuc := range refseq {
-		if nuc == '-' { // 244 represents a gap ('-')
+		if nuc == '-' {
 			gapsum++
 			continue
 		}
@@ -326,7 +316,7 @@ func getRefOffset(refseq []byte) []int {
 }
 
 // trimAlignment trims the alignment to user-specified coordinates in degapped reference space
-func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair, cErr chan error) {
+func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair) {
 
 	if !trim {
 		// if no trimming is specified we take the whole sequence:
@@ -377,8 +367,6 @@ func wrap(old string, wrap int) string {
 // writePairwiseAlignment writes the pairwise alignments between reference and queries to a directory, p, one fasta
 // file per query
 func writePairwiseAlignment(p string, w int, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
-
-	_ = path.Join()
 
 	var err error
 
@@ -500,7 +488,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			trimAlignment(trim, trimStart, trimEnd, cPairAlign, cPairTrim, cErr)
+			trimAlignment(trim, trimStart, trimEnd, cPairAlign, cPairTrim)
 			wgTrim.Done()
 		}()
 	}

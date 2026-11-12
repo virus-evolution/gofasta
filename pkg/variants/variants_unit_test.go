@@ -11,16 +11,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/gff"
 )
 
-// type Region struct {
-// 	Whichtype   string // only "protein-coding" for now
-// 	Name        string // name of feature, if it has one
-// 	Start       int    // 1-based 5'-most position of region on the forward strand, inclusive
-// 	Stop        int    // 1-based 3'-most position of region on the forward strand, inclusive
-// 	Translation string // amino acid sequence of this region if it is CDS
-// 	Strand      int    // values in the set {-1, +1} only (and "0" for a mixture?!)
-// 	Positions   []int  // all the (1-based, unadjusted) positions in order, on the reverse strand if needs be
-// }
-
 // TO DO: maybe move this to the genbank package?
 func TestGetRegionsGenbank(t *testing.T) {
 	genbankReader := bytes.NewReader(genbankDataShort)
@@ -35,7 +25,7 @@ func TestGetRegionsGenbank(t *testing.T) {
 	}
 
 	var desiredCDSResult = []Region{
-		{Whichtype: "protein-coding", Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
+		{Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
 	}
 
 	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
@@ -63,7 +53,7 @@ func TestGetRegionsGFF(t *testing.T) {
 	}
 
 	desiredCDSResult := []Region{
-		{Whichtype: "protein-coding", Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
+		{Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
 	}
 
 	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
@@ -89,7 +79,7 @@ func TestGetRegionsGFF(t *testing.T) {
 	}
 
 	desiredCDSResult = []Region{
-		{Whichtype: "protein-coding", Name: "gene1", Strand: -1, Start: 7, Stop: 18, Translation: "MMM*", Positions: []int{18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7}},
+		{Name: "gene1", Strand: -1, Start: 7, Stop: 18, Translation: "MMM*", Positions: []int{18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7}},
 	}
 
 	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {

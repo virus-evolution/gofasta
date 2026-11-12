@@ -105,7 +105,7 @@ func TestGetAAsPair(t *testing.T) {
 	}
 	queSeq := que.Seq
 
-	r := Region{Whichtype: "protein-coding", Name: "nspX", Start: 1, Stop: 12, Translation: "MSRP", Strand: 1, Positions: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}}
+	r := Region{Name: "nspX", Start: 1, Stop: 12, Translation: "MSRP", Strand: 1, Positions: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}}
 
 	offsetRefCoord, _ := GetMSAOffsets(refSeq)
 

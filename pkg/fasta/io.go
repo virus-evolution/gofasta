@@ -124,13 +124,69 @@ func (r *Reader) Read() (Record, error) {
 	return FR, err
 }
 
-// StreamAlignment reads an alignment in fasta format to a channel of Record structs
-func StreamAlignment(f io.Reader, cR chan Record, cErr chan error, cDone chan bool) {
+// NewAlignmentSource returns a function that reads the next record of an alignment in fasta format each
+// time it is called, setting its Idx. After the last record it returns io.EOF. It returns an error if the
+// input has no records, or if a record's length differs from the first's.
+func NewAlignmentSource(f io.Reader) func() (Record, error) {
 	r := NewReader(f)
 	counter := 0
 	var width int
-	for {
+	return func() (Record, error) {
 		record, err := r.Read()
+		if err == io.EOF {
+			if counter == 0 {
+				return Record{}, errEmptyFasta
+			}
+			return Record{}, io.EOF
+		}
+		if err != nil {
+			return Record{}, err
+		}
+		record.Idx = counter
+		if counter == 0 {
+			width = len(record.Seq)
+		} else if width != len(record.Seq) {
+			return Record{}, errDiffLenSeqs
+		}
+		counter++
+		return record, nil
+	}
+}
+
+// NewEncodedAlignmentSource is as NewAlignmentSource, but encodes each record (see Record.Encode;
+// Record.EncodeHardGaps if hardGaps), optionally calculating its base content (atgc) and its
+// completeness (score).
+func NewEncodedAlignmentSource(f io.Reader, hardGaps, atgc, score bool) func() (EncodedRecord, error) {
+	next := NewAlignmentSource(f)
+	return func() (EncodedRecord, error) {
+		record, err := next()
+		if err != nil {
+			return EncodedRecord{}, err
+		}
+		var encodedRecord EncodedRecord
+		if hardGaps {
+			encodedRecord, err = record.EncodeHardGaps()
+		} else {
+			encodedRecord, err = record.Encode()
+		}
+		if err != nil {
+			return EncodedRecord{}, err
+		}
+		if score {
+			encodedRecord.CalculateCompleteness()
+		}
+		if atgc {
+			encodedRecord.CalculateBaseContent()
+		}
+		return encodedRecord, nil
+	}
+}
+
+// StreamAlignment reads an alignment in fasta format to a channel of Record structs
+func StreamAlignment(f io.Reader, cR chan Record, cErr chan error, cDone chan bool) {
+	next := NewAlignmentSource(f)
+	for {
+		record, err := next()
 		if err == io.EOF {
 			break
 		}
@@ -138,19 +194,7 @@ func StreamAlignment(f io.Reader, cR chan Record, cErr chan error, cDone chan bo
 			cErr <- err
 			return
 		}
-		record.Idx = counter
-		if counter == 0 {
-			width = len(record.Seq)
-		} else if width != len(record.Seq) {
-			cErr <- errDiffLenSeqs
-			return
-		}
 		cR <- record
-		counter++
-	}
-	if counter == 0 {
-		cErr <- errEmptyFasta
-		return
 	}
 	cDone <- true
 }
@@ -168,11 +212,9 @@ func StreamEncodeAlignment(
 	atgc bool,
 	score bool) {
 
-	r := NewReader(f)
-	counter := 0
-	var width int
+	next := NewEncodedAlignmentSource(f, hardGaps, atgc, score)
 	for {
-		record, err := r.Read()
+		record, err := next()
 		if err == io.EOF {
 			break
 		}
@@ -180,39 +222,7 @@ func StreamEncodeAlignment(
 			cErr <- err
 			return
 		}
-		record.Idx = counter
-		if counter == 0 {
-			width = len(record.Seq)
-		} else if width != len(record.Seq) {
-			cErr <- errDiffLenSeqs
-			return
-		}
-		var encodedRecord EncodedRecord
-		if hardGaps {
-			encodedRecord, err = record.EncodeHardGaps()
-			if err != nil {
-				cErr <- err
-				return
-			}
-		} else {
-			encodedRecord, err = record.Encode()
-			if err != nil {
-				cErr <- err
-				return
-			}
-		}
-		if score {
-			encodedRecord.CalculateCompleteness()
-		}
-		if atgc {
-			encodedRecord.CalculateBaseContent()
-		}
-		cER <- encodedRecord
-		counter++
-	}
-	if counter == 0 {
-		cErr <- errEmptyFasta
-		return
+		cER <- record
 	}
 	cDone <- true
 }

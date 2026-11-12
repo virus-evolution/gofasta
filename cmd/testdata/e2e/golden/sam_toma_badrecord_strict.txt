@@ -10,15 +10,15 @@ Aliases:
 
 Flags:
       --start int          1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad (default -1)
-      --end int            1-based last nucleotide position to retain the in output. Bases after this position are omitted, or are replaced with N if --pad (default -1)
+      --end int            1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad (default -1)
       --pad                If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns
   -o, --fasta-out string   Where to write the alignment (default "stdout")
   -w, --wrap int           Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output. (default -1)
+      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help               help for toMultiAlign
 
 Global Flags:
   -r, --reference string   Reference fasta file used to generate the sam file
   -s, --samfile string     Samfile to read. If none is specified, will read from stdin (default "stdin")
-      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -t, --threads int        Number of threads to use (default 1)
 

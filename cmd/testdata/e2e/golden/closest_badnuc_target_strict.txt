@@ -15,8 +15,6 @@ Flags:
   -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)
   -o, --outfile string    The output file to write (default "stdout")
       --table             Write a long-form table of the output
+      --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help              help for closest
-
-Global Flags:
-      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
 

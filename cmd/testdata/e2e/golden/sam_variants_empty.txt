@@ -13,11 +13,11 @@ Flags:
       --aggregate           Report the proportions of each change
       --threshold float     If --aggregate, only report changes with a freq greater than or equal to this value
       --append-snps         Report the codon's SNPs in parenthesis after each amino acid mutation
+      --strict              Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help                help for variants
 
 Global Flags:
   -r, --reference string   Reference fasta file used to generate the sam file
   -s, --samfile string     Samfile to read. If none is specified, will read from stdin (default "stdin")
-      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -t, --threads int        Number of threads to use (default 1)
 

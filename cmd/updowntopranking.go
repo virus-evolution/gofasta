@@ -66,6 +66,7 @@ func init() {
 	toprankingCmd.Flags().Lookup("table").NoOptDefVal = "true"
 	toprankingCmd.Flags().Lookup("no-fill").NoOptDefVal = "true"
 
+	toprankingCmd.Flags().BoolVar(getStrictBoolVarArgs())
 	toprankingCmd.Flags().SortFlags = false
 }
 

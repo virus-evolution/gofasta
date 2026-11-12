@@ -27,6 +27,7 @@ func init() {
 	snpCmd.Flags().Lookup("hard-gaps").NoOptDefVal = "true"
 	snpCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
 
+	snpCmd.Flags().BoolVar(getStrictBoolVarArgs())
 	snpCmd.Flags().SortFlags = false
 }
 

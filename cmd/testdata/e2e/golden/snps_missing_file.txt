@@ -12,8 +12,6 @@ Flags:
       --hard-gaps          Don't treat alignment gaps as missing data
       --aggregate          Report the proportions of each change
       --threshold float    If --aggregate, only report snps with a freq greater than or equal to this value
+      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help               help for snps
-
-Global Flags:
-      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
 

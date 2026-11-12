@@ -24,7 +24,7 @@ func init() {
 	samCmd.AddCommand(toMultiAlignCmd)
 
 	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignStart, "start", "", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
-	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignEnd, "end", "", -1, "1-based last nucleotide position to retain the in output. Bases after this position are omitted, or are replaced with N if --pad")
+	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignEnd, "end", "", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
 	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignPad, "pad", "", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
 	toMultiAlignCmd.Flags().StringVarP(&toMultiAlignOutfile, "fasta-out", "o", "stdout", "Where to write the alignment")
 	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignWrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
@@ -36,6 +36,7 @@ func init() {
 	toMultiAlignCmd.Flags().MarkHidden("trimstart")
 	toMultiAlignCmd.Flags().MarkHidden("trimend")
 
+	toMultiAlignCmd.Flags().BoolVar(getStrictBoolVarArgs())
 	toMultiAlignCmd.Flags().SortFlags = false
 }
 

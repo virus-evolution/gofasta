@@ -32,6 +32,7 @@ func init() {
 	closestCmd.Flags().StringVarP(&closestOutfile, "outfile", "o", "stdout", "The output file to write")
 	closestCmd.Flags().BoolVarP(&closestTable, "table", "", false, "Write a long-form table of the output")
 
+	closestCmd.Flags().BoolVar(getStrictBoolVarArgs())
 	closestCmd.Flags().SortFlags = false
 }
 

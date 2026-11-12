@@ -16,6 +16,7 @@ func init() {
 	updownListCmd.Flags().StringVarP(&UDListQuery, "query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
 	updownListCmd.Flags().StringVarP(&UDListOutfile, "outfile", "o", "stdout", "Output to write")
 
+	updownListCmd.Flags().BoolVar(getStrictBoolVarArgs())
 	updownListCmd.Flags().SortFlags = false
 }
 

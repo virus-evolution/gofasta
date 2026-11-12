@@ -8,9 +8,9 @@ Usage:
 Flags:
   -q, --query string     Alignment of sequences to parse, in fasta format (default "stdin")
   -o, --outfile string   Output to write (default "stdout")
+      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help             help for list
 
 Global Flags:
   -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
-      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
 

@@ -141,6 +141,7 @@ var e2eCases = []e2eCase{
 	{name: "sam_topa_dir", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "pairs", "-w", "60"}, threadsFlag: "-t"},
 	{name: "sam_topa_badrecord", args: []string{"sam", "toPairAlign", "-s", "aln_badrecord.sam", "-r", "ref.fasta", "-o", "stdout"}},
 	{name: "sam_topa_empty", args: []string{"sam", "toPairAlign", "-s", "empty.sam", "-r", "ref.fasta", "-o", "stdout"}},
+	{name: "sam_topa_no_outpath", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta"}},
 
 	// sam variants
 	{name: "sam_variants_gb", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb"}, threadsFlag: "-t"},

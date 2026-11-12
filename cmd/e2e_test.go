@@ -21,7 +21,8 @@ import (
 // code, stdout, stderr and any files it writes with testdata/e2e/golden/<case>.txt (only the
 // exit code and stderr when it fails).
 // Regenerate the golden files with: go test ./cmd -run TestEndToEnd -update
-// The inputs are written by testdata/e2e/make_inputs.py (needs Biopython).
+// The inputs are written by testdata/e2e/make_inputs.py (needs Biopython), except query.csv and
+// target.csv, which are the output of gofasta updown list for query.fasta and target.fasta.
 
 var updateGolden = flag.Bool("update", false, "rewrite the end-to-end golden files")
 
@@ -91,6 +92,9 @@ var e2eCases = []e2eCase{
 	{name: "updown_topranking_fasta", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4"}},
 	{name: "updown_topranking_table", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4", "--table"}},
 	{name: "updown_topranking_ignore", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4", "--ignore", "ignore.txt"}},
+	{name: "updown_topranking_csv", args: []string{"updown", "topranking", "-q", "query.csv", "-t", "target.csv", "--size-total", "4"}},
+	{name: "updown_topranking_csv_query", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.csv", "-t", "target.fasta", "--size-total", "4"}},
+	{name: "updown_topranking_csv_target", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.csv", "--size-total", "4", "--table"}},
 	{name: "updown_topranking_bins", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-up", "1", "--size-down", "1", "--size-side", "1", "--size-same", "1", "--dist-all", "3"}},
 
 	// sam toMultiAlign

@@ -1,0 +1,4 @@
+query,SNPs,ambiguities,SNPcount,ambcount
+q1,G5A|A14G,,2,0
+q2,C80T|A100G,,2,0
+q5,T50C,1-15|111-120,1,25

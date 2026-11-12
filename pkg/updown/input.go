@@ -197,7 +197,7 @@ func readCSVToUDLList(in io.Reader) ([]updownLine, error) {
 			return snpsSorted[i] < snpsSorted[j]
 		})
 
-		udL := updownLine{id: record[0], snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
+		udL := updownLine{id: record[0], idx: counter, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
 
 		LudL = append(LudL, udL)
 		counter++

@@ -1,6 +1,5 @@
 package sam
 
-
 // getCigarOperationMapNoInsertions is a map of SAM CIGAR operation types to function literals
 // that are used to build an aligned sequence. This version DISCARDS insertions relative
 // to the reference.

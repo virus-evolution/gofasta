@@ -4,6 +4,7 @@ package closest
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 )
@@ -48,5 +49,12 @@ func TestClosestNNaNBypassesMaxDist(t *testing.T) {
 
 	if strings.Contains(out.String(), "allN") {
 		t.Errorf("a target with an undefined distance should not pass the --max-dist filter:\n%s", out.String())
+	}
+}
+
+func TestClosestNNegativeNumberIsAnError(t *testing.T) {
+	err := ClosestN(-3, 5, strings.NewReader(">a\nACGT\n"), strings.NewReader(">b\nACGT\n"), "raw", io.Discard, false, 1)
+	if err == nil {
+		t.Errorf("expected an error")
 	}
 }

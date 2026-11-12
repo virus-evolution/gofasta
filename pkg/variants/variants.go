@@ -369,13 +369,8 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 		if !(f.Type == "CDS" || f.Type == "mature_protein_region_of_CDS") {
 			continue
 		}
-		if f.HasAttribute("ID") {
-			id, ok := f.Attributes["ID"]
-			if ok {
-				IDed[id[0]] = append(IDed[id[0]], f)
-			} else {
-				IDed[id[0]] = []gff.Feature{f}
-			}
+		if id := f.Attributes["ID"]; len(id) > 0 {
+			IDed[id[0]] = append(IDed[id[0]], f)
 		} else {
 			other = append(other, f)
 		}
@@ -424,10 +419,16 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	// TO DO - check that all CDS features in this group have the same "Name"
 	// attribute (or none at all). At the moment only the first CDS line's Name
 	// is used
-	if fs[0].HasAttribute("Name") {
-		r.Name = fs[0].Attributes["Name"][0]
+	if name := fs[0].Attributes["Name"]; len(name) > 0 {
+		r.Name = name[0]
 	} else {
 		r.Name = ""
+	}
+	// every feature must lie within the reference
+	for _, f := range fs {
+		if f.Start < 1 || f.End < f.Start || f.End > len(refSeqDegapped) {
+			return r, errors.New("Error parsing gff: CDS feature " + strconv.Itoa(f.Start) + ".." + strconv.Itoa(f.End) + " is not within the reference sequence (length " + strconv.Itoa(len(refSeqDegapped)) + ")")
+		}
 	}
 	pos := make([]int, 0)
 	switch fs[0].Strand {
@@ -487,12 +488,20 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 // the positions of CDS and intergenic regions, in order to annotate mutations within each
 func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, error) {
 
+	if refLength < 0 {
+		return []Region{}, []int{}, errors.New("negative reference length")
+	}
+
 	cds := make([]Region, 0)
 	for _, f := range gb.FEATURES {
 		if f.Feature == "CDS" {
 			REGION, err := CDSRegionfromGenbank(f)
 			if err != nil {
 				return []Region{}, []int{}, err
+			}
+			// every position must lie within the reference
+			if len(REGION.Positions) > 0 && (gmin(REGION.Positions) < 1 || gmax(REGION.Positions) > refLength) {
+				return []Region{}, []int{}, errors.New("Genbank CDS feature \"" + REGION.Name + "\" is not within the reference sequence (length " + strconv.Itoa(refLength) + ")")
 			}
 			cds = append(cds, REGION)
 		}
@@ -513,6 +522,10 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 		return Region{}, errors.New("No \"codon_start\" attibute in Genbank CDS feature")
 	}
 
+	if !f.HasAttribute("translation") {
+		return Region{}, errors.New("No \"translation\" attibute in Genbank CDS feature")
+	}
+
 	r := Region{
 		Whichtype:   "protein-coding",
 		Name:        f.Info["gene"],
@@ -526,9 +539,15 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 		return Region{}, err
 	}
 	codon_start, err := strconv.Atoi(f.Info["codon_start"])
+	if err != nil || codon_start < 1 || codon_start > 3 || codon_start > len(temp) {
+		return Region{}, errors.New("Genbank CDS feature has an invalid \"codon_start\" attibute: " + f.Info["codon_start"])
+	}
 	r.Positions = temp[codon_start-1:]
 	if len(r.Positions)%3 != 0 {
 		return Region{}, alphabet.ErrorCDSNotModThree
+	}
+	if len(r.Translation) < len(r.Positions)/3 {
+		return Region{}, errors.New("Genbank CDS feature \"" + r.Name + "\": the translation is shorter than the CDS")
 	}
 
 	r.Start = gmin(r.Positions)

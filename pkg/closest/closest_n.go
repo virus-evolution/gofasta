@@ -193,6 +193,10 @@ func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) 
 // to stdout or to file. Ties for distance are broken by genome completeness.
 func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measure string, out io.Writer, table bool, threads int) error {
 
+	if catchmentSize < 0 {
+		return errors.New("the number of neighbours to find must not be negative")
+	}
+
 	if threads == 0 {
 		threads = runtime.NumCPU()
 	} else if threads < runtime.NumCPU() {

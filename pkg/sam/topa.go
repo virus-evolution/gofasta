@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -445,15 +446,6 @@ func writePairwiseAlignment(p string, w int, cPair chan alignPair, cWriteDone ch
 // optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space
 func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
-	// NB probably uncomment the below and use it for checks (e.g. for
-	// reference length)
-	// samHeader, err := getSamHeader(samFile)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// refLen := samHeader.Refs()[0].Len()
-
 	cErr := make(chan error)
 
 	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)
@@ -483,7 +475,13 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 
 	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
-	_ = <-cSH
+	header, err := waitForHeader(cSH, cErr)
+	if err != nil {
+		return err
+	}
+	if header.Refs()[0].Len() != len(refSeq) {
+		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
+	}
 
 	go writePairwiseAlignment(outpath, wrap, cPairTrim, cWriteDone, cErr, omitRef)
 

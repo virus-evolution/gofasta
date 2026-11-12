@@ -73,8 +73,10 @@ func (r *Reader) Read() (Record, error) {
 
 			// split the header on whitespace
 			fields = bytes.Fields(line[1:])
-			// fasta ID
-			FR.ID = string(fields[0])
+			// fasta ID (empty if the header has nothing after the ">")
+			if len(fields) > 0 {
+				FR.ID = string(fields[0])
+			}
 			// fasta description
 			FR.Description = string(line[1:])
 
@@ -87,7 +89,7 @@ func (r *Reader) Read() (Record, error) {
 			peek, err = r.Peek(1)
 
 			// both these cases are fine if first = false, so we can exit the loop and return the fasta record
-			if err == io.EOF || peek[0] == '>' {
+			if err == io.EOF || (err == nil && peek[0] == '>') {
 				err = nil
 				break
 

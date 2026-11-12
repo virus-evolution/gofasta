@@ -754,6 +754,12 @@ func allZero(s []int) bool {
 func checkArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int, distpush int) ([4]int, [4]int, error) {
 
+	for _, v := range []int{sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush} {
+		if v < 0 {
+			return [4]int{}, [4]int{}, errors.New("--size-* and --dist-* values must not be negative")
+		}
+	}
+
 	if sizetotal == 0 && allZero([]int{sizeup, sizedown, sizeside, sizesame}) && distpush == 0 && allZero([]int{distup, distdown, distside, distall}) {
 		return [4]int{}, [4]int{}, errors.New(`
 Please provide values to either --size-total,

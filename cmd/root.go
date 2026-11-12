@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -23,8 +22,8 @@ https://doi.org/10.1093/bioinformatics/btac424`,
 
 // Execute executes the root command.
 func Execute() {
+	// cobra prints the error (and usage) to stderr itself; stdout is reserved for data
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }

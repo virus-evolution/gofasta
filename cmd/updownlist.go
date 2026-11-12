@@ -37,6 +37,9 @@ for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to -
 a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (anything that isn't ATGC).
 `,
 
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return outputNotInput(cmd, "outfile", "query", "reference")
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
@@ -55,7 +58,7 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer gfio.CloseOut(out, &err)
 
 		err = updown.List(ref, query, out)
 

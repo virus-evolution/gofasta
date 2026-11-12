@@ -81,6 +81,15 @@ isn't in a codon that is represented by an amino acid change). The formats are:
 
 Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.	
 `,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		// --reference is the ID of a record in the msa, not a file
+		return firstError(
+			intAtLeast(cmd, 1, "threads"),
+			floatAtLeast(cmd, 0, "threshold"),
+			startNotAfterEnd(cmd),
+			outputNotInput(cmd, "outfile", "msa", "annotation", "genbank"),
+		)
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		msa, err := gfio.OpenIn(*cmd.Flag("msa"))
@@ -126,7 +135,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer gfio.CloseOut(out, &err)
 
 		err = variants.Variants(msa, stdin, variantsReference, anno, annoSuffix, out, variantsStart, variantsEnd, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads)
 

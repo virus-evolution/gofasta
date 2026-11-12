@@ -151,7 +151,7 @@ Flags:
       --target string     Alignment of sequences to search for neighbours in, in fasta format
   -m, --measure string    which distance measure to use (raw, snp or tn93) (default "raw")
   -n, --number int        (Optional) the closest n sequences to each query will be returned
-  -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away
+  -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)
   -o, --outfile string    The output file to write (default "stdout")
       --table             write a long-form table of the output
   -h, --help              help for closest

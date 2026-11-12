@@ -57,6 +57,12 @@ If input and output files are not specified, the behaviour is to read the sam fi
 the fasta file to stdout, e.g.:
 	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta`,
 
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return firstError(
+			intAtLeast(cmd, 1, "threads"),
+			outputNotInput(cmd, "fasta-out", "samfile", "reference"),
+		)
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		/*
@@ -93,7 +99,7 @@ Note the change of coordinate system if moving from old to new flags.
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer gfio.CloseOut(out, &err)
 
 		err = sam.ToMultiAlign(samIn, out, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
 

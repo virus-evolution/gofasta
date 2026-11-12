@@ -71,6 +71,14 @@ isn't in a codon that is represented by an amino acid change). The formats are:
 Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.
 `,
 
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return firstError(
+			intAtLeast(cmd, 1, "threads"),
+			floatAtLeast(cmd, 0, "threshold"),
+			startNotAfterEnd(cmd),
+			outputNotInput(cmd, "outfile", "samfile", "reference", "annotation", "genbank"),
+		)
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
@@ -122,7 +130,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer gfio.CloseOut(out, &err)
 
 		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsStart, samVariantsEnd, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads)
 

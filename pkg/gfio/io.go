@@ -73,3 +73,12 @@ func OpenOut(flag pflag.Flag) (*os.File, error) {
 
 	return f, nil
 }
+
+// CloseOut closes an output file and, if the close fails (the final flush of buffered data to a full disk,
+// for example, is only reported by Close), stores the error in *err unless an error is already there.
+// Use it as: defer gfio.CloseOut(out, &err), with err a named return value.
+func CloseOut(f *os.File, err *error) {
+	if cerr := f.Close(); cerr != nil && *err == nil {
+		*err = cerr
+	}
+}

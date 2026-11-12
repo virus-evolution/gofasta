@@ -589,6 +589,12 @@ func codes(proteincoding []Region, refLength int) []int {
 	return intergenicregions
 }
 
+// outsideRange is true if pos is before start or after end. A bound that is not > 0 is not applied, so either
+// bound can be used on its own.
+func outsideRange(pos, start, end int) bool {
+	return (start > 0 && pos < start) || (end > 0 && pos > end)
+}
+
 // some generic functions because why not
 func gmin[T constraints.Ordered](s []T) T {
 	if len(s) == 0 {
@@ -786,10 +792,8 @@ func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP boo
 				}
 				sa = make([]string, 0)
 				for _, v := range VL.Vs {
-					if start > 0 && end > 0 {
-						if v.Position < start || v.Position > end {
-							continue
-						}
+					if outsideRange(v.Position, start, end) {
+						continue
 					}
 					newVar, err := FormatVariant(v, appendSNP)
 					if err != nil {
@@ -838,10 +842,8 @@ func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, thresho
 		}
 		counter++
 		for _, v := range AS.Vs {
-			if start > 0 && end > 0 {
-				if v.Position < start || v.Position > end {
-					continue
-				}
+			if outsideRange(v.Position, start, end) {
+				continue
 			}
 			rep, err := FormatVariant(v, appendSNP)
 			if err != nil {

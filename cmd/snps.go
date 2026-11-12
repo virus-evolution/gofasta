@@ -52,6 +52,12 @@ If query and outfile are not specified, the behaviour is to read the query align
 from stdin and write the snps file to stdout, e.g. you could do this:
 	cat alignment.fasta | gofasta snps -r reference.fasta > snps.csv`,
 
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return firstError(
+			floatAtLeast(cmd, 0, "threshold"),
+			outputNotInput(cmd, "outfile", "query", "reference"),
+		)
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		query, err := gfio.OpenIn(*cmd.Flag("query"))
@@ -70,7 +76,7 @@ from stdin and write the snps file to stdout, e.g. you could do this:
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer gfio.CloseOut(out, &err)
 
 		err = snps.SNPs(ref, query, hardGaps, aggregate, thresh, out)
 

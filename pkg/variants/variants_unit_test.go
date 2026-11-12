@@ -410,3 +410,25 @@ somefakething	RefSeq	three_prime_UTR	19	23	.	+	.	ID=somefakething:18..23
 ttttttctacatcatcattacgt
 `)
 }
+
+func TestOutsideRange(t *testing.T) {
+	for _, c := range []struct {
+		pos, start, end int
+		want            bool
+	}{
+		{5, -1, -1, false}, // no bounds
+		{5, 6, -1, true},   // --start only
+		{6, 6, -1, false},
+		{99999, 6, -1, false},
+		{5, -1, 4, true}, // --end only
+		{4, -1, 4, false},
+		{1, -1, 4, false},
+		{5, 2, 8, false}, // both
+		{1, 2, 8, true},
+		{9, 2, 8, true},
+	} {
+		if got := outsideRange(c.pos, c.start, c.end); got != c.want {
+			t.Errorf("outsideRange(%d, %d, %d) = %v, want %v", c.pos, c.start, c.end, got, c.want)
+		}
+	}
+}

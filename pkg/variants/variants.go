@@ -115,9 +115,9 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 	}
 
 	var (
-		cdsregions         []Region
-		intregions         []int
-		refToMSA, MSAToRef []int
+		cdsregions []Region
+		intregions []int
+		refToMSA   []int
 	)
 
 	switch annoSuffix {
@@ -147,7 +147,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 
 		// get the offsets accounting for insertions relative to the reference
-		refToMSA, MSAToRef = GetMSAOffsets(ref.Seq)
+		refToMSA, _ = GetMSAOffsets(ref.Seq)
 
 		// check that the reference sequence is in the same coordinates as the annotation
 		if len(refToMSA) != len(gb.ORIGIN) {
@@ -183,7 +183,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 
 		// get the offsets accounting for insertions relative to the reference
-		refToMSA, MSAToRef = GetMSAOffsets(ref.Seq)
+		refToMSA, _ = GetMSAOffsets(ref.Seq)
 
 		refSeqDegapped := ref.Decode().Degap().Seq
 
@@ -226,7 +226,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			getVariants(ref, cdsregions, intregions, refToMSA, MSAToRef, cMSA, cVariants, cErr)
+			getVariants(ref, cdsregions, intregions, refToMSA, cMSA, cVariants, cErr)
 			wgVariants.Done()
 		}()
 	}
@@ -632,16 +632,16 @@ func GetMSAOffsets(refseq []byte) ([]int, []int) {
 // getVariants annotates mutations between query and reference sequences, one
 // fasta record at a time. It reads each fasta record from a channel and passes
 // all its mutations grouped together in one struct to another channel.
-func getVariants(ref fasta.EncodedRecord, cdsregions []Region, intregions []int, offsetRefCoord []int, offsetMSACoord []int, cMSA chan fasta.EncodedRecord, cVariants chan AnnoStructs, cErr chan error) {
+func getVariants(ref fasta.EncodedRecord, cdsregions []Region, intregions []int, offsetRefCoord []int, cMSA chan fasta.EncodedRecord, cVariants chan AnnoStructs, cErr chan error) {
 
 	for record := range cMSA {
 
-		if len(record.Seq) != len(offsetMSACoord) {
+		if len(record.Seq) != len(ref.Seq) {
 			cErr <- errors.New("Gapped reference sequence and alignment are not the same width")
 			break
 		}
 
-		AS, err := GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
+		AS, err := GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, offsetRefCoord)
 		if err != nil {
 			cErr <- err
 			break
@@ -651,15 +651,15 @@ func getVariants(ref fasta.EncodedRecord, cdsregions []Region, intregions []int,
 	}
 }
 
-func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int, offsetMSACoord []int) (AnnoStructs, error) {
+func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int) (AnnoStructs, error) {
 
 	AS := AnnoStructs{}
 
-	indels := getIndelsPair(ref, query, offsetRefCoord, offsetMSACoord)
-	nucs := getNucsPair(ref, query, intregions, offsetRefCoord, offsetMSACoord)
+	indels := getIndelsPair(ref, query)
+	nucs := getNucsPair(ref, query, intregions, offsetRefCoord)
 	AAs := make([]Variant, 0)
 	for _, r := range cdsregions {
-		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord, offsetMSACoord)...)
+		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord)...)
 	}
 
 	variants := make([]Variant, 0)
@@ -839,8 +839,27 @@ func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, thresho
 		order = append(order, k)
 	}
 
-	sort.SliceStable(order, func(i, j int) bool {
-		return order[i].Position < order[j].Position || (order[i].Position == order[j].Position && order[i].Changetype < order[j].Changetype) || (order[i].Position == order[j].Position && order[i].Changetype == order[j].Changetype && order[i].QueAl < order[j].QueAl)
+	// The entries came out of a map, so the order must be fully determined by the key: every field
+	// that can differ between two entries has to be compared, otherwise ties come out in random order.
+	sort.Slice(order, func(i, j int) bool {
+		a, b := order[i], order[j]
+		switch {
+		case a.Position != b.Position:
+			return a.Position < b.Position
+		case a.Changetype != b.Changetype:
+			return a.Changetype < b.Changetype
+		case a.QueAl != b.QueAl:
+			return a.QueAl < b.QueAl
+		case a.Length != b.Length:
+			return a.Length < b.Length
+		case a.Feature != b.Feature:
+			return a.Feature < b.Feature
+		case a.Residue != b.Residue:
+			return a.Residue < b.Residue
+		case a.RefAl != b.RefAl:
+			return a.RefAl < b.RefAl
+		}
+		return a.Representation < b.Representation
 	})
 
 	for _, V := range order {

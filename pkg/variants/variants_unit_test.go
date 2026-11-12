@@ -201,7 +201,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 	if err != nil {
 		t.Error(err)
 	}
-	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+	refToMSA, _ := GetMSAOffsets(ref.Seq)
 	refLenDegapped := len(ref.Decode().Degap().Seq)
 
 	cdsregions, intregions, err := RegionsFromGenbank(gb, refLenDegapped)
@@ -216,7 +216,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -231,7 +231,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		fmt.Println(mutations)
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[2].Seq, "reference", queries[2].ID, 2, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[2].Seq, "reference", queries[2].ID, 2, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -243,7 +243,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Errorf("problem in TestGetVariantsPair (seq2)")
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[3].Seq, "reference", queries[3].ID, 3, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[3].Seq, "reference", queries[3].ID, 3, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -255,7 +255,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Errorf("problem in TestGetVariantsPair (seq3)")
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -296,7 +296,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 	if err != nil {
 		t.Error(err)
 	}
-	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+	refToMSA, _ := GetMSAOffsets(ref.Seq)
 	refLenDegapped := len(ref.Decode().Degap().Seq)
 
 	cdsregions, intregions, err := RegionsFromGenbank(gb, refLenDegapped)
@@ -311,7 +311,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -348,7 +348,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		}
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}

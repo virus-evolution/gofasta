@@ -88,6 +88,8 @@ gofasta sam toMultiAlign -s aligned.sam --start 266 --end 29674 --pad -o aligned
 `MN908947.fa` is the reference genome for SARS-CoV-2 (here is its [Genbank accession](https://www.ncbi.nlm.nih.gov/nuccore/MN908947.3)), and `unaligned.consensus.fasta` contains all your consensus genomes (in one file). In this case we've clipped the alignment to just the coding sequence (`--start 266 --end 29674`) but replaced the trimmed regions with `N`s to retain the reference length in the output (`--pad`). <b>Insertions relative to the reference are discarded from the output file so everything is the same (== reference) length.</b>
 
 
+If minimap2 splits one of your genomes into several alignments (a primary alignment and supplementary alignments, which share a name in the sam file), gofasta combines them into one sequence. Where two of them overlap on the reference, the alignment of the first one in the file is used for the overlapping stretch (a message on stderr says if the alignments disagree there), so that, for example, an insertion that is present in both is only counted once. Secondary alignments and unmapped records are ignored.
+
 minimap2 and gofasta can both make use of multiple threads. Additionally, minimap2 writes to stdout by default and gofasta reads from stdin if we don't specify a file for `-s`, so we can avoid writing the intermediate sam to disk entirely. Both of these should speed things up:
 
 ```

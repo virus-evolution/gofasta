@@ -21,9 +21,7 @@ func TestGetIndelsPair(t *testing.T) {
 	}
 	queSeq := que.Seq
 
-	offsetRefCoord, offsetMSACoord := GetMSAOffsets(refSeq)
-
-	indels := getIndelsPair(refSeq, queSeq, offsetRefCoord, offsetMSACoord)
+	indels := getIndelsPair(refSeq, queSeq)
 
 	desiredResultV := []Variant{
 		Variant{Position: 3, Changetype: "ins", Length: 3},
@@ -64,9 +62,9 @@ func TestGetNucsPair(t *testing.T) {
 	}
 	queSeq := que.Seq
 
-	offsetRefCoord, offsetMSACoord := GetMSAOffsets(refSeq)
+	offsetRefCoord, _ := GetMSAOffsets(refSeq)
 
-	nucs := getNucsPair(refSeq, queSeq, []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, offsetRefCoord, offsetMSACoord)
+	nucs := getNucsPair(refSeq, queSeq, []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, offsetRefCoord)
 
 	desiredResultV := []Variant{
 		Variant{RefAl: "A", QueAl: "T", Position: 1, Changetype: "nuc"},
@@ -109,9 +107,9 @@ func TestGetAAsPair(t *testing.T) {
 
 	r := Region{Whichtype: "protein-coding", Name: "nspX", Start: 1, Stop: 12, Translation: "MSRP", Strand: 1, Positions: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}}
 
-	offsetRefCoord, offsetMSACoord := GetMSAOffsets(refSeq)
+	offsetRefCoord, _ := GetMSAOffsets(refSeq)
 
-	AAs := getAAsPair(refSeq, queSeq, r, offsetRefCoord, offsetMSACoord)
+	AAs := getAAsPair(refSeq, queSeq, r, offsetRefCoord)
 
 	desiredResultV := []Variant{
 		Variant{RefAl: "S", QueAl: "C", Position: 4, Changetype: "aa", SNPs: "nuc:C5G", Residue: 2, Feature: "nspX"},

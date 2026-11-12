@@ -45,7 +45,14 @@ func (r *Reader) Read() (Record, error) {
 			// For simple uses, a Scanner may be more convenient."
 			line, err = r.ReadBytes('\n')
 
-			// return even if err == io.EOF, because the file should never end on a fasta header line
+			// A header line that is the last thing in the file without a trailing newline comes back
+			// with err == io.EOF but non-empty data. It is kept, as a record with an empty sequence, the
+			// same as a final header line that does end in a newline.
+			// (The next Peek() below will see the EOF and end the record.)
+			if err == io.EOF && len(line) > 0 {
+				err = nil
+			}
+
 			if err != nil {
 				return Record{}, err
 

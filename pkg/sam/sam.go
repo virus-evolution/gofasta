@@ -387,6 +387,7 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 			}
 
 			if rec.Name != previous {
+				samLineGroup.records = resolveOverlaps(samLineGroup.records)
 				chnl <- samLineGroup
 				counter++
 
@@ -404,6 +405,7 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 	}
 
 	if len(samLineGroup.records) > 0 {
+		samLineGroup.records = resolveOverlaps(samLineGroup.records)
 		chnl <- samLineGroup
 	}
 

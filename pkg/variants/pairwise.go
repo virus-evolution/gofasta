@@ -8,15 +8,20 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
-func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int) []Variant {
+func getIndelsPair(ref, query []byte) []Variant {
 
 	var (
 		insOpen   bool
-		insStart  int
 		insLength int
 		delOpen   bool
-		delStart  int
+		delRefPos int
 		delLength int
+
+		// refPos is the number of (non-gap) reference bases seen so far, i.e. the
+		// 1-based reference coordinate of the last reference base before this alignment column.
+		// An insertion is reported at the reference base before it, a deletion at its first missing base.
+		refPos    int
+		insRefPos int
 	)
 
 	variants := make([]Variant, 0)
@@ -29,32 +34,33 @@ func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int
 				if insOpen { // not the first position of an insertion
 					insLength++ // we increment the length counter
 				} else { // the first position of an insertion
-					insStart = pos // we record the first position of the insertion 0-based in alignment coordinates
+					insRefPos = refPos // and the number of reference bases that precede it (its reference coordinate)
 					insLength = 1
 					insOpen = true
 				}
 			}
 		} else { // not an insertion relative to the reference at this position
 			if insOpen { // first base after an insertion, so we need to log the insertion
-				variants = append(variants, Variant{Changetype: "ins", Position: (insStart - offsetMSACoord[insStart]), Length: insLength})
+				variants = append(variants, Variant{Changetype: "ins", Position: insRefPos, Length: insLength})
 				insOpen = false
 			}
 			if query[pos] == 244 { // deletion in this seq
 				if delOpen { // not the first position of a deletion
 					delLength++ // we increment the length (there is not a deletion in the reference)
 				} else { // the first position of a deletion
-					delStart = pos
+					delRefPos = refPos
 					delLength = 1
 					delOpen = true
 				}
 			} else { // no deletion in this seq
 				if delOpen { // first base after a deletion, so we need to log the deletion
-					if delStart-offsetMSACoord[delStart] != 0 {
-						variants = append(variants, Variant{Changetype: "del", Position: (delStart - offsetMSACoord[delStart]) + 1, Length: delLength})
+					if delRefPos != 0 { // (a deletion at the start of the alignment is not reported)
+						variants = append(variants, Variant{Changetype: "del", Position: delRefPos + 1, Length: delLength})
 					}
 					delOpen = false // and reset things
 				}
 			}
+			refPos++ // this alignment column is a reference base
 		}
 	}
 
@@ -64,13 +70,13 @@ func getIndelsPair(ref, query []byte, offsetRefCoord []int, offsetMSACoord []int
 	// }
 	// catch insertions that abut the end of the alignment
 	if insOpen {
-		variants = append(variants, Variant{Changetype: "ins", Position: (insStart - offsetMSACoord[insStart]) + 1, Length: insLength})
+		variants = append(variants, Variant{Changetype: "ins", Position: insRefPos, Length: insLength})
 	}
 
 	return variants
 }
 
-func getNucsPair(ref, query []byte, pos []int, offsetRefCoord []int, offsetMSACoord []int) []Variant {
+func getNucsPair(ref, query []byte, pos []int, offsetRefCoord []int) []Variant {
 	DA := encoding.MakeDecodingArray()
 	variants := make([]Variant, 0)
 	for _, p := range pos {
@@ -83,7 +89,7 @@ func getNucsPair(ref, query []byte, pos []int, offsetRefCoord []int, offsetMSACo
 }
 
 // a version of the function that uses the Positions slice in the Region instead of the CodonStarts
-func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, offsetMSACoord []int) []Variant {
+func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int) []Variant {
 
 	DA := encoding.MakeDecodingArray()
 	CD := alphabet.MakeCodonDict()

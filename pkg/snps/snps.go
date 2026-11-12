@@ -41,7 +41,9 @@ func getSNPs(refSeq []byte, cFR chan fasta.EncodedRecord, cSNPs chan snpLine, cE
 		SL.idx = FR.Idx
 		SNPs := make([]string, 0)
 		for i, nuc := range FR.Seq {
-			if (refSeq[i] & nuc) < 16 {
+			// identical codes are never a difference (this matters for --hard-gaps, where a
+			// gap is encoded as 4 and 4&4 < 16)
+			if refSeq[i] != nuc && (refSeq[i]&nuc) < 16 {
 				snpLine := DA[refSeq[i]] + strconv.Itoa(i+1) + DA[nuc]
 				SNPs = append(SNPs, snpLine)
 			}

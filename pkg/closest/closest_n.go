@@ -38,7 +38,7 @@ type catchmentStruct struct {
 // output, or if a new sequence is added to a catchmentStruct which is already at capacity
 func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 	sort.SliceStable(nS.catchment, func(i, j int) bool {
-		return nS.catchment[i].distance < nS.catchment[j].distance || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].completeness > nS.catchment[j].completeness)
+		return lessDistance(nS.catchment[i].distance, nS.catchment[j].distance) || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].completeness > nS.catchment[j].completeness)
 	})
 	nS.catchment = nS.catchment[0:catchmentSize]
 	nS.furthestDistance = nS.catchment[catchmentSize-1].distance
@@ -67,7 +67,8 @@ func findClosestN(query fasta.EncodedRecord, catchmentSize int, maxdist float64,
 		}
 
 		if maxdist != -1.0 {
-			if distance > maxdist {
+			// an undefined distance (NaN) can't be said to be within maxdist
+			if math.IsNaN(distance) || distance > maxdist {
 				continue
 			}
 		}
@@ -80,7 +81,7 @@ func findClosestN(query fasta.EncodedRecord, catchmentSize int, maxdist float64,
 				rearrangeCatchment(&neighbours, catchmentSize)
 			}
 
-		} else if distance < neighbours.furthestDistance {
+		} else if lessDistance(distance, neighbours.furthestDistance) {
 			rs = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance}
 			neighbours.catchment = append(neighbours.catchment, rs)
 			rearrangeCatchment(&neighbours, catchmentSize)

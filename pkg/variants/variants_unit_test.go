@@ -11,16 +11,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/gff"
 )
 
-// type Region struct {
-// 	Whichtype   string // only "protein-coding" for now
-// 	Name        string // name of feature, if it has one
-// 	Start       int    // 1-based 5'-most position of region on the forward strand, inclusive
-// 	Stop        int    // 1-based 3'-most position of region on the forward strand, inclusive
-// 	Translation string // amino acid sequence of this region if it is CDS
-// 	Strand      int    // values in the set {-1, +1} only (and "0" for a mixture?!)
-// 	Positions   []int  // all the (1-based, unadjusted) positions in order, on the reverse strand if needs be
-// }
-
 // TO DO: maybe move this to the genbank package?
 func TestGetRegionsGenbank(t *testing.T) {
 	genbankReader := bytes.NewReader(genbankDataShort)
@@ -35,7 +25,7 @@ func TestGetRegionsGenbank(t *testing.T) {
 	}
 
 	var desiredCDSResult = []Region{
-		{Whichtype: "protein-coding", Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
+		{Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
 	}
 
 	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
@@ -63,7 +53,7 @@ func TestGetRegionsGFF(t *testing.T) {
 	}
 
 	desiredCDSResult := []Region{
-		{Whichtype: "protein-coding", Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
+		{Name: "gene1", Strand: 1, Start: 6, Stop: 17, Translation: "MMM*", Positions: []int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}},
 	}
 
 	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
@@ -89,7 +79,7 @@ func TestGetRegionsGFF(t *testing.T) {
 	}
 
 	desiredCDSResult = []Region{
-		{Whichtype: "protein-coding", Name: "gene1", Strand: -1, Start: 7, Stop: 18, Translation: "MMM*", Positions: []int{18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7}},
+		{Name: "gene1", Strand: -1, Start: 7, Stop: 18, Translation: "MMM*", Positions: []int{18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7}},
 	}
 
 	if !reflect.DeepEqual(cdsregions, desiredCDSResult) {
@@ -201,7 +191,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 	if err != nil {
 		t.Error(err)
 	}
-	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+	refToMSA, _ := GetMSAOffsets(ref.Seq)
 	refLenDegapped := len(ref.Decode().Degap().Seq)
 
 	cdsregions, intregions, err := RegionsFromGenbank(gb, refLenDegapped)
@@ -216,7 +206,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -231,7 +221,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		fmt.Println(mutations)
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[2].Seq, "reference", queries[2].ID, 2, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[2].Seq, "reference", queries[2].ID, 2, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -243,7 +233,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Errorf("problem in TestGetVariantsPair (seq2)")
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[3].Seq, "reference", queries[3].ID, 3, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[3].Seq, "reference", queries[3].ID, 3, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -255,7 +245,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Errorf("problem in TestGetVariantsPair (seq3)")
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -296,7 +286,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 	if err != nil {
 		t.Error(err)
 	}
-	refToMSA, MSAToRef := GetMSAOffsets(ref.Seq)
+	refToMSA, _ := GetMSAOffsets(ref.Seq)
 	refLenDegapped := len(ref.Decode().Degap().Seq)
 
 	cdsregions, intregions, err := RegionsFromGenbank(gb, refLenDegapped)
@@ -311,7 +301,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		t.Error(err)
 	}
 
-	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err := GetVariantsPair(ref.Seq, queries[1].Seq, "reference", queries[1].ID, 1, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -348,7 +338,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 		}
 	}
 
-	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA, MSAToRef)
+	mutations, err = GetVariantsPair(ref.Seq, queries[4].Seq, "reference", queries[4].ID, 4, cdsregions, intregions, refToMSA)
 	if err != nil {
 		t.Error(err)
 	}
@@ -409,4 +399,26 @@ somefakething	RefSeq	three_prime_UTR	19	23	.	+	.	ID=somefakething:18..23
 >somefakething
 ttttttctacatcatcattacgt
 `)
+}
+
+func TestOutsideRange(t *testing.T) {
+	for _, c := range []struct {
+		pos, start, end int
+		want            bool
+	}{
+		{5, -1, -1, false}, // no bounds
+		{5, 6, -1, true},   // --start only
+		{6, 6, -1, false},
+		{99999, 6, -1, false},
+		{5, -1, 4, true}, // --end only
+		{4, -1, 4, false},
+		{1, -1, 4, false},
+		{5, 2, 8, false}, // both
+		{1, 2, 8, true},
+		{9, 2, 8, true},
+	} {
+		if got := outsideRange(c.pos, c.start, c.end); got != c.want {
+			t.Errorf("outsideRange(%d, %d, %d) = %v, want %v", c.pos, c.start, c.end, got, c.want)
+		}
+	}
 }

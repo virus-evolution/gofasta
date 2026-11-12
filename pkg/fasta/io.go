@@ -45,7 +45,14 @@ func (r *Reader) Read() (Record, error) {
 			// For simple uses, a Scanner may be more convenient."
 			line, err = r.ReadBytes('\n')
 
-			// return even if err == io.EOF, because the file should never end on a fasta header line
+			// A header line that is the last thing in the file without a trailing newline comes back
+			// with err == io.EOF but non-empty data. It is kept, as a record with an empty sequence, the
+			// same as a final header line that does end in a newline.
+			// (The next Peek() below will see the EOF and end the record.)
+			if err == io.EOF && len(line) > 0 {
+				err = nil
+			}
+
 			if err != nil {
 				return Record{}, err
 
@@ -66,8 +73,10 @@ func (r *Reader) Read() (Record, error) {
 
 			// split the header on whitespace
 			fields = bytes.Fields(line[1:])
-			// fasta ID
-			FR.ID = string(fields[0])
+			// fasta ID (empty if the header has nothing after the ">")
+			if len(fields) > 0 {
+				FR.ID = string(fields[0])
+			}
 			// fasta description
 			FR.Description = string(line[1:])
 
@@ -80,7 +89,7 @@ func (r *Reader) Read() (Record, error) {
 			peek, err = r.Peek(1)
 
 			// both these cases are fine if first = false, so we can exit the loop and return the fasta record
-			if err == io.EOF || peek[0] == '>' {
+			if err == io.EOF || (err == nil && peek[0] == '>') {
 				err = nil
 				break
 

@@ -30,6 +30,19 @@ type resultsStruct struct {
 	snps         []string
 }
 
+// lessDistance reports whether distance a is strictly closer than distance b. An undefined
+// distance (NaN, e.g. no comparable sites) is treated as further than every defined distance,
+// and two undefined distances are never "less" than one another.
+func lessDistance(a, b float64) bool {
+	if math.IsNaN(a) {
+		return false
+	}
+	if math.IsNaN(b) {
+		return true
+	}
+	return a < b
+}
+
 func rawDistance(query, target fasta.EncodedRecord) float64 {
 	n := 0
 	d := 0
@@ -153,7 +166,7 @@ func findClosest(query fasta.EncodedRecord, measure string, cIn chan fasta.Encod
 			continue
 		}
 
-		if distance < closest.distance {
+		if lessDistance(distance, closest.distance) {
 			snps = make([]string, 0)
 			for i, tNuc := range target.Seq {
 				if (query.Seq[i] & tNuc) < 16 {

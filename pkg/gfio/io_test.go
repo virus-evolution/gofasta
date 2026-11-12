@@ -2,6 +2,7 @@ package gfio
 
 import (
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -25,5 +26,26 @@ func TestOpenIn(t *testing.T) {
 	_, err := OpenIn(*Cmd.Flag("reference"))
 	if err.Error() != errors.New("open -r / --reference not/a/file.whatever: no such file or directory").Error() {
 		t.Error(err)
+	}
+}
+
+func TestCloseOutReportsCloseError(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close() // already closed, so the next Close fails
+
+	var got error
+	CloseOut(f, &got)
+	if got == nil {
+		t.Errorf("expected the close error")
+	}
+
+	first := errors.New("first")
+	got = first
+	CloseOut(f, &got)
+	if got != first {
+		t.Errorf("an existing error must not be overwritten")
 	}
 }

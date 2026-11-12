@@ -465,6 +465,4 @@ func getLines(refSeq []byte, cFR chan fasta.EncodedRecord, cUDs chan updownLine,
 
 		cUDs <- udLine
 	}
-
-	return
 }

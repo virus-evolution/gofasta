@@ -101,6 +101,14 @@ by increasing the count of the other bins where possible, unless --no-fill.
 You can combine the two types of flag (size and dist), to return only the closest n sequences under a set distance (as long as
 you haven't also invoked --dist-push).
 `,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return firstError(
+			intAtLeast(cmd, 0, "size-total", "size-up", "size-down", "size-side", "size-same",
+				"dist-all", "dist-up", "dist-down", "dist-side", "dist-push", "threshold-target"),
+			floatAtLeast(cmd, 0, "threshold-pair"),
+			outputNotInput(cmd, "outfile", "query", "target", "reference", "ignore"),
+		)
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		var qtype string
@@ -175,7 +183,7 @@ you haven't also invoked --dist-push).
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer gfio.CloseOut(out, &err)
 
 		err = updown.TopRanking(query, target, ref, out, TRtable,
 			qtype, ttype, ignoreArray,

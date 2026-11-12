@@ -28,7 +28,7 @@ func init() {
 	closestCmd.Flags().StringVarP(&closestTarget, "target", "", "", "Alignment of sequences to search for neighbours in, in fasta format")
 	closestCmd.Flags().StringVarP(&closestMeasure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
 	closestCmd.Flags().IntVarP(&closestN, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
-	closestCmd.Flags().StringVarP(&closestDist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away")
+	closestCmd.Flags().StringVarP(&closestDist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away (inf for no limit)")
 	closestCmd.Flags().StringVarP(&closestOutfile, "outfile", "o", "stdout", "The output file to write")
 	closestCmd.Flags().BoolVarP(&closestTable, "table", "", false, "Write a long-form table of the output")
 
@@ -70,6 +70,13 @@ of nucleotide changes in total (snp), or Tamura and Nei's 1993 evolutionary dist
 Use --table in combination with the -n and/or -d flags to write a long-form output including the distance
 between every pair.
 `,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return firstError(
+			intAtLeast(cmd, 0, "threads", "number"),
+			limitAtLeast(cmd, 0, "max-dist"),
+			outputNotInput(cmd, "outfile", "query", "target"),
+		)
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		queryIn, err := gfio.OpenIn(*cmd.Flag("query"))
@@ -108,7 +115,7 @@ between every pair.
 		if err != nil {
 			return err
 		}
-		defer closestOut.Close()
+		defer gfio.CloseOut(closestOut, &err)
 
 		if closestN > 0 || dist != -1.0 {
 			err = closest.ClosestN(closestN, dist, queryIn, targetIn, measure, closestOut, closestTable, closestThreads)

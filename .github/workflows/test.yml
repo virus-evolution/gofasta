@@ -1,8 +1,11 @@
 name: Test
 
 on:
+  push:
+    branches: [ "master" ]
   pull_request:
-    types: [opened, reopened]
+    branches: [ "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,5 +19,11 @@ jobs:
       with:
         go-version-file: 'go.mod'
 
+    - name: Check formatting
+      run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+    - name: Vet
+      run: go vet ./...
+
     - name: Run tests
-      run: go test -v ./...
+      run: go test -race -v ./...

@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -38,6 +37,9 @@ var (
 	errGFFParsingPhase      = errors.New("Error parsing gff phase")
 	errGFFParsingAttributes = errors.New("Error parsing gff attributes")
 )
+
+// maxLineLength is the longest line ReadGFF accepts.
+const maxLineLength = 1 << 30
 
 func errorBuilder(err error, s string) error {
 	return errors.New(err.Error() + ": " + s)
@@ -215,10 +217,13 @@ func ReadGFF(f io.Reader) (GFF, error) {
 	var err error
 
 	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 0, 64*1024), maxLineLength)
 	for s.Scan() {
 		line := s.Text()
 		if inFasta {
 			fastaBuffer.Write([]byte(line + "\n"))
+		} else if strings.TrimSpace(line) == "" {
+			continue
 		} else if strings.HasPrefix(line, "##FASTA") {
 			inFasta = true
 		} else if strings.HasPrefix(line, "##") {
@@ -245,6 +250,10 @@ func ReadGFF(f io.Reader) (GFF, error) {
 			}
 			features = append(features, feature)
 		}
+	}
+
+	if err := s.Err(); err != nil {
+		return gff, err
 	}
 
 	gff.Features = features
@@ -319,32 +328,13 @@ func featureFromLine(l string) (Feature, error) {
 	return F, nil
 }
 
-func isEscapedCorrectly(f string) error {
-
-	if strings.HasPrefix(f, ">") {
-		return errorBuilder(errGFFParsingSeqID, f)
-	}
-
-	matched, err := regexp.MatchString("[^\\][^a-zA-Z0-9.:^*$@!+_?-|]", f)
-	if err != nil {
-		return err
-	}
-
-	if matched {
-		return errorBuilder(errGFFParsingSeqID, f)
-	}
-
-	return nil
-}
-
+// seqidFromField accepts any non-empty seqid without whitespace that does not begin with ">".
+// Characters the specification says should be escaped are tolerated, and escapes are decoded.
 func seqidFromField(f string) (string, error) {
-
-	err := isEscapedCorrectly(f)
-	if err != nil {
-		return f, err
+	if f == "" || strings.HasPrefix(f, ">") || strings.ContainsAny(f, " \t") {
+		return f, errorBuilder(errGFFParsingSeqID, f)
 	}
-
-	return f, nil
+	return unescape(f), nil
 }
 
 func strandFromField(f, l string) (string, error) {
@@ -374,18 +364,50 @@ func phaseFromField(t, f, l string) (int, error) {
 	return 0, errorBuilder(errGFFParsingPhase, l)
 }
 
+// attributesFromField parses tag=value pairs separated by ";". Empty pairs (such as after a
+// trailing ";") are ignored, a value runs from the first "=" to the end of its pair, and
+// multiple values are separated by ",". Percent escapes in tags and values are decoded.
 func attributesFromField(f, l string) (map[string][]string, error) {
 	m := make(map[string][]string)
 
-	tagvaluepairs := strings.Split(f, ";")
+	if strings.TrimSpace(f) == "." {
+		return m, nil
+	}
 
-	for _, tvp := range tagvaluepairs {
-		tagvalues := strings.Split(tvp, "=")
-		if len(tagvalues) != 2 {
+	for _, tvp := range strings.Split(f, ";") {
+		if strings.TrimSpace(tvp) == "" {
+			continue
+		}
+		tag, value, ok := strings.Cut(tvp, "=")
+		tag = strings.TrimSpace(tag)
+		if !ok || tag == "" {
 			return m, errorBuilder(errGFFParsingAttributes, l)
 		}
-		m[tagvalues[0]] = strings.Split(tagvalues[1], ",")
+		values := strings.Split(value, ",")
+		for i := range values {
+			values[i] = unescape(values[i])
+		}
+		m[unescape(tag)] = values
 	}
 
 	return m, nil
+}
+
+// unescape decodes %XX escapes, leaving anything that is not a valid escape as it is.
+func unescape(s string) string {
+	if !strings.Contains(s, "%") {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) {
+			if v, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil {
+				b.WriteByte(byte(v))
+				i += 2
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }

@@ -11,6 +11,7 @@ package sam
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -38,8 +39,6 @@ func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]
 	} else {
 		lambda_dict = getCigarOperationMapNoInsertions()
 	}
-
-	// QNAME := samLine.Name
 
 	POS := samLine.Pos
 
@@ -96,8 +95,6 @@ func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInserti
 	} else {
 		lambda_dict = getCigarOperationMapNoInsertionsWithRef()
 	}
-
-	// QNAME := samLine.Name
 
 	POS := samLine.Pos
 
@@ -305,30 +302,73 @@ func swapInGapsNs(seq []byte) []byte {
 	return seq
 }
 
-// // getSamHeader uses Biogo/sam to return the header of a SAM file
-// func getSamHeader(infile string) (biogosam.Header, error) {
-//
-// 	var err error
-// 	f := os.Stdin
-//
-// 	if len(infile) > 0 {
-// 		f, err = os.Open(infile)
-// 		if err != nil {
-// 			return biogosam.Header{}, err
-// 		}
-// 	}
-//
-// 	defer f.Close()
-//
-// 	s, err := biogosam.NewReader(f)
-// 	if err != nil {
-// 		return biogosam.Header{}, err
-// 	}
-//
-// 	header := *s.Header()
-//
-// 	return header, nil
-// }
+// The biogo sam parser panics on some malformed input (e.g. a CIGAR string that ends in a number); these
+// wrappers turn its panics into errors.
+
+func newSamReader(r io.Reader) (s *biogosam.Reader, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("error parsing the sam header: %v", p)
+		}
+	}()
+	return biogosam.NewReader(r)
+}
+
+func readSamRecord(s *biogosam.Reader) (rec *biogosam.Record, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("error parsing a sam record: %v", p)
+		}
+	}()
+	return s.Read()
+}
+
+// waitForHeader receives the sam header from groupSamRecords, or the error that stopped it from producing one
+func waitForHeader(cHeader chan biogosam.Header, cErr chan error) (biogosam.Header, error) {
+	select {
+	case h := <-cHeader:
+		return h, nil
+	case err := <-cErr:
+		return biogosam.Header{}, err
+	}
+}
+
+// validateRecord checks that a mapped sam record is internally consistent and fits the reference, so that
+// the code that builds alignments from CIGAR strings can index its sequence without going out of range.
+func validateRecord(rec *biogosam.Record, refLen int) error {
+
+	bad := func(msg string) error {
+		return errors.New("bad sam record " + rec.Name + ": " + msg)
+	}
+
+	if rec.Ref == nil {
+		return bad("no reference sequence (RNAME is *) but not flagged as unmapped")
+	}
+	if rec.Pos < 0 {
+		return bad("negative position")
+	}
+
+	for _, op := range rec.Cigar {
+		switch op.Type() {
+		case biogosam.CigarMatch, biogosam.CigarEqual, biogosam.CigarMismatch, biogosam.CigarInsertion,
+			biogosam.CigarSoftClipped, biogosam.CigarDeletion, biogosam.CigarSkipped, biogosam.CigarHardClipped,
+			biogosam.CigarPadded:
+		default:
+			return bad("unsupported CIGAR operation " + op.Type().String())
+		}
+	}
+	refSpan, queryLen := rec.Cigar.Lengths()
+	refEnd := rec.Pos + refSpan
+
+	if queryLen != rec.Seq.Length {
+		return bad("the CIGAR string describes " + strconv.Itoa(queryLen) + " query bases but SEQ has " + strconv.Itoa(rec.Seq.Length))
+	}
+	if refEnd > refLen {
+		return bad("the alignment extends beyond the end of the reference (" + strconv.Itoa(refEnd) + " > " + strconv.Itoa(refLen) + ")")
+	}
+
+	return nil
+}
 
 // groupSamRecords yields blocks of sam records that correspond to the same query
 // sequence (to a channel)
@@ -336,10 +376,17 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 
 	var err error
 
-	s, err := biogosam.NewReader(sam)
+	s, err := newSamReader(sam)
 	if err != nil {
 		cerr <- err
+		return
 	}
+
+	if len(s.Header().Refs()) == 0 {
+		cerr <- errors.New("no reference sequence (@SQ line) in the sam header")
+		return
+	}
+	refLen := s.Header().Refs()[0].Len()
 
 	cHeader <- *s.Header()
 
@@ -352,7 +399,7 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 
 	for {
 
-		rec, err := s.Read()
+		rec, err := readSamRecord(s)
 
 		if err == io.EOF {
 
@@ -361,6 +408,7 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 		} else if err != nil {
 
 			cerr <- err
+			return
 
 		} else {
 			// if this read is unmapped, then skip it.
@@ -379,6 +427,17 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 				continue
 			}
 
+			// only one reference sequence is supported: records mapped to any other @SQ are skipped
+			if rec.Ref != nil && rec.Ref.ID() != 0 {
+				os.Stderr.WriteString("skipping record mapped to a reference other than the first @SQ (" + rec.Ref.Name() + "): " + rec.Name + "\n")
+				continue
+			}
+
+			if err := validateRecord(rec, refLen); err != nil {
+				cerr <- err
+				return
+			}
+
 			if first {
 				samLineGroup.records = append(samLineGroup.records, *rec)
 				first = false
@@ -387,6 +446,7 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 			}
 
 			if rec.Name != previous {
+				samLineGroup.records = resolveOverlaps(samLineGroup.records)
 				chnl <- samLineGroup
 				counter++
 
@@ -404,6 +464,7 @@ func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samR
 	}
 
 	if len(samLineGroup.records) > 0 {
+		samLineGroup.records = resolveOverlaps(samLineGroup.records)
 		chnl <- samLineGroup
 	}
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 
 	biogosam "github.com/biogo/hts/sam"
@@ -107,7 +108,13 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 
 	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
-	_ = <-cSH
+	header, err := waitForHeader(cSH, cErr)
+	if err != nil {
+		return err
+	}
+	if header.Refs()[0].Len() != len(ref.Decode().Seq) {
+		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(ref.Decode().Seq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
+	}
 
 	var wgAlign sync.WaitGroup
 	wgAlign.Add(threads)
@@ -199,9 +206,9 @@ func getVariantsSam(cdsregions []variants.Region, intregions []int, cAlignPair c
 			pair.ref[i] = EA[nuc]
 		}
 
-		offsetRefCoord, offsetMSACoord := variants.GetMSAOffsets(pair.ref)
+		offsetRefCoord, _ := variants.GetMSAOffsets(pair.ref)
 
-		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord, offsetMSACoord)
+		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord)
 		if err != nil {
 			cErr <- err
 			break

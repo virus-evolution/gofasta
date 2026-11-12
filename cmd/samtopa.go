@@ -36,6 +36,9 @@ var toPairAlignCmd = &cobra.Command{
 	Short:   "convert a SAM file to pairwise alignments in fasta format",
 	Long:    `convert a SAM file to pairwise alignments in fasta format`,
 
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return intAtLeast(cmd, 1, "threads")
+	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -24,13 +25,6 @@ type alignPair struct {
 	idx       int // for retaining input order in the output
 }
 
-// alignPairs is for passing groups of alignPair around with an index which is used to retain input
-// order in the output
-type alignPairs struct {
-	aps []alignPair
-	idx int
-}
-
 // insertionOccurence stores information about a single insertion from cigars in a block of SAM records,
 // which is used to appropriately gap the other sam lines belonging to the same query sequence
 type insertionOccurence struct {
@@ -39,13 +33,6 @@ type insertionOccurence struct {
 	rowNumber int
 }
 
-type byStart []insertionOccurence
-
-// the functions required by the sorting interface so that insertion structs can be started by their genomic position
-func (a byStart) Len() int           { return len(a) }
-func (a byStart) Less(i, j int) bool { return a[i].start < a[j].start }
-func (a byStart) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
 // alignedBlockInfo stores arrays of sam fields for one queriy's sam lines -
 // they should be equal length and the item at the same index in each array should
 // originate from the same sam line
@@ -53,6 +40,70 @@ type alignedBlockInfo struct {
 	seqpairArray []alignPair      // an array of ref + query seqs from primary + secondary mappings
 	cigarArray   []biogosam.Cigar // the cigars for each mapping in seqpairArray
 	posArray     []int            // the start POS from the sam file for each mapping in seqpairArray
+}
+
+// gapRowForInsertions returns a copy of one row (a reference/query pair from a single SAM record) that
+// has been given the columns for every insertion in the block: the row's own insertions keep their
+// query bases, and gaps are added for everyone else's. Rows are built from reference coordinates (the
+// n-th reference base), so a row's own earlier insertions, and insertions added for other rows, cannot
+// shift a later insertion to the wrong column.
+//
+// refRow and queRow are as returned by getOneLinePlusRef (the reference row has a '-' for each base the
+// row has inserted), row is the index of this row in the block, insertions are all of the insertions in
+// the block (sorted by start, with this row's own in cigar order) and insertionsAt groups them by start.
+// Insertions that start after the end of the row are not added (the row is padded later).
+func gapRowForInsertions(refRow, queRow []byte, row int, insertions []insertionOccurence, insertionsAt map[int][]insertionOccurence) ([]byte, []byte) {
+
+	// split the row into columns that are reference bases, and chunks of its own inserted bases.
+	// ownAt[c] holds the chunks inserted after the c-th reference base, in order
+	baseRef := make([]byte, 0, len(refRow))
+	baseQue := make([]byte, 0, len(refRow))
+	ownAt := make(map[int][][]byte)
+
+	col := 0
+	shift := 0 // the number of this row's own inserted columns so far
+	for _, ins := range insertions {
+		if ins.rowNumber != row {
+			continue
+		}
+		insCol := ins.start + shift // the column of the first inserted base in this row
+		baseRef = append(baseRef, refRow[col:insCol]...)
+		baseQue = append(baseQue, queRow[col:insCol]...)
+		ownAt[ins.start] = append(ownAt[ins.start], queRow[insCol:insCol+ins.length])
+		col = insCol + ins.length
+		shift += ins.length
+	}
+	baseRef = append(baseRef, refRow[col:]...)
+	baseQue = append(baseQue, queRow[col:]...)
+
+	// put it back together, with a column for every insertion at each reference position
+	outRef := make([]byte, 0, len(refRow))
+	outQue := make([]byte, 0, len(queRow))
+	used := make(map[int]int) // how many of this row's own chunks at each position have been placed
+
+	for c := 0; c <= len(baseRef); c++ {
+		for _, ins := range insertionsAt[c] {
+			if ins.rowNumber == row {
+				chunk := ownAt[c][used[c]]
+				used[c]++
+				for range chunk {
+					outRef = append(outRef, '-')
+				}
+				outQue = append(outQue, chunk...)
+			} else {
+				for k := 0; k < ins.length; k++ {
+					outRef = append(outRef, '-')
+					outQue = append(outQue, '-')
+				}
+			}
+		}
+		if c < len(baseRef) {
+			outRef = append(outRef, baseRef[c])
+			outQue = append(outQue, baseQue[c])
+		}
+	}
+
+	return outRef, outQue
 }
 
 // blockToSeqPair converts a block of sam records corresponding to the same query sequence to a pairwise
@@ -84,7 +135,6 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 				insertions = append(insertions, I)
 			}
 
-			// if op.Type().Consumes().Query == 1 || op.Type().Consumes().Reference == 1 {
 			if op.Type().Consumes().Reference == 1 {
 				pos += op.Len()
 			}
@@ -99,47 +149,20 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 		queSeqArray[i] = alignedBlock.seqpairArray[i].query
 	}
 
-	// if there are insertions, we need to modify these new slices
+	// if there are insertions, every row has to be rebuilt so that they all share the same columns
 	if len(insertions) > 0 {
-		sort.Sort(byStart(insertions))
+		// A stable sort keeps insertions that start at the same reference position in the order they
+		// were found (row order, then cigar order), which is the order their columns are laid out in.
+		sort.SliceStable(insertions, func(i, j int) bool { return insertions[i].start < insertions[j].start })
 
-		// if we are going to insert multiple insertions into one pair then we will need to keep track
-		// of the coordinate offset after the first one
-		offsets := make([]int, len(alignedBlock.seqpairArray))
-
-		// for every insertion
+		// insertions grouped by the reference position they follow
+		insertionsAt := make(map[int][]insertionOccurence)
 		for _, insertion := range insertions {
-			// this is the pair it is already present in, which we will skip:
-			rowNumber := insertion.rowNumber
-			for j, seqPair := range alignedBlock.seqpairArray {
-				// don't reinsert - the insertion already exists in this one
-				if j == rowNumber {
-					continue
-				}
+			insertionsAt[insertion.start] = append(insertionsAt[insertion.start], insertion)
+		}
 
-				// if the insertions starts after the (offset) length of this sequence,
-				// we don't have to do anything to this pair here
-				if insertion.start > len(alignedBlock.seqpairArray[j].ref)-offsets[j] {
-					continue
-				}
-
-				// otherwise, we make a slice of gaps to insert into the slices
-				gaps := make([]byte, insertion.length)
-				for k := range gaps {
-					gaps[k] = '-'
-				}
-
-				refSeqArray[j] = refSeqArray[j][:insertion.start+offsets[j]]
-				refSeqArray[j] = append(refSeqArray[j], gaps...)
-				refSeqArray[j] = append(refSeqArray[j], seqPair.ref[insertion.start+offsets[j]:]...)
-
-				queSeqArray[j] = seqPair.query[:insertion.start+offsets[j]]
-				queSeqArray[j] = append(queSeqArray[j], gaps...)
-				queSeqArray[j] = append(queSeqArray[j], seqPair.query[insertion.start+offsets[j]:]...)
-
-				// and we add the relevant offset to account for this insertion in future coordinates
-				offsets[j] += insertion.length
-			}
+		for j := range refSeqArray {
+			refSeqArray[j], queSeqArray[j] = gapRowForInsertions(refSeqArray[j], queSeqArray[j], j, insertions, insertionsAt)
 		}
 	}
 
@@ -265,8 +288,6 @@ func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr ch
 			cPair <- pair
 		}
 	}
-
-	return
 }
 
 // get the number of bases to add to convert each reference position to MSA coordinates
@@ -284,7 +305,7 @@ func getRefOffset(refseq []byte) []int {
 	gapsum := 0
 	refToMSA := make([]int, degappedLen)
 	for i, nuc := range refseq {
-		if nuc == '-' { // 244 represents a gap ('-')
+		if nuc == '-' {
 			gapsum++
 			continue
 		}
@@ -295,7 +316,7 @@ func getRefOffset(refseq []byte) []int {
 }
 
 // trimAlignment trims the alignment to user-specified coordinates in degapped reference space
-func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair, cErr chan error) {
+func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair) {
 
 	if !trim {
 		// if no trimming is specified we take the whole sequence:
@@ -346,8 +367,6 @@ func wrap(old string, wrap int) string {
 // writePairwiseAlignment writes the pairwise alignments between reference and queries to a directory, p, one fasta
 // file per query
 func writePairwiseAlignment(p string, w int, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
-
-	_ = path.Join()
 
 	var err error
 
@@ -415,15 +434,6 @@ func writePairwiseAlignment(p string, w int, cPair chan alignPair, cWriteDone ch
 // optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space
 func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
 
-	// NB probably uncomment the below and use it for checks (e.g. for
-	// reference length)
-	// samHeader, err := getSamHeader(samFile)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// refLen := samHeader.Refs()[0].Len()
-
 	cErr := make(chan error)
 
 	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)
@@ -453,7 +463,13 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 
 	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
-	_ = <-cSH
+	header, err := waitForHeader(cSH, cErr)
+	if err != nil {
+		return err
+	}
+	if header.Refs()[0].Len() != len(refSeq) {
+		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
+	}
 
 	go writePairwiseAlignment(outpath, wrap, cPairTrim, cWriteDone, cErr, omitRef)
 
@@ -472,7 +488,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 
 	for n := 0; n < threads; n++ {
 		go func() {
-			trimAlignment(trim, trimStart, trimEnd, cPairAlign, cPairTrim, cErr)
+			trimAlignment(trim, trimStart, trimEnd, cPairAlign, cPairTrim)
 			wgTrim.Done()
 		}()
 	}

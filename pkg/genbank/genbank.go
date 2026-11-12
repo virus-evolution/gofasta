@@ -5,11 +5,14 @@ package genbank
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
+
+var errFeaturesBeforeFeature = errors.New("Error parsing Genbank FEATURES: qualifier before the first feature")
 
 // Genbank is a master struct containing information from a single genbank record
 type Genbank struct {
@@ -80,7 +83,7 @@ func isFeatureLine(line string, quoteClosed bool) bool {
 }
 
 // parseGenbankFEATURES gets the FEATURES info from a genbank file
-func parseGenbankFEATURES(field genbankField) []GenbankFeature {
+func parseGenbankFEATURES(field genbankField) ([]GenbankFeature, error) {
 
 	rawLines := field.lines
 
@@ -95,6 +98,11 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 	var isKey bool
 
 	for linecounter, line := range rawLines {
+
+		// blank (or whitespace-only) lines carry no information
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
 
 		newFeature := isFeatureLine(line, quoteClosed)
 
@@ -114,6 +122,10 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 			valueBuffer = make([]rune, 0)
 
 		} else if strings.TrimSpace(line)[0] == '/' && len(keyBuffer) == 0 {
+
+			if gb.Info == nil {
+				return nil, errFeaturesBeforeFeature
+			}
 
 			keyBuffer = make([]rune, 0)
 			valueBuffer = make([]rune, 0)
@@ -155,6 +167,10 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			quoteClosed = true
 
+			if gb.Info == nil {
+				return nil, errFeaturesBeforeFeature
+			}
+
 			gb.Info[string(keyBuffer)] = string(valueBuffer)
 
 			keyBuffer = make([]rune, 0)
@@ -184,6 +200,10 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 
 			quoteClosed = true
 
+			if gb.Info == nil {
+				return nil, errFeaturesBeforeFeature
+			}
+
 			gb.Info[string(keyBuffer)] = string(valueBuffer)
 			features = append(features, gb)
 
@@ -202,12 +222,15 @@ func parseGenbankFEATURES(field genbankField) []GenbankFeature {
 	}
 
 	if len(keyBuffer) > 0 && len(valueBuffer) > 0 {
+		if gb.Info == nil {
+			return nil, errFeaturesBeforeFeature
+		}
 		gb.Info[string(keyBuffer)] = string(valueBuffer)
 	}
 
 	features = append(features, gb)
 
-	return features
+	return features, nil
 }
 
 // parseGenbankORIGIN gets the ORIGIN info from a genbank file
@@ -260,7 +283,11 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 			switch {
 			case header == "FEATURES":
 				field = genbankField{header: header, lines: lines}
-				gb.FEATURES = parseGenbankFEATURES(field)
+				var err error
+				gb.FEATURES, err = parseGenbankFEATURES(field)
+				if err != nil {
+					return Genbank{}, err
+				}
 			case header == "ORIGIN":
 				field = genbankField{header: header, lines: lines}
 				gb.ORIGIN = parseGenbankORIGIN(field)
@@ -278,7 +305,11 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 	switch {
 	case header == "FEATURES":
 		field = genbankField{header: header, lines: lines}
-		gb.FEATURES = parseGenbankFEATURES(field)
+		var err error
+		gb.FEATURES, err = parseGenbankFEATURES(field)
+		if err != nil {
+			return Genbank{}, err
+		}
 	case header == "ORIGIN":
 		field = genbankField{header: header, lines: lines}
 		gb.ORIGIN = parseGenbankORIGIN(field)

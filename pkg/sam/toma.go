@@ -28,7 +28,10 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 
 	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
 
-	header := <-cSH
+	header, err := waitForHeader(cSH, cErr)
+	if err != nil {
+		return err
+	}
 	refLen := header.Refs()[0].Len()
 
 	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
@@ -134,7 +137,6 @@ func blockToRecord(ch_in chan samRecords, ch_out chan fasta.Record, ch_err chan 
 		}
 		ch_out <- getRecord(rawseq, id, group.idx, trim, pad, trimstart, trimend)
 	}
-	return
 }
 
 // getRecord returns a Record struct with a sequence ID and a sequence

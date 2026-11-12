@@ -44,7 +44,7 @@ func TestParseGenbankFEATURES(t *testing.T) {
 		},
 	}
 
-	feats := parseGenbankFEATURES(gf)
+	feats, _ := parseGenbankFEATURES(gf)
 	if !reflect.DeepEqual(feats, []GenbankFeature{
 		GenbankFeature{
 			Feature:  "source",

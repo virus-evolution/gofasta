@@ -6,11 +6,9 @@ in fasta format.
 package variants
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sort"
@@ -58,7 +56,11 @@ type AnnoStructs struct {
 	Idx       int
 }
 
-func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
+// Variants annotates the mutations in each record of a multiple sequence alignment in fasta format,
+// relative to a reference sequence (the record refID in the alignment, or the sequence in the
+// annotation). A record that can't be processed (an invalid character, or a different width from the
+// reference) is reported on stderr and skipped, unless strict, when it stops the run with an error.
+func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int, strict bool) error {
 
 	var (
 		ref fasta.EncodedRecord
@@ -92,16 +94,30 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 	}
 
-	next := fasta.NewEncodedAlignmentSource(msaIn, false, false, false)
+	next := fasta.NewRecordSource(msaIn)
 
-	// from stdin, the reference must be the first record
+	// from stdin, the reference must be the first record; it is read here, and handed on again as the
+	// first record of the alignment
 	if stdin && refID != "" {
-		ref, err = next()
+		first, err := next()
 		if err != nil {
 			return err
 		}
-		if ref.ID != refID {
+		if first.ID != refID {
 			return errors.New("--reference is not the first record in --msa")
+		}
+		ref, err = first.Encode()
+		if err != nil {
+			return err
+		}
+		rest := next
+		handedOn := false
+		next = func() (fasta.Record, error) {
+			if !handedOn {
+				handedOn = true
+				return first, nil
+			}
+			return rest()
 		}
 	}
 
@@ -201,123 +217,63 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		return errors.New("couldn't tell if --annotation was a .gb or a .gff file")
 	}
 
-	work := func(record fasta.EncodedRecord) (AnnoStructs, error) {
+	work := func(raw fasta.Record) (AnnoStructs, error) {
+		record, err := raw.Encode()
+		if err != nil {
+			return AnnoStructs{}, pipeline.Named(raw.ID, err)
+		}
 		if len(record.Seq) != len(ref.Seq) {
-			return AnnoStructs{}, errors.New("Gapped reference sequence and alignment are not the same width")
+			return AnnoStructs{}, pipeline.Named(raw.ID, errors.New("Gapped reference sequence and alignment are not the same width"))
 		}
-		return GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, refToMSA)
+		AS, err := GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, refToMSA)
+		return AS, pipeline.Named(raw.ID, err)
 	}
 
+	var write func(AnnoStructs) error
+	var agg *Aggregator
 	if aggregate {
-		agg, err := NewAggregator(out, start, end, appendSNP, ref.ID)
+		agg, err = NewAggregator(out, start, end, appendSNP, ref.ID)
 		if err != nil {
 			return err
 		}
-		err = pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(agg.Add))
+		write = agg.Add
+	} else {
+		lw, err := NewLineWriter(out, start, end, appendSNP, ref.ID)
 		if err != nil {
 			return err
 		}
-		return agg.Write(threshold)
+		write = lw.Write
 	}
 
-	lw, err := NewLineWriter(out, start, end, appendSNP, ref.ID)
-	if err != nil {
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "record", Many: "records"}, write)
+	if err := pipeline.Run(context.Background(), threads, next, work, h.Sink); err != nil {
 		return err
 	}
-	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(lw.Write))
+	if err := h.Finish(); err != nil {
+		return err
+	}
+	if aggregate {
+		return agg.Write(threshold)
+	}
+	return nil
 }
 
-// findReference gets the reference sequence from the msa if it is in there.
-// If it isn't, we will try get it from the annotation (in which case there can
-// be no insertions relative to the reference in the msa)
+// findReference gets the reference sequence from the msa if it is in there. Only the reference itself
+// is checked: the other records are checked when they are processed.
 func findReference(msaIn io.Reader, referenceID string) (fasta.EncodedRecord, error) {
-
-	var err error
-
-	coding := encoding.MakeEncodingArray()
-
-	s := bufio.NewScanner(msaIn)
-	s.Buffer(make([]byte, 0), 1024*1024)
-
-	first := true
-
-	var id string
-	var description string
-	var seqBuffer []byte
-	var line []byte
-	var nuc byte
-	var width int
-
-	var refRec fasta.EncodedRecord
-	refFound := false
-
-	counter := 0
-
-	for s.Scan() {
-		line = s.Bytes()
-
-		if first {
-
-			if line[0] != '>' {
-				return fasta.EncodedRecord{}, errors.New("badly formatted fasta file")
-			}
-
-			description = string(line[1:])
-			id = strings.Fields(description)[0]
-
-			if id == referenceID {
-				refFound = true
-			}
-
-			first = false
-
-		} else if line[0] == '>' {
-
-			if refFound {
-				refRec = fasta.EncodedRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
-				return refRec, nil
-			}
-
-			if counter == 0 {
-				width = len(seqBuffer)
-			} else if len(seqBuffer) != width {
-				return fasta.EncodedRecord{}, errors.New("different length sequences in input file: is this an alignment?")
-			}
-
-			counter++
-			description = string(line[1:])
-			id = strings.Fields(description)[0]
-			seqBuffer = make([]byte, 0)
-
-			if id == referenceID {
-				refFound = true
-			}
-
-		} else {
-			encodedLine := make([]byte, len(line))
-			for i := range line {
-				nuc = coding[line[i]]
-				if nuc == 0 {
-					return fasta.EncodedRecord{}, fmt.Errorf("invalid nucleotide in fasta file (%s)", string(line[i]))
-				}
-				encodedLine[i] = nuc
-			}
-			seqBuffer = append(seqBuffer, encodedLine...)
+	next := fasta.NewRecordSource(msaIn)
+	for {
+		record, err := next()
+		if err == io.EOF || errors.Is(err, fasta.ErrEmptyFasta) {
+			return fasta.EncodedRecord{}, errors.New("Couldn't find reference (" + referenceID + ") in msa")
+		}
+		if err != nil {
+			return fasta.EncodedRecord{}, err
+		}
+		if record.ID == referenceID {
+			return record.Encode()
 		}
 	}
-
-	err = s.Err()
-	if err != nil {
-		return fasta.EncodedRecord{}, err
-	}
-
-	if refFound {
-		refRec = fasta.EncodedRecord{ID: id, Description: description, Seq: seqBuffer, Idx: counter}
-	} else {
-		return refRec, errors.New("Couldn't find reference (" + referenceID + ") in msa")
-	}
-
-	return refRec, nil
 }
 
 func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error) {

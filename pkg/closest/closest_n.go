@@ -2,10 +2,8 @@ package closest
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"math"
-	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -119,7 +117,7 @@ func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) 
 
 // ClosestN finds the closest sequence(s) by genetic distance to a query/queries. It writes the results
 // to stdout or to file. Ties for distance are broken by genome completeness.
-func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measure string, out io.Writer, table bool, threads int) error {
+func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measure string, out io.Writer, table bool, threads int, strict bool) error {
 
 	if catchmentSize < 0 {
 		return errors.New("the number of neighbours to find must not be negative")
@@ -135,21 +133,19 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 		catchmentSize = math.MaxInt
 	}
 
-	queries, err := fasta.LoadEncodeAlignment(query, false, true, false)
+	queries, err := loadQueries(query, strict)
 	if err != nil {
 		return err
 	}
 
 	nQ := len(queries)
 
-	fmt.Fprintf(os.Stderr, "number of sequences in query alignment: %d\n", nQ)
-
 	QResultsArray := make([]catchmentStruct, nQ)
 	for i, q := range queries {
 		QResultsArray[i] = catchmentStruct{qname: q.ID, qidx: q.Idx, catchment: make([]resultsStruct, 0)}
 	}
 
-	_, err = scanTargets(queries, target, measure, threads, func(st scoredTarget) {
+	err = scanTargets(queries, target, measure, threads, strict, func(st scoredTarget) {
 		for i := range QResultsArray {
 			QResultsArray[i].consider(st.target, st.distances[i], catchmentSize, maxdist)
 		}

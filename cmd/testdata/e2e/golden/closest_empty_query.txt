@@ -16,3 +16,6 @@ Flags:
       --table             Write a long-form table of the output
   -h, --help              help for closest
 
+Global Flags:
+      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+

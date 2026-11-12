@@ -1,0 +1,12 @@
+args: closest --query query.fasta --target msa_badrow.fasta -n 2
+exit: 0
+--- stdout
+query,closest
+q1,q1;q6
+q2,q2;ref
+q5,q5;ref
+--- stderr
+number of sequences in query alignment: 3
+warning: skipping short (target 4): query and target alignments are not the same width
+warning: skipped 1 of 10 targets
+number of sequences in target alignment: 10

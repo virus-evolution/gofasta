@@ -14,3 +14,6 @@ Flags:
       --threshold float    If --aggregate, only report snps with a freq greater than or equal to this value
   -h, --help               help for snps
 
+Global Flags:
+      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+

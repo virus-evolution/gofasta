@@ -141,10 +141,43 @@ type scoredTarget struct {
 	distances []float64
 }
 
+// loadQueries reads and encodes the queries. A query that can't be used (an invalid character, or a
+// different width from the first usable query) is reported on stderr and left out, unless strict, when
+// it is an error. It writes the number of queries read to stderr.
+func loadQueries(query io.Reader, strict bool) ([]fasta.EncodedRecord, error) {
+	width := -1 // of the first usable query; only one worker, so the queries are seen in order
+	work := func(record fasta.Record) (fasta.EncodedRecord, error) {
+		q, err := fasta.EncodeRecord(record, false, true, false)
+		if err != nil {
+			return q, pipeline.Named(record.ID, err)
+		}
+		if width == -1 {
+			width = len(q.Seq)
+		} else if len(q.Seq) != width {
+			return q, pipeline.Named(record.ID, errors.New("not the same width as the first query"))
+		}
+		return q, nil
+	}
+	queries := make([]fasta.EncodedRecord, 0)
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "query", Many: "queries"}, func(q fasta.EncodedRecord) error {
+		queries = append(queries, q)
+		return nil
+	})
+	if err := pipeline.Run(context.Background(), 1, fasta.NewRecordSource(query), work, h.Sink); err != nil {
+		return nil, err
+	}
+	if err := h.Finish(); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(os.Stderr, "number of sequences in query alignment: %d\n", h.Total())
+	return queries, nil
+}
+
 // scanTargets reads the targets from an alignment, works out each one's distance to every query (on
-// threads goroutines), and passes the targets with their distances to visit in input order. It writes
-// the number of targets to stderr and returns it.
-func scanTargets(queries []fasta.EncodedRecord, target io.Reader, measure string, threads int, visit func(scoredTarget)) (int, error) {
+// threads goroutines), and passes the targets with their distances to visit in input order. A target
+// that can't be used (an invalid character, or a different width from the queries) is reported on
+// stderr and skipped, unless strict, when it is an error. It writes the number of targets read to stderr.
+func scanTargets(queries []fasta.EncodedRecord, target io.Reader, measure string, threads int, strict bool, visit func(scoredTarget)) error {
 	var distance func(query, target fasta.EncodedRecord) float64
 	switch measure {
 	case "raw":
@@ -154,13 +187,16 @@ func scanTargets(queries []fasta.EncodedRecord, target io.Reader, measure string
 	case "tn93":
 		distance = tn93Distance
 	default:
-		return 0, errors.New("unknown distance measure: " + measure)
+		return errors.New("unknown distance measure: " + measure)
 	}
 
-	next := fasta.NewEncodedAlignmentSource(target, false, true, true)
-	work := func(t fasta.EncodedRecord) (scoredTarget, error) {
+	work := func(record fasta.Record) (scoredTarget, error) {
+		t, err := fasta.EncodeRecord(record, false, true, true)
+		if err != nil {
+			return scoredTarget{}, pipeline.Named(record.ID, err)
+		}
 		if len(queries) > 0 && len(t.Seq) != len(queries[0].Seq) {
-			return scoredTarget{}, errors.New("query and target alignments are not the same width")
+			return scoredTarget{}, pipeline.Named(record.ID, errors.New("query and target alignments are not the same width"))
 		}
 		ds := make([]float64, len(queries))
 		for i, q := range queries {
@@ -168,17 +204,18 @@ func scanTargets(queries []fasta.EncodedRecord, target io.Reader, measure string
 		}
 		return scoredTarget{target: t, distances: ds}, nil
 	}
-	n := 0
-	err := pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(func(st scoredTarget) error {
-		n++
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "target", Many: "targets"}, func(st scoredTarget) error {
 		visit(st)
 		return nil
-	}))
-	if err != nil {
-		return 0, err
+	})
+	if err := pipeline.Run(context.Background(), threads, fasta.NewRecordSource(target), work, h.Sink); err != nil {
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", n)
-	return n, nil
+	if err := h.Finish(); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", h.Total())
+	return nil
 }
 
 // snpsBetween lists the sites at which query and target certainly differ, as position, query base, target base
@@ -226,7 +263,7 @@ func writeClosest(results []resultsStruct, measure string, w io.Writer) error {
 
 // Closest finds the single closest sequence by genetic distance to a query/queries. It writes the results
 // to stdout or to file. Ties for distance are broken by genome completeness
-func Closest(query, target io.Reader, measure string, out io.Writer, threads int) error {
+func Closest(query, target io.Reader, measure string, out io.Writer, threads int, strict bool) error {
 
 	if threads == 0 {
 		threads = runtime.NumCPU()
@@ -234,14 +271,12 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 		runtime.GOMAXPROCS(threads)
 	}
 
-	queries, err := fasta.LoadEncodeAlignment(query, false, true, false)
+	queries, err := loadQueries(query, strict)
 	if err != nil {
 		return err
 	}
 
 	nQ := len(queries)
-
-	fmt.Fprintf(os.Stderr, "number of sequences in query alignment: %d\n", nQ)
 
 	QResultsArray := make([]resultsStruct, nQ)
 	for i, q := range queries {
@@ -250,7 +285,7 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 
 	decoding := encoding.MakeDecodingArray()
 	first := true
-	_, err = scanTargets(queries, target, measure, threads, func(st scoredTarget) {
+	err = scanTargets(queries, target, measure, threads, strict, func(st scoredTarget) {
 		for i, q := range queries {
 			QResultsArray[i].consider(q, st.target, st.distances[i], first, decoding)
 		}

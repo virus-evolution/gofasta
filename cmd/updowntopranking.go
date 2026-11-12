@@ -189,7 +189,7 @@ you haven't also invoked --dist-push).
 			qtype, ttype, ignoreArray,
 			TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 			TRdistall, TRdistup, TRdistdown, TRdistside,
-			TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+			TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, strict)
 
 		return
 	},

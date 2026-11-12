@@ -19,7 +19,9 @@ import (
 // outside of codons with an amino acid change) mutations relative to a reference
 // sequence from pairwise alignments in sam format. Genome annotations are
 // derived from a annotation file in genbank or gff version 3 format
-func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, start, end int, aggregate bool, threshold float64, appendSNP bool, threads int) error {
+//
+// A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
+func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, start, end int, aggregate bool, threshold float64, appendSNP bool, threads int, strict bool) error {
 
 	var ref fasta.EncodedRecord
 	if refFromFile {
@@ -98,10 +100,11 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 		return err
 	}
 
-	header, next, err := newSamSource(samIn)
+	src, err := newSamSource(samIn)
 	if err != nil {
 		return err
 	}
+	header := src.header
 	refSeq := ref.Decode().Seq
 	if header.Refs()[0].Len() != len(refSeq) {
 		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
@@ -109,9 +112,13 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 
 	EA := encoding.MakeEncodingArray()
 	work := func(group samRecords) (variants.AnnoStructs, error) {
-		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), false)
+		group, err := prepareQuery(group, len(refSeq))
 		if err != nil {
 			return variants.AnnoStructs{}, err
+		}
+		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), false)
+		if err != nil {
+			return variants.AnnoStructs{}, pipeline.Named(group.records[0].Name, err)
 		}
 		for i, nuc := range pair.query {
 			pair.query[i] = EA[nuc]
@@ -120,15 +127,24 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 			pair.ref[i] = EA[nuc]
 		}
 		offsetRefCoord, _ := variants.GetMSAOffsets(pair.ref)
-		return variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord)
+		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord)
+		return AS, pipeline.Named(pair.queryname, err)
 	}
 
+	write := lw.Write
 	if aggregate {
-		err = pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(agg.Add))
-		if err != nil {
-			return err
-		}
+		write = agg.Add
+	}
+	h := pipeline.NewHandler(strict, os.Stderr, queryNoun, write)
+	if err := pipeline.Run(context.Background(), threads, src.next, work, withNotes(src, h.Sink)); err != nil {
+		return err
+	}
+	src.writeTail()
+	if err := h.Finish(); err != nil {
+		return err
+	}
+	if aggregate {
 		return agg.Write(threshold)
 	}
-	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(lw.Write))
+	return nil
 }

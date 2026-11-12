@@ -688,7 +688,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
-	threshpair float32, threshtarg int, nofill bool, distpush int) error {
+	threshpair float32, threshtarg int, nofill bool, distpush int, strict bool) error {
 
 	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush)
 	if err != nil {
@@ -711,12 +711,12 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 
 	switch q_in_type {
 	case "csv":
-		queries, err = readCSVToUDLList(query)
+		queries, err = readCSVToUDLList(query, strict)
 		if err != nil {
 			return err
 		}
 	case "fasta":
-		queries, err = fastaToUDLList(query, refSeq)
+		queries, err = fastaToUDLList(query, refSeq, strict)
 		if err != nil {
 			return err
 		}
@@ -733,8 +733,8 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 
 	// a target is read as a fasta record or as a line of updown list's csv output
 	type targetIn struct {
-		record *fasta.EncodedRecord
-		line   updownLine
+		record *fasta.Record
+		row    csvRow
 	}
 	// a target with its direction and snp distance from each query
 	type rankedTarget struct {
@@ -748,11 +748,11 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	case "csv":
 		src := newCSVSource(target, errors.New("bad header when parsing --target csv: is this the output of gofasta updown list?"))
 		next = func() (targetIn, error) {
-			line, err := src()
-			return targetIn{line: line}, err
+			row, err := src()
+			return targetIn{row: row}, err
 		}
 	case "fasta":
-		src := fasta.NewEncodedAlignmentSource(target, false, false, false)
+		src := fasta.NewRecordSource(target)
 		next = func() (targetIn, error) {
 			record, err := src()
 			return targetIn{record: &record}, err
@@ -763,13 +763,15 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 
 	DA := encoding.MakeDecodingArray()
 	work := func(in targetIn) (rankedTarget, error) {
-		t := in.line
+		var t updownLine
+		var err error
 		if in.record != nil {
-			var err error
-			t, err = getLine(refSeq, *in.record, DA)
-			if err != nil {
-				return rankedTarget{}, err
-			}
+			t, err = lineFromRecord(refSeq, *in.record, DA)
+		} else {
+			t, err = parseCSVRow(in.row)
+		}
+		if err != nil {
+			return rankedTarget{}, err
 		}
 		if t.ambCount > threshtarg || (len(ignoreArray) > 0 && stringInArray(t.id, ignoreArray)) {
 			return rankedTarget{skip: true}, nil
@@ -782,7 +784,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 		return rt, nil
 	}
 
-	err = pipeline.Run(context.Background(), runtime.NumCPU(), next, work, pipeline.FirstError(func(rt rankedTarget) error {
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "target", Many: "targets"}, func(rt rankedTarget) error {
 		if rt.skip {
 			return nil
 		}
@@ -792,8 +794,11 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 			}
 		}
 		return nil
-	}))
-	if err != nil {
+	})
+	if err := pipeline.Run(context.Background(), runtime.NumCPU(), next, work, h.Sink); err != nil {
+		return err
+	}
+	if err := h.Finish(); err != nil {
 		return err
 	}
 

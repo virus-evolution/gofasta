@@ -43,7 +43,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -79,7 +79,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -124,7 +124,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -160,7 +160,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
 	if err != nil {
 		t.Error(err)
 	}

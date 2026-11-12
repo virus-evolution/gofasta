@@ -132,7 +132,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		}
 		defer gfio.CloseOut(out, &err)
 
-		err = variants.Variants(msa, stdin, variantsReference, anno, annoSuffix, out, variantsStart, variantsEnd, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads)
+		err = variants.Variants(msa, stdin, variantsReference, anno, annoSuffix, out, variantsStart, variantsEnd, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads, strict)
 
 		return
 	},

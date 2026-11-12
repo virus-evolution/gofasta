@@ -35,7 +35,7 @@ ATTATT
 
 	out := new(bytes.Buffer)
 
-	err := ClosestN(2, -1.0, query, target, "raw", out, false, 2)
+	err := ClosestN(2, -1.0, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -57,7 +57,7 @@ func TestClosestNraw2(t *testing.T) {
 
 	out := new(bytes.Buffer)
 
-	err := ClosestN(10, -1.0, query, target, "raw", out, false, 2)
+	err := ClosestN(10, -1.0, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -74,7 +74,7 @@ query2,target10;target4;target6;target3;target5;target1;target9;target7;target2;
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, -1.0, query, target, "raw", out, false, 2)
+	err = ClosestN(5, -1.0, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -91,7 +91,7 @@ query2,target10;target4;target6;target3;target5
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(0, 0.0022, query, target, "raw", out, false, 2)
+	err = ClosestN(0, 0.0022, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -108,7 +108,7 @@ query2,target10;target4;target6;target3;target5;target1;target9;target7;target2;
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, 0.0022, query, target, "raw", out, false, 2)
+	err = ClosestN(5, 0.0022, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -128,7 +128,7 @@ func TestClosestNraw2Table(t *testing.T) {
 
 	out := new(bytes.Buffer)
 
-	err := ClosestN(10, -1.0, query, target, "raw", out, true, 2)
+	err := ClosestN(10, -1.0, query, target, "raw", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -163,7 +163,7 @@ query2,target8,0.000428399
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, -1.0, query, target, "raw", out, true, 2)
+	err = ClosestN(5, -1.0, query, target, "raw", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -188,7 +188,7 @@ query2,target5,0.000117357
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(0, 0.0022, query, target, "raw", out, true, 2)
+	err = ClosestN(0, 0.0022, query, target, "raw", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -217,7 +217,7 @@ query2,target8,0.000428399
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, 0.0022, query, target, "raw", out, true, 2)
+	err = ClosestN(5, 0.0022, query, target, "raw", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -244,7 +244,7 @@ func TestClosestNsnp(t *testing.T) {
 
 	out := new(bytes.Buffer)
 
-	err := ClosestN(10, -1.0, query, target, "snp", out, false, 2)
+	err := ClosestN(10, -1.0, query, target, "snp", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -261,7 +261,7 @@ query2,target10;target6;target4;target3;target1;target5;target9;target7;target2;
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, -1.0, query, target, "snp", out, false, 2)
+	err = ClosestN(5, -1.0, query, target, "snp", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -278,7 +278,7 @@ query2,target10;target6;target4;target3;target1
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(0, 12, query, target, "snp", out, false, 2)
+	err = ClosestN(0, 12, query, target, "snp", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -295,7 +295,7 @@ query2,target10;target6;target4;target3;target1;target5;target9;target7;target2;
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, 12, query, target, "snp", out, false, 2)
+	err = ClosestN(5, 12, query, target, "snp", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -315,7 +315,7 @@ func TestClosestNsnpTable(t *testing.T) {
 
 	out := new(bytes.Buffer)
 
-	err := ClosestN(10, -1.0, query, target, "snp", out, true, 2)
+	err := ClosestN(10, -1.0, query, target, "snp", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -350,7 +350,7 @@ query2,target8,11
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, -1.0, query, target, "snp", out, true, 2)
+	err = ClosestN(5, -1.0, query, target, "snp", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -375,7 +375,7 @@ query2,target1,3
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(0, 12, query, target, "snp", out, true, 2)
+	err = ClosestN(0, 12, query, target, "snp", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -400,7 +400,7 @@ query2,target8,11
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, 12, query, target, "snp", out, true, 2)
+	err = ClosestN(5, 12, query, target, "snp", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -423,7 +423,7 @@ func TestClosestNtn93(t *testing.T) {
 
 	out := new(bytes.Buffer)
 
-	err := ClosestN(10, -1.0, query, target, "raw", out, false, 2)
+	err := ClosestN(10, -1.0, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -440,7 +440,7 @@ query2,target10;target4;target6;target3;target5;target1;target9;target7;target2;
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, -1.0, query, target, "raw", out, false, 2)
+	err = ClosestN(5, -1.0, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -457,7 +457,7 @@ query2,target10;target4;target6;target3;target5
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(0, 0.0022, query, target, "raw", out, false, 2)
+	err = ClosestN(0, 0.0022, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -474,7 +474,7 @@ query2,target10;target4;target6;target3;target5;target1;target9;target7;target2;
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, 0.0022, query, target, "raw", out, false, 2)
+	err = ClosestN(5, 0.0022, query, target, "raw", out, false, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -494,7 +494,7 @@ func TestClosestNtn93Table(t *testing.T) {
 
 	out := new(bytes.Buffer)
 
-	err := ClosestN(10, -1.0, query, target, "tn93", out, true, 2)
+	err := ClosestN(10, -1.0, query, target, "tn93", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -530,7 +530,7 @@ query2,target8,0.000428590
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, -1.0, query, target, "tn93", out, true, 2)
+	err = ClosestN(5, -1.0, query, target, "tn93", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -556,7 +556,7 @@ query2,target5,0.000117374
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(0, 0.0022, query, target, "tn93", out, true, 2)
+	err = ClosestN(0, 0.0022, query, target, "tn93", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -585,7 +585,7 @@ query2,target8,0.000428590
 
 	out = new(bytes.Buffer)
 
-	err = ClosestN(5, 0.0022, query, target, "tn93", out, true, 2)
+	err = ClosestN(5, 0.0022, query, target, "tn93", out, true, 2, true)
 	if err != nil {
 		t.Error(err)
 	}

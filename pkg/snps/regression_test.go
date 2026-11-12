@@ -14,7 +14,7 @@ func TestSNPsHardGapsGapVsGap(t *testing.T) {
 	query := strings.NewReader(">q1\nAC-T\n>q2\nAA-G\n")
 
 	out := new(bytes.Buffer)
-	if err := SNPs(ref, query, true, false, 0.0, out); err != nil {
+	if err := SNPs(ref, query, true, false, 0.0, out, true); err != nil {
 		t.Fatal(err)
 	}
 

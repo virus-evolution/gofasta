@@ -1,0 +1,13 @@
+args: updown topranking -q target_bad.csv -t target.csv --size-total 4
+exit: 0
+--- stdout
+query,closestsame,closestup,closestdown,closestside
+q3,q8;q4,,q6;q7,
+q4,q8;q4,,q6;q7,
+q6,q6,q8;q4,,q7
+q7,q7,q8;q4,,q6
+q8,q8;q4,,q6;q7,
+--- stderr
+warning: skipping bad1 (query 3): error parsing SNP "" from file
+warning: skipping bad2 (query 4): error parsing ambiguity range from file
+warning: skipped 2 of 7 queries

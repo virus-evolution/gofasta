@@ -113,7 +113,8 @@ func TestRunReadErrorArrivesInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(seen) != 21 || seen[20].Err != broken || seen[20].Idx != 20 {
+	var readErr *ReadError
+	if len(seen) != 21 || !errors.Is(seen[20].Err, broken) || !errors.As(seen[20].Err, &readErr) || seen[20].Idx != 20 {
 		t.Fatalf("got %d results, last %+v", len(seen), seen[len(seen)-1])
 	}
 	for _, r := range seen[:20] {
@@ -299,5 +300,93 @@ func waitForGoroutines(t *testing.T, want int) {
 	}
 	if n := runtime.NumGoroutine(); n > want {
 		t.Errorf("%d goroutines still running (had %d)", n, want)
+	}
+}
+
+// handlerRun runs 10 records through a Handler; records 3 and 7 fail in work (7 with a name), and if
+// readFailAt >= 0 reading fails at that record.
+func handlerRun(t *testing.T, strict bool, readFailAt int) (got []int, warnings string, runErr, finishErr error) {
+	t.Helper()
+	i := 0
+	next := func() (int, error) {
+		if i == 10 {
+			return 0, io.EOF
+		}
+		if i == readFailAt {
+			return 0, errors.New("unreadable")
+		}
+		i++
+		return i - 1, nil
+	}
+	work := func(x int) (int, error) {
+		switch x {
+		case 3:
+			return 0, errors.New("bad three")
+		case 7:
+			return 0, Named("seven", errors.New("bad seven"))
+		}
+		return x, nil
+	}
+	var warn strings.Builder
+	h := NewHandler(strict, &warn, Noun{"record", "records"}, func(v int) error {
+		got = append(got, v)
+		return nil
+	})
+	runErr = Run(context.Background(), 3, next, work, h.Sink)
+	if runErr == nil {
+		finishErr = h.Finish()
+	}
+	return got, warn.String(), runErr, finishErr
+}
+
+func TestHandlerSkipsFailedRecords(t *testing.T) {
+	got, warnings, runErr, finishErr := handlerRun(t, false, -1)
+	if runErr != nil || finishErr != nil {
+		t.Fatal(runErr, finishErr)
+	}
+	if fmt.Sprint(got) != "[0 1 2 4 5 6 8 9]" {
+		t.Errorf("got %v", got)
+	}
+	want := "warning: skipping (record 4): bad three\n" +
+		"warning: skipping seven (record 8): bad seven\n" +
+		"warning: skipped 2 of 10 records\n"
+	if warnings != want {
+		t.Errorf("warnings:\n%s\nwant:\n%s", warnings, want)
+	}
+}
+
+func TestHandlerStrictStopsAtTheFirstFailure(t *testing.T) {
+	got, warnings, runErr, _ := handlerRun(t, true, -1)
+	if runErr == nil || runErr.Error() != "bad three" || fmt.Sprint(got) != "[0 1 2]" || warnings != "" {
+		t.Errorf("got %v, err %v, warnings %q", got, runErr, warnings)
+	}
+}
+
+// A read error stops the pipeline even when failed records are being skipped.
+func TestHandlerReadErrorsAreFatal(t *testing.T) {
+	got, _, runErr, _ := handlerRun(t, false, 5)
+	if runErr == nil || runErr.Error() != "unreadable" || fmt.Sprint(got) != "[0 1 2 4]" {
+		t.Errorf("got %v, err %v", got, runErr)
+	}
+}
+
+func TestHandlerEveryRecordFailed(t *testing.T) {
+	var warn strings.Builder
+	h := NewHandler(false, &warn, Noun{"query", "queries"}, func(int) error { return nil })
+	work := func(int) (int, error) { return 0, errors.New("bad") }
+	if err := Run(context.Background(), 2, counter(3), work, h.Sink); err != nil {
+		t.Fatal(err)
+	}
+	err := h.Finish()
+	if err == nil || err.Error() != "none of the 3 queries could be processed" {
+		t.Errorf("got %v", err)
+	}
+	if !strings.HasSuffix(warn.String(), "warning: skipped 3 of 3 queries\n") || h.Total() != 3 || h.Skipped() != 3 {
+		t.Errorf("warnings %q, total %d, skipped %d", warn.String(), h.Total(), h.Skipped())
+	}
+	// no records at all is not a failure
+	h = NewHandler(false, &warn, Noun{"query", "queries"}, func(int) error { return nil })
+	if err := Run(context.Background(), 2, counter(0), work, h.Sink); err != nil || h.Finish() != nil {
+		t.Errorf("empty input: %v", err)
 	}
 }

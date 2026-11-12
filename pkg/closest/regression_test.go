@@ -17,7 +17,7 @@ func TestClosestNaNTargetIsNeverReplaced(t *testing.T) {
 
 	for _, measure := range []string{"raw", "tn93"} {
 		out := new(bytes.Buffer)
-		err := Closest(strings.NewReader(queryData), strings.NewReader(targetData), measure, out, 1)
+		err := Closest(strings.NewReader(queryData), strings.NewReader(targetData), measure, out, 1, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +42,7 @@ func TestClosestNNaNBypassesMaxDist(t *testing.T) {
 	queryData := ">q\nACGTACGTAC\n"
 
 	out := new(bytes.Buffer)
-	err := ClosestN(0, 0.5, strings.NewReader(queryData), strings.NewReader(targetData), "raw", out, false, 1)
+	err := ClosestN(0, 0.5, strings.NewReader(queryData), strings.NewReader(targetData), "raw", out, false, 1, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestClosestNNaNBypassesMaxDist(t *testing.T) {
 }
 
 func TestClosestNNegativeNumberIsAnError(t *testing.T) {
-	err := ClosestN(-3, 5, strings.NewReader(">a\nACGT\n"), strings.NewReader(">b\nACGT\n"), "raw", io.Discard, false, 1)
+	err := ClosestN(-3, 5, strings.NewReader(">a\nACGT\n"), strings.NewReader(">b\nACGT\n"), "raw", io.Discard, false, 1, true)
 	if err == nil {
 		t.Errorf("expected an error")
 	}

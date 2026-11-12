@@ -1,0 +1,19 @@
+args: snps -r ref.fasta -q msa_badrow.fasta --strict
+exit: 1
+--- stderr
+Error: Reference sequence (120 bases) and short (100 bases) are different lengths
+Usage:
+  gofasta snps [flags]
+
+Flags:
+  -r, --reference string   Reference sequence, in fasta format
+  -q, --query string       Alignment of sequences to find snps in, in fasta format (default "stdin")
+  -o, --outfile string     Output to write (default "stdout")
+      --hard-gaps          Don't treat alignment gaps as missing data
+      --aggregate          Report the proportions of each change
+      --threshold float    If --aggregate, only report snps with a freq greater than or equal to this value
+  -h, --help               help for snps
+
+Global Flags:
+      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+

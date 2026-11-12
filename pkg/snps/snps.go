@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -78,8 +79,10 @@ func writeAggregate(w io.Writer, propMap map[string]float64, n float64, threshol
 	return nil
 }
 
-// SNPs annotates snps for each record in a fasta-format alignment with respect to a reference sequence
-func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold float64, w io.Writer) error {
+// SNPs annotates snps for each record in a fasta-format alignment with respect to a reference sequence.
+// A record that can't be processed (an invalid character, or a different length from the reference) is
+// reported on stderr and skipped, unless strict, when it stops the run with an error.
+func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold float64, w io.Writer, strict bool) error {
 
 	refs, err := fasta.LoadEncodeAlignment(ref, hardGaps, false, false)
 	if err != nil {
@@ -91,32 +94,46 @@ func SNPs(ref, alignment io.Reader, hardGaps bool, aggregate bool, threshold flo
 	refSeq := refs[0].Seq
 
 	DA := encoding.MakeDecodingArray()
-	next := fasta.NewEncodedAlignmentSource(alignment, hardGaps, false, false)
-	work := func(FR fasta.EncodedRecord) (snpLine, error) { return getSNPs(refSeq, FR, DA) }
+	next := fasta.NewRecordSource(alignment)
+	work := func(record fasta.Record) (snpLine, error) {
+		FR, err := fasta.EncodeRecord(record, hardGaps, false, false)
+		if err != nil {
+			return snpLine{}, pipeline.Named(record.ID, err)
+		}
+		SL, err := getSNPs(refSeq, FR, DA)
+		return SL, pipeline.Named(record.ID, err)
+	}
 
-	if !aggregate {
+	var write func(snpLine) error
+	propMap := make(map[string]float64)
+	n := 0.0
+	if aggregate {
+		if _, err := w.Write([]byte("SNP,frequency\n")); err != nil {
+			return err
+		}
+		write = func(SL snpLine) error {
+			n++
+			for _, snp := range SL.snps {
+				propMap[snp]++
+			}
+			return nil
+		}
+	} else {
 		if _, err := w.Write([]byte("query,SNPs\n")); err != nil {
 			return err
 		}
-		return pipeline.Run(context.Background(), runtime.NumCPU(), next, work, pipeline.FirstError(func(SL snpLine) error {
-			return writeLine(w, SL)
-		}))
+		write = func(SL snpLine) error { return writeLine(w, SL) }
 	}
 
-	if _, err := w.Write([]byte("SNP,frequency\n")); err != nil {
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "record", Many: "records"}, write)
+	if err := pipeline.Run(context.Background(), runtime.NumCPU(), next, work, h.Sink); err != nil {
 		return err
 	}
-	propMap := make(map[string]float64)
-	n := 0.0
-	err = pipeline.Run(context.Background(), runtime.NumCPU(), next, work, pipeline.FirstError(func(SL snpLine) error {
-		n++
-		for _, snp := range SL.snps {
-			propMap[snp]++
-		}
-		return nil
-	}))
-	if err != nil {
+	if err := h.Finish(); err != nil {
 		return err
 	}
-	return writeAggregate(w, propMap, n, threshold)
+	if aggregate {
+		return writeAggregate(w, propMap, n, threshold)
+	}
+	return nil
 }

@@ -1,0 +1,21 @@
+args: closest --query msa_badnuc.fasta --target target.fasta --strict
+exit: 1
+--- stderr
+Error: invalid nucleotide in fasta record ("J")
+Usage:
+  gofasta closest [flags]
+
+Flags:
+  -t, --threads int       Number of CPUs to use (Default: all available CPUs)
+      --query string      Alignment of sequences to find neighbours for, in fasta format
+      --target string     Alignment of sequences to search for neighbours in, in fasta format
+  -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")
+  -n, --number int        (Optional) the closest n sequences to each query will be returned
+  -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)
+  -o, --outfile string    The output file to write (default "stdout")
+      --table             Write a long-form table of the output
+  -h, --help              help for closest
+
+Global Flags:
+      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+

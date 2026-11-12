@@ -1,0 +1,23 @@
+args: variants --msa msa_badnuc.fasta -r ref -a ref.gb --strict
+exit: 1
+--- stderr
+Error: invalid nucleotide in fasta record ("J")
+Usage:
+  gofasta variants [flags]
+
+Flags:
+      --msa string          Multiple sequence alignment in fasta format (default "stdin")
+  -r, --reference string    The ID of the reference record in the msa
+  -a, --annotation string   GenBank or GFF3 format annotation file. Must have suffix .gb, .gbk, .gbff, .gff or .gff3
+  -o, --outfile string      Name of the file of variants to write (default "stdout")
+      --start int           Only report variants after (and including) this position (default -1)
+      --end int             Only report variants before (and including) this position (default -1)
+      --aggregate           Report the proportions of each change
+      --threshold float     If --aggregate, only report changes with a freq greater than or equal to this value
+      --append-snps         Report the codon's SNPs in parenthesis after each amino acid mutation
+  -t, --threads int         Number of threads to use (default 1)
+  -h, --help                help for variants
+
+Global Flags:
+      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+

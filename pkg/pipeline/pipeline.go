@@ -5,7 +5,12 @@ Records are read one at a time, processed on several goroutines, and passed to a
 from the goroutine that called Run, one record at a time, in the order the records were read. Every
 record travels as a Result, which carries any error from reading or processing it, and every Result
 reaches the sink (unless the pipeline is stopped), so the sink is the one place that decides what to do
-with failed records: stop at the first, as FirstError does, or skip them and carry on.
+with failed records: stop at the first (FirstError, or a strict Handler), or warn about them, skip them
+and carry on (Handler).
+
+Errors from reading (next) arrive as a *ReadError and end the input: a Handler always treats them as
+fatal. Errors from processing a record (work) belong to that record; wrapping them with Named gives the
+record's name to the warning.
 
 The number of records between reading and the sink is bounded, so a record that is slow to process does
 not let the others pile up without limit.
@@ -14,6 +19,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -26,6 +32,31 @@ type Result[T any] struct {
 	Idx int   // 0-based position of the record in the input
 	Val T     // the processed record (the zero value if Err is set)
 	Err error // why the record could not be read or processed, if it could not
+}
+
+// ReadError is the error of a Result whose record could not be read. Reading stops after it.
+type ReadError struct {
+	Err error
+}
+
+func (e *ReadError) Error() string { return e.Err.Error() }
+func (e *ReadError) Unwrap() error { return e.Err }
+
+// RecordError is the error of one record that could not be processed, with the record's name.
+type RecordError struct {
+	Name string
+	Err  error
+}
+
+func (e *RecordError) Error() string { return e.Err.Error() }
+func (e *RecordError) Unwrap() error { return e.Err }
+
+// Named attaches a record's name to the error from processing it (nil stays nil).
+func Named(name string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &RecordError{Name: name, Err: err}
 }
 
 // PanicError is the value Run panics with when next or work panicked. It holds the original panic value
@@ -53,8 +84,8 @@ const inFlightPerThread = 8
 // Run calls next until it returns io.EOF, passes each record to work on threads goroutines (at least
 // one), and passes the results to sink in input order, from the calling goroutine.
 //
-// An error from next becomes a Result with that error, at the position of the record that could not be
-// read, and reading stops there. An error from work becomes the Err of that record's Result.
+// An error from next becomes a Result with that error (as a *ReadError), at the position of the record
+// that could not be read, and reading stops there. An error from work becomes the Err of that record's Result.
 //
 // Run stops early if sink returns an error, which Run then returns, or if ctx is cancelled before the end
 // of the input has been read and every record has reached the sink, in which case it returns ctx.Err()
@@ -111,6 +142,9 @@ func Run[In, Out any](ctx context.Context, threads int, next func() (In, error),
 			if err == io.EOF {
 				exhausted.Store(true)
 				return
+			}
+			if err != nil {
+				err = &ReadError{Err: err}
 			}
 			select {
 			case jobs <- job{idx: i, in: in, err: err}:
@@ -205,4 +239,72 @@ func FirstError[T any](f func(T) error) func(Result[T]) error {
 		}
 		return f(r.Val)
 	}
+}
+
+// Noun names the records of a pipeline in a Handler's warnings, e.g. Noun{"record", "records"}.
+type Noun struct {
+	One, Many string
+}
+
+// Handler is a sink that applies gofasta's policy for records that fail. If strict, the first failure
+// stops the pipeline with that record's error. Otherwise each failed record is reported on warn, as
+//
+//	warning: skipping NAME (NOUN N): ERROR
+//
+// and skipped, and the others are passed to f. After Run, Finish reports how many were skipped. Read
+// errors (*ReadError) always stop the pipeline.
+type Handler[T any] struct {
+	strict  bool
+	warn    io.Writer
+	noun    Noun
+	f       func(T) error
+	total   int
+	skipped int
+}
+
+// NewHandler returns a Handler that passes the records that did not fail to f.
+func NewHandler[T any](strict bool, warn io.Writer, noun Noun, f func(T) error) *Handler[T] {
+	return &Handler[T]{strict: strict, warn: warn, noun: noun, f: f}
+}
+
+// Sink is the sink to pass to Run.
+func (h *Handler[T]) Sink(r Result[T]) error {
+	if r.Err == nil {
+		h.total++
+		return h.f(r.Val)
+	}
+	var readErr *ReadError
+	if h.strict || errors.As(r.Err, &readErr) {
+		return r.Err
+	}
+	h.total++
+	h.skipped++
+	name := ""
+	var recErr *RecordError
+	if errors.As(r.Err, &recErr) && recErr.Name != "" {
+		name = recErr.Name + " "
+	}
+	_, err := fmt.Fprintf(h.warn, "warning: skipping %s(%s %d): %v\n", name, h.noun.One, r.Idx+1, r.Err)
+	return err
+}
+
+// Total is the number of records that reached the sink (not counting a read error).
+func (h *Handler[T]) Total() int { return h.total }
+
+// Skipped is the number of records that failed and were skipped.
+func (h *Handler[T]) Skipped() int { return h.skipped }
+
+// Finish writes a summary if any records were skipped, and returns an error if there were records and
+// every one of them failed.
+func (h *Handler[T]) Finish() error {
+	if h.skipped == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintf(h.warn, "warning: skipped %d of %d %s\n", h.skipped, h.total, h.noun.Many); err != nil {
+		return err
+	}
+	if h.skipped == h.total {
+		return fmt.Errorf("none of the %d %s could be processed", h.total, h.noun.Many)
+	}
+	return nil
 }

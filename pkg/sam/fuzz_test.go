@@ -80,7 +80,7 @@ func FuzzToMultiAlign(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		quietStderr(t)
 		runWithTimeout(t, func() {
-			_ = ToMultiAlign(bytes.NewReader(data), io.Discard, 60, -1, -1, false, 2)
+			_ = ToMultiAlign(bytes.NewReader(data), io.Discard, 60, -1, -1, false, 2, false)
 		})
 	})
 }
@@ -93,7 +93,7 @@ func FuzzToPairAlign(f *testing.F) {
 		discardStdout(t)
 		quietStderr(t)
 		runWithTimeout(t, func() {
-			_ = ToPairAlign(bytes.NewReader(data), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2)
+			_ = ToPairAlign(bytes.NewReader(data), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2, false)
 		})
 	})
 }
@@ -105,7 +105,7 @@ func FuzzVariants(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		quietStderr(t)
 		runWithTimeout(t, func() {
-			_ = Variants(bytes.NewReader(data), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2)
+			_ = Variants(bytes.NewReader(data), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2, false)
 		})
 	})
 }

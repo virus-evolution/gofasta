@@ -78,7 +78,7 @@ from stdin and write the snps file to stdout, e.g. you could do this:
 		}
 		defer gfio.CloseOut(out, &err)
 
-		err = snps.SNPs(ref, query, hardGaps, aggregate, thresh, out)
+		err = snps.SNPs(ref, query, hardGaps, aggregate, thresh, out, strict)
 
 		return
 	},

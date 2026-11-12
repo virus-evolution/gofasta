@@ -1,24 +1,32 @@
 args: sam toPairAlign -s aln_badrecord.sam -r ref.fasta -o stdout
-exit: 1
+exit: 0
+--- stdout
+>ref
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>s1
+GACAGAAGCTATGGTCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGTATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>ref
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAG--TTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>s2
+GACAGAAGCTATGATCTCAGAAATCCGATC---GTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGACTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>ref
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>s3
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTGATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAGCTCGGCATACAGTGCGCCAA
+>ref
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>s4
+NNNNGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCGGTGAACTCGGCATACAGTGNNNNNN
+>ref
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>s7
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNCGGTGTGTATCGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGANNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+>ref
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGA---CTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>s8
+GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGAACGCTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
 --- stderr
-Error: sam: sequence/CIGAR length mismatch
-Usage:
-  gofasta sam toPairAlign [flags]
-
-Aliases:
-  toPairAlign, topairalign, topa
-
-Flags:
-  -o, --outpath string    Output path where fasta files will be written
-      --omit-reference    Omit the reference sequences from the output alignments
-      --skip-insertions   Skip insertions relative to the reference from the output alignments
-      --start int         1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted (default -1)
-      --end int           1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted (default -1)
-  -w, --wrap int          Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output. (default -1)
-  -h, --help              help for toPairAlign
-
-Global Flags:
-  -r, --reference string   Reference fasta file used to generate the sam file
-  -s, --samfile string     Samfile to read. If none is specified, will read from stdin (default "stdin")
-  -t, --threads int        Number of threads to use (default 1)
-
+warning: skipping s9 (query 4): sam: sequence/CIGAR length mismatch
+skipping unmapped read: s5
+ignoring secondary mapping: s6
+warning: skipped 1 of 7 queries

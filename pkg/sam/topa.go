@@ -361,7 +361,8 @@ func writePairToFile(p string, AP alignPair, wrapWidth int, omitRef bool) (err e
 // ToPairAlign converts a SAM file containing pairwise alignments between assembled genomes into pairwise fasta-format alignments,
 // optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space.
 // The alignments are written to stdout if outpath is "stdout", otherwise to one file per query in the directory outpath.
-func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
+// A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
+func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int, strict bool) error {
 
 	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)
 	if err != nil {
@@ -377,10 +378,11 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 		return err
 	}
 
-	header, next, err := newSamSource(samIn)
+	src, err := newSamSource(samIn)
 	if err != nil {
 		return err
 	}
+	header := src.header
 	if header.Refs()[0].Len() != len(refSeq) {
 		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
 	}
@@ -394,9 +396,13 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 	}
 
 	work := func(group samRecords) (alignPair, error) {
-		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), omitIns)
+		group, err := prepareQuery(group, len(refSeq))
 		if err != nil {
 			return alignPair{}, err
+		}
+		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), omitIns)
+		if err != nil {
+			return alignPair{}, pipeline.Named(group.records[0].Name, err)
 		}
 		if trim {
 			pair = trimAlignment(pair, trimStart, trimEnd)
@@ -404,5 +410,10 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 		return pair, nil
 	}
 
-	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(write))
+	h := pipeline.NewHandler(strict, os.Stderr, queryNoun, write)
+	if err := pipeline.Run(context.Background(), threads, src.next, work, withNotes(src, h.Sink)); err != nil {
+		return err
+	}
+	src.writeTail()
+	return h.Finish()
 }

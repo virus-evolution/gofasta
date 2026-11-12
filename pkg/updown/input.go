@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -71,99 +72,126 @@ func headerEqual(a, b []string) bool {
 	return true
 }
 
-// newCSVSource returns a function that reads one record per call from a csv file in the format written
-// by gofasta updown list, numbering the records in file order, and returns io.EOF after the last one.
-// badHeader is the error to return if the header is not updown list's.
-func newCSVSource(in io.Reader, badHeader error) func() (updownLine, error) {
+// csvRow is one data line of a csv file in the format written by gofasta updown list, and its
+// 0-based position among the data lines
+type csvRow struct {
+	fields []string
+	idx    int
+}
+
+// newCSVSource returns a function that reads one data line per call from a csv file in the format
+// written by gofasta updown list, and returns io.EOF after the last one. It checks the header, returning
+// badHeader if it is not updown list's, but not the data lines (see parseCSVRow).
+func newCSVSource(in io.Reader, badHeader error) func() (csvRow, error) {
 	r := csv.NewReader(in)
 	header := true
 	counter := 0
-	return func() (updownLine, error) {
-		for {
-			record, err := r.Read()
-			if err != nil {
-				return updownLine{}, err
-			}
-			if header {
-				if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
-					return updownLine{}, badHeader
-				}
-				header = false
-				continue
-			}
-			a, err := getAmbArr(record[2])
-			if err != nil {
-				return updownLine{}, err
-			}
-
-			var snps []string
-			var snpPos []int
-			if len(record[1]) > 0 {
-				snps = strings.Split(record[1], "|")
-				snpPos = make([]int, len(snps))
-				for i, snp := range snps {
-					snpPos[i], err = strconv.Atoi(snp[1 : len(snp)-1])
-					if err != nil {
-						return updownLine{}, err
-					}
-				}
-			} else {
-				snps = make([]string, 0)
-				snpPos = make([]int, 0)
-			}
-
-			amb_count, err := strconv.Atoi(record[4])
-			if err != nil {
-				return updownLine{}, err
-			}
-
-			snpsSorted := make([]string, len(snps))
-			copy(snpsSorted, snps)
-			sort.Slice(snpsSorted, func(i, j int) bool {
-				return snpsSorted[i] < snpsSorted[j]
-			})
-
-			udL := updownLine{id: record[0], idx: counter, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
-			counter++
-			return udL, nil
+	return func() (csvRow, error) {
+		record, err := r.Read()
+		if err != nil {
+			return csvRow{}, err
 		}
+		if header {
+			if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
+				return csvRow{}, badHeader
+			}
+			header = false
+			record, err = r.Read()
+			if err != nil {
+				return csvRow{}, err
+			}
+		}
+		row := csvRow{fields: record, idx: counter}
+		counter++
+		return row, nil
 	}
+}
+
+// parseCSVRow parses one data line of updown list's output
+func parseCSVRow(row csvRow) (updownLine, error) {
+	record := row.fields
+	fail := func(err error) (updownLine, error) { return updownLine{}, pipeline.Named(record[0], err) }
+
+	a, err := getAmbArr(record[2])
+	if err != nil {
+		return fail(err)
+	}
+
+	var snps []string
+	var snpPos []int
+	if len(record[1]) > 0 {
+		snps = strings.Split(record[1], "|")
+		snpPos = make([]int, len(snps))
+		for i, snp := range snps {
+			if len(snp) < 3 {
+				return fail(errors.New("error parsing SNP \"" + snp + "\" from file"))
+			}
+			snpPos[i], err = strconv.Atoi(snp[1 : len(snp)-1])
+			if err != nil {
+				return fail(err)
+			}
+		}
+	} else {
+		snps = make([]string, 0)
+		snpPos = make([]int, 0)
+	}
+
+	amb_count, err := strconv.Atoi(record[4])
+	if err != nil {
+		return fail(err)
+	}
+
+	snpsSorted := make([]string, len(snps))
+	copy(snpsSorted, snps)
+	sort.Slice(snpsSorted, func(i, j int) bool {
+		return snpsSorted[i] < snpsSorted[j]
+	})
+
+	return updownLine{id: record[0], idx: row.idx, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}, nil
+}
+
+// collectQueries runs the query records through a pipeline, reporting the ones that fail on stderr and
+// leaving them out (unless strict, when the first is an error), and returns the others in input order
+func collectQueries[In any](next func() (In, error), work func(In) (updownLine, error), strict bool) ([]updownLine, error) {
+	udla := make([]updownLine, 0)
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "query", Many: "queries"}, func(udL updownLine) error {
+		udla = append(udla, udL)
+		return nil
+	})
+	if err := pipeline.Run(context.Background(), runtime.NumCPU(), next, work, h.Sink); err != nil {
+		return nil, err
+	}
+	if err := h.Finish(); err != nil {
+		return nil, err
+	}
+	return udla, nil
 }
 
 // readCSVToUDLList reads a csv file in the format produced by gofasta updown
 // list to an array of updownLine structs, each of which contains the snps and
 // ambiguous positions for one query or target sequence
-func readCSVToUDLList(in io.Reader) ([]updownLine, error) {
+func readCSVToUDLList(in io.Reader, strict bool) ([]updownLine, error) {
 	next := newCSVSource(in, errors.New("bad header when parsing --query csv: is this file the output of gofasta updown list?"))
-	LudL := make([]updownLine, 0)
-	for {
-		udL, err := next()
-		if err == io.EOF {
-			return LudL, nil
-		}
-		if err != nil {
-			return make([]updownLine, 0), err
-		}
-		LudL = append(LudL, udL)
-	}
+	return collectQueries(next, parseCSVRow, strict)
 }
 
 // fastaToUDLList converts a fasta format alignment to an array of updownLine
 // structs, given a reference sequence, each of which contains the snps and
 // ambiguous positions for one query or target sequence
-func fastaToUDLList(in io.Reader, refSeq []byte) ([]updownLine, error) {
+func fastaToUDLList(in io.Reader, refSeq []byte, strict bool) ([]updownLine, error) {
 	DA := encoding.MakeDecodingArray()
-	next := fasta.NewEncodedAlignmentSource(in, false, false, false)
-	work := func(FR fasta.EncodedRecord) (updownLine, error) { return getLine(refSeq, FR, DA) }
-	udla := make([]updownLine, 0)
-	err := pipeline.Run(context.Background(), runtime.NumCPU(), next, work, pipeline.FirstError(func(udL updownLine) error {
-		udla = append(udla, udL)
-		return nil
-	}))
+	work := func(record fasta.Record) (updownLine, error) { return lineFromRecord(refSeq, record, DA) }
+	return collectQueries(fasta.NewRecordSource(in), work, strict)
+}
+
+// lineFromRecord encodes a fasta record and gets its mutation and ambiguity lists
+func lineFromRecord(refSeq []byte, record fasta.Record, DA [256]string) (updownLine, error) {
+	FR, err := record.Encode()
 	if err != nil {
-		return make([]updownLine, 0), err
+		return updownLine{}, pipeline.Named(record.ID, err)
 	}
-	return udla, nil
+	udL, err := getLine(refSeq, FR, DA)
+	return udL, pipeline.Named(record.ID, err)
 }
 
 // getLine gets the mutation and ambiguity lists between the reference and one fasta record

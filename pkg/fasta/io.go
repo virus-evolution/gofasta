@@ -7,10 +7,11 @@ import (
 	"io"
 )
 
+// Errors from reading fasta files.
 var (
-	errBadlyFormedFasta = errors.New("badly formed fasta file")
-	errEmptyFasta       = errors.New("empty fasta file")
-	errDiffLenSeqs      = errors.New("different length sequences in input file: is this an alignment?")
+	ErrBadlyFormedFasta = errors.New("badly formed fasta file")
+	ErrEmptyFasta       = errors.New("empty fasta file")
+	ErrDiffLenSeqs      = errors.New("different length sequences in input file: is this an alignment?")
 )
 
 type Reader struct {
@@ -58,7 +59,7 @@ func (r *Reader) Read() (Record, error) {
 
 				// if the header doesn't start with a > then something is also wrong
 			} else if line[0] != '>' {
-				return Record{}, errBadlyFormedFasta
+				return Record{}, ErrBadlyFormedFasta
 			}
 
 			drop := 0
@@ -124,6 +125,52 @@ func (r *Reader) Read() (Record, error) {
 	return FR, err
 }
 
+// NewRecordSource returns a function that reads the next record in fasta format each time it is called,
+// setting its Idx, and returns io.EOF after the last one. It only splits the input into records (an error
+// means the input could not be read as fasta); it does not check the records' sequences or lengths. It
+// returns an error if the input has no records.
+func NewRecordSource(f io.Reader) func() (Record, error) {
+	r := NewReader(f)
+	counter := 0
+	return func() (Record, error) {
+		record, err := r.Read()
+		if err == io.EOF {
+			if counter == 0 {
+				return Record{}, ErrEmptyFasta
+			}
+			return Record{}, io.EOF
+		}
+		if err != nil {
+			return Record{}, err
+		}
+		record.Idx = counter
+		counter++
+		return record, nil
+	}
+}
+
+// EncodeRecord encodes a record (see Record.Encode; Record.EncodeHardGaps if hardGaps), optionally
+// calculating its base content (atgc) and its completeness (score).
+func EncodeRecord(record Record, hardGaps, atgc, score bool) (EncodedRecord, error) {
+	var encodedRecord EncodedRecord
+	var err error
+	if hardGaps {
+		encodedRecord, err = record.EncodeHardGaps()
+	} else {
+		encodedRecord, err = record.Encode()
+	}
+	if err != nil {
+		return EncodedRecord{}, err
+	}
+	if score {
+		encodedRecord.CalculateCompleteness()
+	}
+	if atgc {
+		encodedRecord.CalculateBaseContent()
+	}
+	return encodedRecord, nil
+}
+
 // NewAlignmentSource returns a function that reads the next record of an alignment in fasta format each
 // time it is called, setting its Idx. After the last record it returns io.EOF. It returns an error if the
 // input has no records, or if a record's length differs from the first's.
@@ -135,7 +182,7 @@ func NewAlignmentSource(f io.Reader) func() (Record, error) {
 		record, err := r.Read()
 		if err == io.EOF {
 			if counter == 0 {
-				return Record{}, errEmptyFasta
+				return Record{}, ErrEmptyFasta
 			}
 			return Record{}, io.EOF
 		}
@@ -146,7 +193,7 @@ func NewAlignmentSource(f io.Reader) func() (Record, error) {
 		if counter == 0 {
 			width = len(record.Seq)
 		} else if width != len(record.Seq) {
-			return Record{}, errDiffLenSeqs
+			return Record{}, ErrDiffLenSeqs
 		}
 		counter++
 		return record, nil
@@ -163,22 +210,7 @@ func NewEncodedAlignmentSource(f io.Reader, hardGaps, atgc, score bool) func() (
 		if err != nil {
 			return EncodedRecord{}, err
 		}
-		var encodedRecord EncodedRecord
-		if hardGaps {
-			encodedRecord, err = record.EncodeHardGaps()
-		} else {
-			encodedRecord, err = record.Encode()
-		}
-		if err != nil {
-			return EncodedRecord{}, err
-		}
-		if score {
-			encodedRecord.CalculateCompleteness()
-		}
-		if atgc {
-			encodedRecord.CalculateBaseContent()
-		}
-		return encodedRecord, nil
+		return EncodeRecord(record, hardGaps, atgc, score)
 	}
 }
 

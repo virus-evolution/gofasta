@@ -24,7 +24,7 @@ ATTTTW
 
 	out := new(bytes.Buffer)
 
-	err := SNPs(ref, query, false, false, 0.0, out)
+	err := SNPs(ref, query, false, false, 0.0, out, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -56,7 +56,7 @@ ATTTTW
 
 	out := new(bytes.Buffer)
 
-	err := SNPs(ref, query, true, false, 0.0, out)
+	err := SNPs(ref, query, true, false, 0.0, out, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -91,7 +91,7 @@ ATTTTG
 
 	out := new(bytes.Buffer)
 
-	err := SNPs(ref, query, false, true, 0.0, out)
+	err := SNPs(ref, query, false, true, 0.0, out, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -128,7 +128,7 @@ ATTTTG
 
 	out := new(bytes.Buffer)
 
-	err := SNPs(ref, query, false, true, 0.26, out)
+	err := SNPs(ref, query, false, true, 0.26, out, true)
 	if err != nil {
 		t.Error(err)
 	}

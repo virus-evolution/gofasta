@@ -101,7 +101,7 @@ Note the change of coordinate system if moving from old to new flags.
 		}
 		defer gfio.CloseOut(out, &err)
 
-		err = sam.ToMultiAlign(samIn, out, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads)
+		err = sam.ToMultiAlign(samIn, out, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, strict)
 
 		return
 	},

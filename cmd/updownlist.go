@@ -59,7 +59,7 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 		}
 		defer gfio.CloseOut(out, &err)
 
-		err = updown.List(ref, query, out)
+		err = updown.List(ref, query, out, strict)
 
 		return
 	},

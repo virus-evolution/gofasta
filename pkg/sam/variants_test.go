@@ -28,7 +28,7 @@ aa:ORF7a:A8K	0	MN908947.3	1	60	29903M	*	0	0	ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAAC
 
 	out := new(bytes.Buffer)
 
-	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, false, 0.0, false, 1)
+	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, false, 0.0, false, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -48,7 +48,7 @@ aa:ORF7a:A8K,aa:ORF7a:A8K
 
 	out = new(bytes.Buffer)
 
-	err = Variants(sam, ref, false, genbank, "gb", out, -1, -1, false, 0.0, false, 1)
+	err = Variants(sam, ref, false, genbank, "gb", out, -1, -1, false, 0.0, false, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -69,7 +69,7 @@ aa:ORF7a:A8K,aa:ORF7a:A8K
 
 	out = new(bytes.Buffer)
 
-	err = Variants(sam, ref, true, gff, "gff", out, -1, -1, false, 0.0, false, 1)
+	err = Variants(sam, ref, true, gff, "gff", out, -1, -1, false, 0.0, false, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -89,7 +89,7 @@ aa:ORF7a:A8K,aa:ORF7a:A8K
 
 	out = new(bytes.Buffer)
 
-	err = Variants(sam, ref, false, gff, "gff", out, -1, -1, false, 0.0, false, 1)
+	err = Variants(sam, ref, false, gff, "gff", out, -1, -1, false, 0.0, false, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -127,7 +127,7 @@ aa:ORF7a:A8K	0	MN908947.3	1	60	29903M	*	0	0	ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAAC
 
 	out := new(bytes.Buffer)
 
-	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, false, 0.0, true, 1)
+	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, false, 0.0, true, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -167,7 +167,7 @@ aa:ORF7a:A8K3	0	MN908947.3	1	60	29903M	*	0	0	ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, true, 0.0, false, 1)
+	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, true, 0.0, false, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -207,7 +207,7 @@ aa:ORF7a:A8K3	0	MN908947.3	1	60	29903M	*	0	0	ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, true, 0.0, true, 1)
+	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, true, 0.0, true, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -247,7 +247,7 @@ aa:ORF7a:A8K3	0	MN908947.3	1	60	29903M	*	0	0	ATTAAAGGTTTATACCTTCCCAGGTAACAAACCAA
 
 	out := new(bytes.Buffer)
 
-	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, true, 0.5, false, 1)
+	err := Variants(sam, ref, true, genbank, "gb", out, -1, -1, true, 0.5, false, 1, true)
 	if err != nil {
 		t.Error(err)
 	}

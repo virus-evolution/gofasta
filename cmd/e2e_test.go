@@ -22,7 +22,8 @@ import (
 // exit code and stderr when it fails).
 // Regenerate the golden files with: go test ./cmd -run TestEndToEnd -update
 // The inputs are written by testdata/e2e/make_inputs.py (needs Biopython), except query.csv and
-// target.csv, which are the output of gofasta updown list for query.fasta and target.fasta.
+// target.csv, which are the output of gofasta updown list for query.fasta and target.fasta, and
+// target_bad.csv, which is target.csv with two malformed lines added.
 
 var updateGolden = flag.Bool("update", false, "rewrite the end-to-end golden files")
 
@@ -55,6 +56,10 @@ var e2eCases = []e2eCase{
 	{name: "snps_outfile", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "-o", "out.csv"}},
 	{name: "snps_badnuc", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badnuc.fasta"}},
 	{name: "snps_badrow", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta"}},
+	{name: "snps_badnuc_strict", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badnuc.fasta", "--strict"}},
+	{name: "snps_badrow_strict", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta", "--strict"}},
+	{name: "snps_aggregate_badrow", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta", "--aggregate"}},
+	{name: "snps_all_bad", args: []string{"snps", "-r", "ref_short.fasta", "-q", "msa.fasta"}},
 	{name: "snps_empty", args: []string{"snps", "-r", "ref.fasta", "-q", "empty.fasta"}},
 	{name: "snps_missing_file", args: []string{"snps", "-r", "ref.fasta", "-q", "nosuchfile.fasta"}},
 
@@ -71,6 +76,11 @@ var e2eCases = []e2eCase{
 	{name: "variants_ref_not_found", args: []string{"variants", "--msa", "msa.fasta", "-r", "nosuchref", "-a", "ref.gb"}},
 	{name: "variants_badrow", args: []string{"variants", "--msa", "msa_badrow.fasta", "-r", "ref", "-a", "ref.gb"}, threadsFlag: "-t"},
 	{name: "variants_badnuc", args: []string{"variants", "--msa", "msa_badnuc.fasta", "-r", "ref", "-a", "ref.gb"}, threadsFlag: "-t"},
+	{name: "variants_badnuc_strict", args: []string{"variants", "--msa", "msa_badnuc.fasta", "-r", "ref", "-a", "ref.gb", "--strict"}},
+	{name: "variants_badrow_strict", args: []string{"variants", "--msa", "msa_badrow.fasta", "-r", "ref", "-a", "ref.gb", "--strict"}},
+	{name: "variants_aggregate_badrow", args: []string{"variants", "--msa", "msa_badrow.fasta", "-r", "ref", "-a", "ref.gb", "--aggregate"}, threadsFlag: "-t"},
+	{name: "variants_ref_after_bad", args: []string{"variants", "--msa", "msa_badnuc.fasta", "-r", "q8", "-a", "ref.gb"}},
+	{name: "variants_stdin_badnuc", args: []string{"variants", "-r", "ref", "-a", "ref.gb"}, stdin: "msa_badnuc.fasta"},
 	{name: "variants_empty", args: []string{"variants", "--msa", "empty.fasta", "-r", "ref", "-a", "ref.gb"}},
 	{name: "variants_bad_suffix", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ignore.txt"}},
 
@@ -83,12 +93,21 @@ var e2eCases = []e2eCase{
 	{name: "closest_snp", args: []string{"closest", "--query", "query.fasta", "--target", "target.fasta", "-m", "snp", "-n", "3"}, threadsFlag: "-t"},
 	{name: "closest_tn93", args: []string{"closest", "--query", "query.fasta", "--target", "target.fasta", "-m", "tn93", "-n", "3"}, threadsFlag: "-t"},
 	{name: "closest_badnuc_target", args: []string{"closest", "--query", "query.fasta", "--target", "msa_badnuc.fasta", "-n", "1"}},
+	{name: "closest_badnuc_target_strict", args: []string{"closest", "--query", "query.fasta", "--target", "msa_badnuc.fasta", "-n", "1", "--strict"}},
+	{name: "closest_badrow_target", args: []string{"closest", "--query", "query.fasta", "--target", "msa_badrow.fasta", "-n", "2"}, threadsFlag: "-t"},
+	{name: "closest_bad_queries", args: []string{"closest", "--query", "msa_badrow.fasta", "--target", "target.fasta"}, threadsFlag: "-t"},
+	{name: "closest_bad_queries_strict", args: []string{"closest", "--query", "msa_badnuc.fasta", "--target", "target.fasta", "--strict"}},
 	{name: "closest_empty_query", args: []string{"closest", "--query", "empty.fasta", "--target", "target.fasta", "-n", "1"}},
 
 	// updown
 	{name: "updown_list", args: []string{"updown", "list", "-r", "ref.fasta", "-q", "msa.fasta"}},
 	{name: "updown_list_stdin", args: []string{"updown", "list", "-r", "ref.fasta"}, stdin: "msa.fasta"},
 	{name: "updown_list_badnuc", args: []string{"updown", "list", "-r", "ref.fasta", "-q", "msa_badnuc.fasta"}},
+	{name: "updown_list_badnuc_strict", args: []string{"updown", "list", "-r", "ref.fasta", "-q", "msa_badnuc.fasta", "--strict"}},
+	{name: "updown_topranking_bad_target", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "msa_badrow.fasta", "--size-total", "4"}},
+	{name: "updown_topranking_bad_csv_target", args: []string{"updown", "topranking", "-q", "query.csv", "-t", "target_bad.csv", "--size-total", "4"}},
+	{name: "updown_topranking_bad_csv_query", args: []string{"updown", "topranking", "-q", "target_bad.csv", "-t", "target.csv", "--size-total", "4"}},
+	{name: "updown_topranking_bad_csv_strict", args: []string{"updown", "topranking", "-q", "query.csv", "-t", "target_bad.csv", "--size-total", "4", "--strict"}},
 	{name: "updown_topranking_fasta", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4"}},
 	{name: "updown_topranking_table", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4", "--table"}},
 	{name: "updown_topranking_ignore", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4", "--ignore", "ignore.txt"}},
@@ -106,6 +125,10 @@ var e2eCases = []e2eCase{
 	{name: "sam_toma_wrap", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "-w", "50"}},
 	{name: "sam_toma_outfile", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "-o", "out.fasta"}},
 	{name: "sam_toma_badrecord", args: []string{"sam", "toMultiAlign", "-s", "aln_badrecord.sam"}, threadsFlag: "-t"},
+	{name: "sam_toma_badrecord_strict", args: []string{"sam", "toMultiAlign", "-s", "aln_badrecord.sam", "--strict"}},
+	{name: "sam_toma_badquery", args: []string{"sam", "toMultiAlign", "-s", "aln_badquery.sam"}, threadsFlag: "-t"},
+	{name: "sam_toma_badquery_strict", args: []string{"sam", "toMultiAlign", "-s", "aln_badquery.sam", "--strict"}},
+	{name: "sam_toma_untidy", args: []string{"sam", "toMultiAlign", "-s", "aln_untidy.sam"}},
 	{name: "sam_toma_twosq", args: []string{"sam", "toMultiAlign", "-s", "aln_twosq.sam"}},
 	{name: "sam_toma_headeronly", args: []string{"sam", "toMultiAlign", "-s", "aln_headeronly.sam"}},
 	{name: "sam_toma_empty", args: []string{"sam", "toMultiAlign", "-s", "empty.sam"}},
@@ -125,6 +148,8 @@ var e2eCases = []e2eCase{
 	{name: "sam_variants_aggregate", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb", "--aggregate", "--append-snps"}, threadsFlag: "-t"},
 	{name: "sam_variants_start_end", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb", "--start", "20", "--end", "90"}},
 	{name: "sam_variants_badrecord", args: []string{"sam", "variants", "-s", "aln_badrecord.sam", "-r", "ref.fasta", "-a", "ref.gb"}, threadsFlag: "-t"},
+	{name: "sam_variants_badquery_aggregate", args: []string{"sam", "variants", "-s", "aln_badquery.sam", "-r", "ref.fasta", "-a", "ref.gb", "--aggregate"}, threadsFlag: "-t"},
+	{name: "sam_topa_badquery_dir", args: []string{"sam", "toPairAlign", "-s", "aln_badquery.sam", "-r", "ref.fasta", "-o", "pairs"}},
 	{name: "sam_variants_twosq", args: []string{"sam", "variants", "-s", "aln_twosq.sam", "-r", "ref.fasta", "-a", "ref.gb"}},
 	{name: "sam_variants_empty", args: []string{"sam", "variants", "-s", "empty.sam", "-r", "ref.fasta", "-a", "ref.gb"}},
 }

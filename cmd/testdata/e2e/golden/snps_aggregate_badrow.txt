@@ -1,0 +1,15 @@
+args: snps -r ref.fasta -q msa_badrow.fasta --aggregate
+exit: 0
+--- stdout
+SNP,frequency
+G5A,0.222222222
+A14G,0.333333333
+C30R,0.111111111
+T40C,0.111111111
+T50C,0.111111111
+C80T,0.111111111
+A100G,0.111111111
+C115T,0.111111111
+--- stderr
+warning: skipping short (record 4): Reference sequence (120 bases) and short (100 bases) are different lengths
+warning: skipped 1 of 10 records

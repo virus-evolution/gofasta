@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
@@ -11,12 +12,14 @@ import (
 
 // ToMultiAlign converts a SAM file containing pairwise alignments between assembled genomes to a fasta-format alignment.
 // Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
-func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trimend int, pad bool, threads int) error {
+// A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
+func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trimend int, pad bool, threads int, strict bool) error {
 
-	header, next, err := newSamSource(samIn)
+	src, err := newSamSource(samIn)
 	if err != nil {
 		return err
 	}
+	header := src.header
 	refLen := header.Refs()[0].Len()
 
 	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
@@ -25,16 +28,25 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 	}
 
 	work := func(group samRecords) (fasta.Record, error) {
-		rawseq, err := getSeqFromBlock(group.records, refLen, false)
+		group, err := prepareQuery(group, refLen)
 		if err != nil {
 			return fasta.Record{}, err
+		}
+		rawseq, err := getSeqFromBlock(group.records, refLen, false)
+		if err != nil {
+			return fasta.Record{}, pipeline.Named(group.records[0].Name, err)
 		}
 		return getRecord(rawseq, group.records[0].Name, group.idx, trim, pad, trimstart, trimend), nil
 	}
 
-	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(func(record fasta.Record) error {
+	h := pipeline.NewHandler(strict, os.Stderr, queryNoun, func(record fasta.Record) error {
 		return fasta.WriteRecord(out, record, wrap)
-	}))
+	})
+	if err := pipeline.Run(context.Background(), threads, src.next, work, withNotes(src, h.Sink)); err != nil {
+		return err
+	}
+	src.writeTail()
+	return h.Finish()
 }
 
 // checkArgs sanity checks the trimming and padding arguments, given the length of the reference sequence

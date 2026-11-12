@@ -54,7 +54,7 @@ ATGCTT
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -70,7 +70,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -78,7 +78,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -91,7 +91,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -149,7 +149,7 @@ ATGCTT
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -165,7 +165,7 @@ Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -173,7 +173,7 @@ Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -186,7 +186,7 @@ Query1,TargetSame1,TargetUp2,TargetDown1,TargetSide2
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -244,7 +244,7 @@ ATGCTT
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -260,7 +260,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2;TargetSide1
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -268,7 +268,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2;TargetSide1
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -281,7 +281,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide2;TargetSide1
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -341,7 +341,7 @@ ATNATC
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -357,7 +357,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide3;TargetSide1
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -365,7 +365,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide3;TargetSide1
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -378,7 +378,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide3;TargetSide1
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -438,7 +438,7 @@ ATNATC
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -454,7 +454,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide1
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -462,7 +462,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide1
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -475,7 +475,7 @@ Query1,TargetSame1,TargetUp2;TargetUp1,TargetDown1,TargetSide1
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -533,7 +533,7 @@ ATGCTT
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -548,7 +548,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1,TargetDown1_dist1,
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -556,7 +556,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1,TargetDown1_dist1,
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -569,7 +569,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1,TargetDown1_dist1,
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -629,7 +629,7 @@ ATGCTT
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -644,7 +644,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1;TargetUp1_dist2,TargetDown1_dist1,Targe
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -652,7 +652,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1;TargetUp1_dist2,TargetDown1_dist1,Targe
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -665,7 +665,7 @@ Query1,TargetSame1_dist0,TargetUp2_dist1;TargetUp1_dist2,TargetDown1_dist1,Targe
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -723,7 +723,7 @@ ATGCTT
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -742,7 +742,7 @@ Query1,side,2,TargetSide2
 	ref = bytes.NewReader(refData)
 	query = bytes.NewReader(queryData)
 	queryList := new(bytes.Buffer)
-	err = List(ref, query, queryList)
+	err = List(ref, query, queryList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -750,7 +750,7 @@ Query1,side,2,TargetSide2
 	ref = bytes.NewReader(refData)
 	target = bytes.NewReader(targetData)
 	targetList := new(bytes.Buffer)
-	err = List(ref, target, targetList)
+	err = List(ref, target, targetList, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -763,7 +763,7 @@ Query1,side,2,TargetSide2
 		qtype, ttype, ignoreArray,
 		TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
 		TRdistall, TRdistup, TRdistdown, TRdistside,
-		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush)
+		TRthresholdpair, TRthresholdtarget, TRnofill, TRdistpush, true)
 	if err != nil {
 		t.Error(err)
 	}

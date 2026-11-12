@@ -2,7 +2,8 @@
 """Write small synthetic fixtures for gofasta's end-to-end command tests into the directory given.
 
 query.csv and target.csv are not written here: they are the output of `gofasta updown list -r ref.fasta`
-for query.fasta and target.fasta.
+for query.fasta and target.fasta,
+and target_bad.csv is target.csv with two malformed lines added by hand.
 
 Reference: 120 bp; geneA on the forward strand (11..61), geneB on the reverse strand (complement(70..108)).
 """
@@ -65,6 +66,7 @@ def other(base):
 
 
 write("ref.fasta", fasta([("ref", ref)]))
+write("ref_short.fasta", fasta([("ref_short", ref[:100])]))  # every alignment record is longer than this
 
 # annotation
 def genbank():
@@ -165,10 +167,15 @@ records = [
     rec("s8", 0, 1, [(44, "M"), (3, "I"), (76, "M")]),
 ]
 write("aln.sam", header + "\n".join(records) + "\n")
-bad = records[:3] + ["s9\t0\tref\t1\t60\t50M\t*\t0\t0\t" + ref[:40] + "\t*"] + records[3:]
+bad = records[:4] + ["s9\t0\tref\t1\t60\t50M\t*\t0\t0\t" + ref[:40] + "\t*"] + records[4:]
 write("aln_badrecord.sam", header + "\n".join(bad) + "\n")
 two_sq = header.replace("@SQ\tSN:ref\tLN:120\n", "@SQ\tSN:ref\tLN:120\n@SQ\tSN:other\tLN:120\n")
 write("aln_twosq.sam", two_sq + "\n".join(records[:2] + [rec("s10", 0, 1, [(120, "M")], rname="other")] + records[2:]) + "\n")
 write("aln_headeronly.sam", header)
+# s3's supplementary record runs past the end of the reference, so the whole of s3 is unusable
+past_end = "s3\t2048\tref\t100\t60\t30M\t*\t0\t0\t" + ref[90:120] + "\t*"
+write("aln_badquery.sam", header + "\n".join(records[:3] + [past_end] + records[4:]) + "\n")
+# a blank line between records, and no newline at the end of the last record
+write("aln_untidy.sam", header + "\n".join(records[:2]) + "\n\n" + "\n".join(records[2:]))
 write("empty.sam", "")
 print("wrote fixtures to", out)

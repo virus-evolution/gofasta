@@ -35,7 +35,7 @@ ATTTTG
 
 	out := new(bytes.Buffer)
 
-	err := Closest(query, target, "snp", out, 2)
+	err := Closest(query, target, "snp", out, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -78,7 +78,7 @@ ATTTTG
 
 	out := new(bytes.Buffer)
 
-	err := Closest(query, target, "raw", out, 2)
+	err := Closest(query, target, "raw", out, 2, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -99,7 +99,7 @@ func TestClosestTn93(t *testing.T) {
 
 	out := new(bytes.Buffer)
 
-	err := Closest(query, target, "tn93", out, 2)
+	err := Closest(query, target, "tn93", out, 2, true)
 	if err != nil {
 		t.Error(err)
 	}

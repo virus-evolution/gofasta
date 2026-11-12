@@ -32,14 +32,14 @@ func TestMalformedSamGivesError(t *testing.T) {
 			}
 		}
 		runWithTimeout(t, func() {
-			check("toMultiAlign", ToMultiAlign(strings.NewReader(in), io.Discard, 60, -1, -1, false, 2))
+			check("toMultiAlign", ToMultiAlign(strings.NewReader(in), io.Discard, 60, -1, -1, false, 2, true))
 		})
 		runWithTimeout(t, func() {
 			discardStdout(t)
-			check("toPairAlign", ToPairAlign(strings.NewReader(in), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2))
+			check("toPairAlign", ToPairAlign(strings.NewReader(in), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2, true))
 		})
 		runWithTimeout(t, func() {
-			check("variants", Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2))
+			check("variants", Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2, true))
 		})
 	}
 }
@@ -48,10 +48,10 @@ func TestReferenceLengthMustMatchSamHeader(t *testing.T) {
 	in := "@SQ\tSN:r\tLN:99\nq1\t0\tr\t1\t60\t10M\t*\t0\t0\tATGAAACCCG\t*\n"
 	discardStdout(t)
 	runWithTimeout(t, func() {
-		if err := ToPairAlign(strings.NewReader(in), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2); err == nil {
+		if err := ToPairAlign(strings.NewReader(in), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2, true); err == nil {
 			t.Errorf("toPairAlign: expected an error for a reference of the wrong length")
 		}
-		if err := Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2); err == nil {
+		if err := Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2, true); err == nil {
 			t.Errorf("variants: expected an error for a reference of the wrong length")
 		}
 	})
@@ -66,7 +66,7 @@ func TestRecordsOnOtherReferencesAreSkipped(t *testing.T) {
 	quietStderr(t)
 	out := new(strings.Builder)
 	runWithTimeout(t, func() {
-		if err := ToMultiAlign(strings.NewReader(in), out, -1, -1, -1, false, 2); err != nil {
+		if err := ToMultiAlign(strings.NewReader(in), out, -1, -1, -1, false, 2, true); err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})

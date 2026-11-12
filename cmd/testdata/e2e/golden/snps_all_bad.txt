@@ -1,0 +1,29 @@
+args: snps -r ref_short.fasta -q msa.fasta
+exit: 1
+--- stderr
+warning: skipping ref (record 1): Reference sequence (100 bases) and ref (120 bases) are different lengths
+warning: skipping q1 (record 2): Reference sequence (100 bases) and q1 (120 bases) are different lengths
+warning: skipping q2 (record 3): Reference sequence (100 bases) and q2 (120 bases) are different lengths
+warning: skipping q3 (record 4): Reference sequence (100 bases) and q3 (120 bases) are different lengths
+warning: skipping q4 (record 5): Reference sequence (100 bases) and q4 (120 bases) are different lengths
+warning: skipping q5 (record 6): Reference sequence (100 bases) and q5 (120 bases) are different lengths
+warning: skipping q6 (record 7): Reference sequence (100 bases) and q6 (120 bases) are different lengths
+warning: skipping q7 (record 8): Reference sequence (100 bases) and q7 (120 bases) are different lengths
+warning: skipping q8 (record 9): Reference sequence (100 bases) and q8 (120 bases) are different lengths
+warning: skipped 9 of 9 records
+Error: none of the 9 records could be processed
+Usage:
+  gofasta snps [flags]
+
+Flags:
+  -r, --reference string   Reference sequence, in fasta format
+  -q, --query string       Alignment of sequences to find snps in, in fasta format (default "stdin")
+  -o, --outfile string     Output to write (default "stdout")
+      --hard-gaps          Don't treat alignment gaps as missing data
+      --aggregate          Report the proportions of each change
+      --threshold float    If --aggregate, only report snps with a freq greater than or equal to this value
+  -h, --help               help for snps
+
+Global Flags:
+      --strict   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+

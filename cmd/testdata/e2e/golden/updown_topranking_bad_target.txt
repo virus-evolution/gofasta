@@ -1,0 +1,10 @@
+args: updown topranking -r ref.fasta -q query.fasta -t msa_badrow.fasta --size-total 4
+exit: 0
+--- stdout
+query,closestsame,closestup,closestdown,closestside
+q1,q1;q6,ref,,q7
+q2,q2,ref;q8,,q5
+q5,q5,ref;q8,,q2
+--- stderr
+warning: skipping short (target 4): alignment and reference are not the same width
+warning: skipped 1 of 10 targets

@@ -118,9 +118,9 @@ between every pair.
 		defer gfio.CloseOut(closestOut, &err)
 
 		if closestN > 0 || dist != -1.0 {
-			err = closest.ClosestN(closestN, dist, queryIn, targetIn, measure, closestOut, closestTable, closestThreads)
+			err = closest.ClosestN(closestN, dist, queryIn, targetIn, measure, closestOut, closestTable, closestThreads, strict)
 		} else {
-			err = closest.Closest(queryIn, targetIn, measure, closestOut, closestThreads)
+			err = closest.Closest(queryIn, targetIn, measure, closestOut, closestThreads, strict)
 		}
 
 		return err

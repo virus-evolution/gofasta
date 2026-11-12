@@ -53,7 +53,7 @@ var toPairAlignCmd = &cobra.Command{
 		}
 		defer ref.Close()
 
-		err = sam.ToPairAlign(samIn, ref, toPairAlignOutpath, toPairAlignWrap, toPairAlignStart, toPairAlignEnd, toPairAlignOmitReference, toPairAlignSkipInsertions, samThreads)
+		err = sam.ToPairAlign(samIn, ref, toPairAlignOutpath, toPairAlignWrap, toPairAlignStart, toPairAlignEnd, toPairAlignOmitReference, toPairAlignSkipInsertions, samThreads, strict)
 
 		return err
 	},

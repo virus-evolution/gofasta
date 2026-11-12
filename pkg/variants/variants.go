@@ -8,6 +8,7 @@ package variants
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,13 +16,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
+	"github.com/virus-evolution/gofasta/pkg/pipeline"
 	"golang.org/x/exp/constraints"
 )
 
@@ -91,25 +92,16 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 	}
 
-	cMSA := make(chan fasta.EncodedRecord, 50+threads)
-	cErr := make(chan error)
-	cMSADone := make(chan bool)
+	next := fasta.NewEncodedAlignmentSource(msaIn, false, false, false)
 
-	go fasta.StreamEncodeAlignment(msaIn, cMSA, cErr, cMSADone, false, false, false)
-
-	firstmissing := false
-
+	// from stdin, the reference must be the first record
 	if stdin && refID != "" {
-		select {
-		case ref = <-cMSA:
-			if ref.ID != refID {
-				return errors.New("--reference is not the first record in --msa")
-			}
-			firstmissing = true
-		case err := <-cErr:
+		ref, err = next()
+		if err != nil {
 			return err
-		case <-cMSADone:
-			return errors.New("is the pipe to --msa empty?") // TO DO - does this work/is this necessary?
+		}
+		if ref.ID != refID {
+			return errors.New("--reference is not the first record in --msa")
 		}
 	}
 
@@ -209,62 +201,30 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		return errors.New("couldn't tell if --annotation was a .gb or a .gff file")
 	}
 
-	cVariants := make(chan AnnoStructs, 50+threads)
-	cVariantsDone := make(chan bool)
-	cWriteDone := make(chan bool)
-
-	switch aggregate {
-	case true:
-		go AggregateWriteVariants(out, start, end, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
-	case false:
-		go WriteVariants(out, start, end, firstmissing, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
-	}
-
-	var wgVariants sync.WaitGroup
-	wgVariants.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			getVariants(ref, cdsregions, intregions, refToMSA, cMSA, cVariants, cErr)
-			wgVariants.Done()
-		}()
-	}
-
-	go func() {
-		wgVariants.Wait()
-		cVariantsDone <- true
-	}()
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cMSADone:
-			close(cMSA)
-			n--
+	work := func(record fasta.EncodedRecord) (AnnoStructs, error) {
+		if len(record.Seq) != len(ref.Seq) {
+			return AnnoStructs{}, errors.New("Gapped reference sequence and alignment are not the same width")
 		}
+		return GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, refToMSA)
 	}
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
+	if aggregate {
+		agg, err := NewAggregator(out, start, end, appendSNP, ref.ID)
+		if err != nil {
 			return err
-		case <-cVariantsDone:
-			close(cVariants)
-			n--
 		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
+		err = pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(agg.Add))
+		if err != nil {
 			return err
-		case <-cWriteDone:
-			n--
 		}
+		return agg.Write(threshold)
 	}
 
-	return nil
+	lw, err := NewLineWriter(out, start, end, appendSNP, ref.ID)
+	if err != nil {
+		return err
+	}
+	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(lw.Write))
 }
 
 // findReference gets the reference sequence from the msa if it is in there.
@@ -652,28 +612,6 @@ func GetMSAOffsets(refseq []byte) ([]int, []int) {
 	return refToMSA, MSAToRef
 }
 
-// getVariants annotates mutations between query and reference sequences, one
-// fasta record at a time. It reads each fasta record from a channel and passes
-// all its mutations grouped together in one struct to another channel.
-func getVariants(ref fasta.EncodedRecord, cdsregions []Region, intregions []int, offsetRefCoord []int, cMSA chan fasta.EncodedRecord, cVariants chan AnnoStructs, cErr chan error) {
-
-	for record := range cMSA {
-
-		if len(record.Seq) != len(ref.Seq) {
-			cErr <- errors.New("Gapped reference sequence and alignment are not the same width")
-			break
-		}
-
-		AS, err := GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, offsetRefCoord)
-		if err != nil {
-			cErr <- err
-			break
-		}
-
-		cVariants <- AS
-	}
-}
-
 func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int) (AnnoStructs, error) {
 
 	AS := AnnoStructs{}
@@ -736,112 +674,89 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 	return s, nil
 }
 
-// WriteVariants writes each query's mutations to file or stdout
-func WriteVariants(w io.Writer, start, end int, firstmissing bool, appendSNP bool, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
-
-	outputMap := make(map[int]AnnoStructs)
-
-	var counter int
-	switch firstmissing {
-	case true:
-		counter = 1
-	case false:
-		counter = 0
-	}
-
-	var err error
-	var sa []string
-
-	_, err = w.Write([]byte("query,mutations\n"))
-	if err != nil {
-		cErr <- err
-		return
-	}
-
-	for variantLine := range cVariants {
-		outputMap[variantLine.Idx] = variantLine
-
-		for {
-			if VL, ok := outputMap[counter]; ok {
-
-				if VL.Queryname == refID {
-					delete(outputMap, counter)
-					counter++
-					continue
-				}
-
-				_, err = w.Write([]byte(VL.Queryname + ","))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				sa = make([]string, 0)
-				for _, v := range VL.Vs {
-					if outsideRange(v.Position, start, end) {
-						continue
-					}
-					newVar, err := FormatVariant(v, appendSNP)
-					if err != nil {
-						cErr <- err
-						return
-					}
-					sa = append(sa, newVar)
-				}
-				_, err = w.Write([]byte(strings.Join(sa, "|") + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-
-				delete(outputMap, counter)
-				counter++
-			} else {
-				break
-			}
-		}
-
-	}
-
-	cWriteDone <- true
+// LineWriter writes each query's mutations as one line of CSV.
+type LineWriter struct {
+	w          io.Writer
+	start, end int
+	appendSNP  bool
+	refID      string
 }
 
-// AggregateWriteOutput aggregates the mutations that are present greater than
-// or equal to threshold, and writes their frequencies to file or stdout
-func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, threshold float64, refID string, cVariants chan AnnoStructs, cWriteDone chan bool, cErr chan error) {
-
-	propMap := make(map[Variant]float64)
-
-	var err error
-
-	_, err = w.Write([]byte("mutation,frequency\n"))
-	if err != nil {
-		cErr <- err
-		return
+// NewLineWriter writes the CSV header to w and returns a LineWriter that writes to w. Only mutations
+// within start..end (either may be -1 for no limit) are written, and the reference itself (the
+// record named refID) is not.
+func NewLineWriter(w io.Writer, start, end int, appendSNP bool, refID string) (*LineWriter, error) {
+	if _, err := w.Write([]byte("query,mutations\n")); err != nil {
+		return nil, err
 	}
+	return &LineWriter{w: w, start: start, end: end, appendSNP: appendSNP, refID: refID}, nil
+}
 
-	counter := 0.0
-
-	for AS := range cVariants {
-		if AS.Queryname == refID {
+// Write writes one query's mutations.
+func (lw *LineWriter) Write(AS AnnoStructs) error {
+	if AS.Queryname == lw.refID {
+		return nil
+	}
+	sa := make([]string, 0, len(AS.Vs))
+	for _, v := range AS.Vs {
+		if outsideRange(v.Position, lw.start, lw.end) {
 			continue
 		}
-		counter++
-		for _, v := range AS.Vs {
-			if outsideRange(v.Position, start, end) {
-				continue
-			}
-			rep, err := FormatVariant(v, appendSNP)
-			if err != nil {
-				cErr <- err
-				return
-			}
-			Vskinny := Variant{RefAl: v.RefAl, QueAl: v.QueAl, Position: v.Position, Residue: v.Residue, Changetype: v.Changetype, Feature: v.Feature, Length: v.Length, Representation: rep}
-			propMap[Vskinny]++
+		newVar, err := FormatVariant(v, lw.appendSNP)
+		if err != nil {
+			return err
 		}
+		sa = append(sa, newVar)
 	}
+	_, err := lw.w.Write([]byte(AS.Queryname + "," + strings.Join(sa, "|") + "\n"))
+	return err
+}
 
-	order := make([]Variant, 0)
-	for k := range propMap {
+// Aggregator counts how many queries have each mutation, and writes their frequencies.
+type Aggregator struct {
+	w          io.Writer
+	start, end int
+	appendSNP  bool
+	refID      string
+	counts     map[Variant]float64
+	n          float64
+}
+
+// NewAggregator writes the CSV header to w and returns an Aggregator that will write to w. Only
+// mutations within start..end (either may be -1 for no limit) are counted, and the reference itself
+// (the record named refID) is not counted.
+func NewAggregator(w io.Writer, start, end int, appendSNP bool, refID string) (*Aggregator, error) {
+	if _, err := w.Write([]byte("mutation,frequency\n")); err != nil {
+		return nil, err
+	}
+	return &Aggregator{w: w, start: start, end: end, appendSNP: appendSNP, refID: refID, counts: make(map[Variant]float64)}, nil
+}
+
+// Add counts one query's mutations.
+func (a *Aggregator) Add(AS AnnoStructs) error {
+	if AS.Queryname == a.refID {
+		return nil
+	}
+	a.n++
+	for _, v := range AS.Vs {
+		if outsideRange(v.Position, a.start, a.end) {
+			continue
+		}
+		rep, err := FormatVariant(v, a.appendSNP)
+		if err != nil {
+			return err
+		}
+		Vskinny := Variant{RefAl: v.RefAl, QueAl: v.QueAl, Position: v.Position, Residue: v.Residue, Changetype: v.Changetype, Feature: v.Feature, Length: v.Length, Representation: rep}
+		a.counts[Vskinny]++
+	}
+	return nil
+}
+
+// Write writes the frequency of each mutation that is at least threshold, ordered by position and then
+// by the other fields of the mutation.
+func (a *Aggregator) Write(threshold float64) error {
+	order := make([]Variant, 0, len(a.counts))
+	for k := range a.counts {
 		order = append(order, k)
 	}
 
@@ -869,15 +784,13 @@ func AggregateWriteVariants(w io.Writer, start, end int, appendSNP bool, thresho
 	})
 
 	for _, V := range order {
-		if propMap[V]/counter < threshold {
+		if a.counts[V]/a.n < threshold {
 			continue
 		}
-		_, err = w.Write([]byte(V.Representation + "," + strconv.FormatFloat(propMap[V]/counter, 'f', 9, 64) + "\n"))
+		_, err := a.w.Write([]byte(V.Representation + "," + strconv.FormatFloat(a.counts[V]/a.n, 'f', 9, 64) + "\n"))
 		if err != nil {
-			cErr <- err
-			return
+			return err
 		}
 	}
-
-	cWriteDone <- true
+	return nil
 }

@@ -81,19 +81,16 @@ func TestAggregateOutputOrderIsDeterministic(t *testing.T) {
 		"ins:100:6,1.000000000\n"
 
 	for i := 0; i < 50; i++ {
-		cV := make(chan AnnoStructs, 1)
-		cV <- AnnoStructs{Queryname: "q", Vs: vs}
-		close(cV)
-
 		out := new(bytes.Buffer)
-		cDone := make(chan bool, 1)
-		cErr := make(chan error, 1)
-		AggregateWriteVariants(out, -1, -1, false, 0.0, "ref", cV, cDone, cErr)
-
-		select {
-		case err := <-cErr:
+		agg, err := NewAggregator(out, -1, -1, false, "ref")
+		if err != nil {
 			t.Fatal(err)
-		default:
+		}
+		if err := agg.Add(AnnoStructs{Queryname: "q", Vs: vs}); err != nil {
+			t.Fatal(err)
+		}
+		if err := agg.Write(0.0); err != nil {
+			t.Fatal(err)
 		}
 
 		if out.String() != want {

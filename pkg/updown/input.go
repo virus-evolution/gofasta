@@ -1,6 +1,7 @@
 package updown
 
 import (
+	"context"
 	"encoding/csv"
 	"errors"
 	"io"
@@ -8,10 +9,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
+	"github.com/virus-evolution/gofasta/pkg/pipeline"
 )
 
 // getAmbArr parses the ambiguities field from one line of the output of gofasta
@@ -70,399 +71,166 @@ func headerEqual(a, b []string) bool {
 	return true
 }
 
-// readCSVToUDLChan reads a csv file in the format produced by gofasta updown
-// list to a channel of updownLine structs, each of which contains the snps and
-// ambiguous positions for one query or target sequence
-func readCSVToUDLChan(in io.Reader, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
-
-	var snps []string
-	var snpPos []int
-
-	header := true
+// newCSVSource returns a function that reads one record per call from a csv file in the format written
+// by gofasta updown list, numbering the records in file order, and returns io.EOF after the last one.
+// badHeader is the error to return if the header is not updown list's.
+func newCSVSource(in io.Reader, badHeader error) func() (updownLine, error) {
 	r := csv.NewReader(in)
-
-	for {
-		record, err := r.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			cErr <- err
-			return
-		}
-		if header {
-			if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
-				cErr <- errors.New("bad header when parsing --target csv: is this the output of gofasta updown list?")
-				return
+	header := true
+	counter := 0
+	return func() (updownLine, error) {
+		for {
+			record, err := r.Read()
+			if err != nil {
+				return updownLine{}, err
 			}
-			header = false
-			continue
-		}
-		a, err := getAmbArr(record[2])
-		if err != nil {
-			cErr <- err
-			return
-		}
-
-		if len(record[1]) > 0 {
-			snps = strings.Split(record[1], "|")
-			snpPos = make([]int, len(snps))
-			for i, snp := range snps {
-				snpPos[i], err = strconv.Atoi(snp[1 : len(snp)-1])
-				if err != nil {
-					cErr <- err
-					return
+			if header {
+				if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
+					return updownLine{}, badHeader
 				}
+				header = false
+				continue
 			}
-		} else {
-			snps = make([]string, 0)
-			snpPos = make([]int, 0)
+			a, err := getAmbArr(record[2])
+			if err != nil {
+				return updownLine{}, err
+			}
+
+			var snps []string
+			var snpPos []int
+			if len(record[1]) > 0 {
+				snps = strings.Split(record[1], "|")
+				snpPos = make([]int, len(snps))
+				for i, snp := range snps {
+					snpPos[i], err = strconv.Atoi(snp[1 : len(snp)-1])
+					if err != nil {
+						return updownLine{}, err
+					}
+				}
+			} else {
+				snps = make([]string, 0)
+				snpPos = make([]int, 0)
+			}
+
+			amb_count, err := strconv.Atoi(record[4])
+			if err != nil {
+				return updownLine{}, err
+			}
+
+			snpsSorted := make([]string, len(snps))
+			copy(snpsSorted, snps)
+			sort.Slice(snpsSorted, func(i, j int) bool {
+				return snpsSorted[i] < snpsSorted[j]
+			})
+
+			udL := updownLine{id: record[0], idx: counter, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
+			counter++
+			return udL, nil
 		}
-
-		amb_count, err := strconv.Atoi(record[4])
-		if err != nil {
-			cErr <- err
-			return
-		}
-
-		snpsSorted := make([]string, len(snps))
-		copy(snpsSorted, snps)
-		sort.Slice(snpsSorted, func(i, j int) bool {
-			return snpsSorted[i] < snpsSorted[j]
-		})
-
-		udL := updownLine{id: record[0], snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
-		cudL <- udL
 	}
-
-	cReadDone <- true
 }
 
 // readCSVToUDLList reads a csv file in the format produced by gofasta updown
 // list to an array of updownLine structs, each of which contains the snps and
 // ambiguous positions for one query or target sequence
 func readCSVToUDLList(in io.Reader) ([]updownLine, error) {
-
+	next := newCSVSource(in, errors.New("bad header when parsing --query csv: is this file the output of gofasta updown list?"))
 	LudL := make([]updownLine, 0)
-
-	var snps []string
-	var snpPos []int
-
-	header := true
-	r := csv.NewReader(in)
-
-	counter := 0
 	for {
-		record, err := r.Read()
+		udL, err := next()
 		if err == io.EOF {
-			break
+			return LudL, nil
 		}
 		if err != nil {
 			return make([]updownLine, 0), err
 		}
-		if header {
-			if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
-				return make([]updownLine, 0), errors.New("bad header when parsing --query csv: is this file the output of gofasta updown list?")
-			}
-			header = false
-			continue
-		}
-		a, err := getAmbArr(record[2])
-		if err != nil {
-			return make([]updownLine, 0), err
-		}
-
-		if len(record[1]) > 0 {
-			snps = strings.Split(record[1], "|")
-			snpPos = make([]int, len(snps))
-			for i, snp := range snps {
-				snpPos[i], err = strconv.Atoi(snp[1 : len(snp)-1])
-				if err != nil {
-					return make([]updownLine, 0), err
-				}
-			}
-		} else {
-			snps = make([]string, 0)
-			snpPos = make([]int, 0)
-		}
-
-		amb_count, err := strconv.Atoi(record[4])
-		if err != nil {
-			return make([]updownLine, 0), err
-		}
-
-		snpsSorted := make([]string, len(snps))
-		copy(snpsSorted, snps)
-		sort.Slice(snpsSorted, func(i, j int) bool {
-			return snpsSorted[i] < snpsSorted[j]
-		})
-
-		udL := updownLine{id: record[0], idx: counter, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}
-
 		LudL = append(LudL, udL)
-		counter++
 	}
-
-	return LudL, nil
 }
 
-// fastaToUDLslice converts a fasta format alignment to an array of updownLine
+// fastaToUDLList converts a fasta format alignment to an array of updownLine
 // structs, given a reference sequence, each of which contains the snps and
 // ambiguous positions for one query or target sequence
 func fastaToUDLList(in io.Reader, refSeq []byte) ([]updownLine, error) {
-
-	var udla []updownLine
-
-	cInternalErr := make(chan error)
-
-	cFR := make(chan fasta.EncodedRecord)
-	cFRDone := make(chan bool)
-	cudLs := make(chan updownLine, runtime.NumCPU())
-	cudLsDone := make(chan bool)
-	cArrayDone := make(chan bool)
-
-	go fasta.StreamEncodeAlignment(in, cFR, cInternalErr, cFRDone, false, false, false)
-
-	var wgudLs sync.WaitGroup
-	wgudLs.Add(1)
-
-	go func() {
-		getLines(refSeq, cFR, cudLs, cInternalErr)
-		wgudLs.Done()
-	}()
-
-	go func() {
-		wgudLs.Wait()
-		cudLsDone <- true
-	}()
-
-	go func() {
-		for udl := range cudLs {
-			udla = append(udla, udl)
-		}
-		cArrayDone <- true
-	}()
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cInternalErr:
-			return make([]updownLine, 0), err
-		case <-cFRDone:
-			close(cFR)
-			n--
-		}
+	DA := encoding.MakeDecodingArray()
+	next := fasta.NewEncodedAlignmentSource(in, false, false, false)
+	work := func(FR fasta.EncodedRecord) (updownLine, error) { return getLine(refSeq, FR, DA) }
+	udla := make([]updownLine, 0)
+	err := pipeline.Run(context.Background(), runtime.NumCPU(), next, work, pipeline.FirstError(func(udL updownLine) error {
+		udla = append(udla, udL)
+		return nil
+	}))
+	if err != nil {
+		return make([]updownLine, 0), err
 	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cInternalErr:
-			return make([]updownLine, 0), err
-		case <-cudLsDone:
-			close(cudLs)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case <-cArrayDone:
-			n--
-		}
-	}
-
 	return udla, nil
 }
 
-// readFastaToUDLChan converts each record in a fasta format alignment to an
-// updownLine struct, given a reference sequence, and passes it to a channel
-func readFastaToUDLChan(target io.Reader, refSeq []byte, cudL chan updownLine, cErr chan error, cReadDone chan bool) {
-	cInternalErr := make(chan error)
+// getLine gets the mutation and ambiguity lists between the reference and one fasta record
+func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine, error) {
 
-	cFR := make(chan fasta.EncodedRecord)
-	cFRDone := make(chan bool)
-
-	cReOrder := make(chan updownLine)
-	cReOrderDone := make(chan bool)
-
-	cudLsDone := make(chan bool)
-
-	go fasta.StreamEncodeAlignment(target, cFR, cInternalErr, cFRDone, false, false, false)
-
-	var wgudLs sync.WaitGroup
-	wgudLs.Add(runtime.NumCPU())
-
-	for n := 0; n < runtime.NumCPU(); n++ {
-		go func() {
-			getLines(refSeq, cFR, cReOrder, cInternalErr)
-			wgudLs.Done()
-		}()
+	if len(FR.Seq) != len(refSeq) {
+		return updownLine{}, errors.New("alignment and reference are not the same width")
 	}
 
-	go reorderRecords(cReOrder, cudL, cReOrderDone)
+	var (
+		snps      = make([]string, 0)
+		snpPos    = make([]int, 0)
+		ambs      = make([]int, 0) // [1,265,11083,11083,...]: each pair is the 1-based inclusive start/end of a tract of ambiguities
+		snpCount  int
+		ambCount  int
+		amb_start int
+		amb_stop  int
+		cont      bool // in a tract of ambiguities
+	)
 
-	go func() {
-		wgudLs.Wait()
-		cudLsDone <- true
-	}()
+	for i, que_nuc := range FR.Seq {
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cInternalErr:
-			cErr <- err
-			return
-		case <-cFRDone:
-			close(cFR)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cInternalErr:
-			cErr <- err
-			return
-		case <-cudLsDone:
-			close(cReOrder)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cInternalErr:
-			cErr <- err
-			return
-		case <-cReOrderDone:
-			cReadDone <- true
-			n--
-		}
-	}
-}
-
-// reorderRecords reorders the records in a channel of updownLine structs
-// according to the order they were in the input. It does this to ensure that
-// given the same dataset, the results of the updown routines will be the same
-// whether the input target file is in csv or fasta format. This is necessary
-// because when there are ties for genetic distance and ambiguity content,
-// sort.SliceStable will preserve the input order.
-func reorderRecords(cIn, cOut chan updownLine, cReorderDone chan bool) {
-
-	reorderMap := make(map[int]updownLine)
-
-	counter := 0
-
-	for input := range cIn {
-		reorderMap[input.idx] = input
-		if output, ok := reorderMap[counter]; ok {
-
-			cOut <- output
-
-			delete(reorderMap, counter)
-			counter++
+		// if query nucleotide is a known base
+		if que_nuc&8 == 8 {
+			// if it is different from the reference:
+			if (refSeq[i] & que_nuc) < 16 {
+				snps = append(snps, DA[refSeq[i]]+strconv.Itoa(i+1)+DA[que_nuc])
+				snpPos = append(snpPos, i+1)
+				snpCount++
+			}
+			// also need to finalise any previous ambiguity tract
+			if cont {
+				ambs = append(ambs, amb_start+1, amb_stop+1)
+				cont = false
+			}
+			// otherwise update the ambiguities
 		} else {
-			continue
-		}
-	}
-
-	for n := 1; n > 0; {
-		if len(reorderMap) == 0 {
-			n--
-			break
-		}
-		output := reorderMap[counter]
-
-		cOut <- output
-
-		delete(reorderMap, counter)
-		counter++
-	}
-
-	cReorderDone <- true
-}
-
-// getLine gets the mutation + ambiguity lists between the reference and each
-// fasta record at a time
-func getLines(refSeq []byte, cFR chan fasta.EncodedRecord, cUDs chan updownLine, cErr chan error) {
-
-	DA := encoding.MakeDecodingArray()
-
-	var snp string
-	var snps []string
-	var snpCount int
-	var snpPos []int
-	var ambs []int // [1,265,11083,11083,...,...] len(ambs) %% 2 must equal 0: each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
-	var ambCount int
-	var udLine updownLine
-	var amb_start int
-	var amb_stop int
-	var cont bool
-
-	for FR := range cFR {
-
-		if len(FR.Seq) != len(refSeq) {
-			cErr <- errors.New("alignment and reference are not the same width")
-		}
-
-		cont = false // for tracts of ambiguities
-
-		udLine = updownLine{}
-		udLine.id = FR.ID
-		udLine.idx = FR.Idx
-		snps = make([]string, 0)
-		snpPos = make([]int, 0)
-		ambs = make([]int, 0)
-		snpCount = 0
-		ambCount = 0
-
-		for i, que_nuc := range FR.Seq {
-
-			// if query nucleotide is a known base
-			if que_nuc&8 == 8 {
-				// if it is different from the reference:
-				if (refSeq[i] & que_nuc) < 16 {
-					snp = DA[refSeq[i]] + strconv.Itoa(i+1) + DA[que_nuc]
-					snps = append(snps, snp)
-					snpPos = append(snpPos, i+1)
-					snpCount++
-				}
-				// also need to finalise any previous ambiguity tract
-				if cont {
-					ambs = append(ambs, amb_start+1)
-					ambs = append(ambs, amb_stop+1)
-					cont = false
-				}
-				// otherwise update the ambiguities
+			ambCount++
+			if cont {
+				amb_stop = i
 			} else {
-				ambCount++
-				if cont {
-					amb_stop = i
-				} else {
-					amb_start = i
-					amb_stop = i
-					cont = true
-				}
+				amb_start = i
+				amb_stop = i
+				cont = true
 			}
 		}
-
-		// need to finalise any ambiguity tract that reaches the edge of the sequence
-		if cont {
-			ambs = append(ambs, amb_start+1)
-			ambs = append(ambs, amb_stop+1)
-		}
-
-		snpsSorted := make([]string, len(snps))
-		copy(snpsSorted, snps)
-		sort.Slice(snpsSorted, func(i, j int) bool {
-			return snpsSorted[i] < snpsSorted[j]
-		})
-
-		udLine.snps = snps
-		udLine.snpCount = snpCount
-		udLine.snpsPos = snpPos
-		udLine.ambs = ambs
-		udLine.ambCount = ambCount
-		udLine.snpsSorted = snpsSorted
-
-		cUDs <- udLine
 	}
+
+	// need to finalise any ambiguity tract that reaches the edge of the sequence
+	if cont {
+		ambs = append(ambs, amb_start+1, amb_stop+1)
+	}
+
+	snpsSorted := make([]string, len(snps))
+	copy(snpsSorted, snps)
+	sort.Slice(snpsSorted, func(i, j int) bool {
+		return snpsSorted[i] < snpsSorted[j]
+	})
+
+	return updownLine{
+		id:         FR.ID,
+		idx:        FR.Idx,
+		snps:       snps,
+		snpCount:   snpCount,
+		snpsPos:    snpPos,
+		ambs:       ambs,
+		ambCount:   ambCount,
+		snpsSorted: snpsSorted,
+	}, nil
 }

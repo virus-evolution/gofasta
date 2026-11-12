@@ -227,112 +227,74 @@ func StreamEncodeAlignment(
 	cDone <- true
 }
 
-// LoadEncodeAlignment is as StreamEncodeAlignment but returns a slice of Records
-// instead of passing each Record down a channel
+// LoadEncodeAlignment reads and encodes every record of an alignment in fasta format (see
+// NewEncodedAlignmentSource) and returns them in input order
 func LoadEncodeAlignment(
 	f io.Reader,
 	hardGaps bool,
 	atgc bool,
 	score bool) ([]EncodedRecord, error) {
 
-	cER := make(chan EncodedRecord)
-	cErr := make(chan error)
-	cDone := make(chan bool)
+	next := NewEncodedAlignmentSource(f, hardGaps, atgc, score)
 	encodedRecords := make([]EncodedRecord, 0)
-
-	go StreamEncodeAlignment(f, cER, cErr, cDone, hardGaps, atgc, score)
-
-	for n := 1; n > 0; {
-		select {
-		case encodedRecord := <-cER:
-			encodedRecords = append(encodedRecords, encodedRecord)
-		case err := <-cErr:
+	for {
+		encodedRecord, err := next()
+		if err == io.EOF {
+			return encodedRecords, nil
+		}
+		if err != nil {
 			return make([]EncodedRecord, 0), err
-		case <-cDone:
-			n--
+		}
+		encodedRecords = append(encodedRecords, encodedRecord)
+	}
+}
+
+// WriteRecord writes one record in fasta format: its ID on the header line, then its sequence, in lines
+// of wrap characters if wrap > 0, otherwise on one line. (With wrap > 0, an empty sequence gives no
+// sequence lines.)
+func WriteRecord(w io.Writer, record Record, wrap int) error {
+	if _, err := io.WriteString(w, ">"+record.ID+"\n"); err != nil {
+		return err
+	}
+	if wrap <= 0 {
+		_, err := io.WriteString(w, record.Seq+"\n")
+		return err
+	}
+	for written := 0; written < len(record.Seq); written += wrap {
+		end := min(written+wrap, len(record.Seq))
+		if _, err := io.WriteString(w, record.Seq[written:end]+"\n"); err != nil {
+			return err
 		}
 	}
-
-	return encodedRecords, nil
+	return nil
 }
 
 // WriteAlignment reads Records from a channel and writes them to file or stdout,
 // in the order in which they are present in the input file.
 // It passes a true to a done channel when the channel of fasta records is empty
 func WriteAlignment(cR chan Record, w io.Writer, cErr chan error, cDone chan bool) {
-	outputMap := make(map[int]Record)
-	counter := 0
-	var err error
-	for FR := range cR {
-		outputMap[FR.Idx] = FR
-		for {
-			if record, ok := outputMap[counter]; ok {
-				_, err = w.Write([]byte(">" + record.ID + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				_, err = w.Write([]byte(record.Seq + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				delete(outputMap, counter)
-				counter++
-			} else {
-				break
-			}
-		}
-	}
-	cDone <- true
+	WriteWrapAlignment(cR, w, 0, cErr, cDone)
 }
 
-// WriteWrapAlignment is as WriteAlignment but with sequence lines wrapped to w
-// characters in length
+// WriteWrapAlignment is as WriteAlignment but with sequence lines wrapped to wrap
+// characters in length (if wrap > 0)
 func WriteWrapAlignment(cR chan Record, w io.Writer, wrap int, cErr chan error, cDone chan bool) {
 	outputMap := make(map[int]Record)
-	var (
-		counter, written int
-		err              error
-	)
+	counter := 0
 	for R := range cR {
 		outputMap[R.Idx] = R
 		for {
-			if record, ok := outputMap[counter]; ok {
-				_, err = w.Write([]byte(">" + record.ID + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				for {
-					if written < len(record.Seq) {
-						if written+wrap >= len(record.Seq) {
-							_, err = w.Write([]byte(record.Seq[written:] + "\n"))
-							if err != nil {
-								cErr <- err
-								return
-							}
-							written = written + wrap
-						} else {
-							_, err = w.Write([]byte(record.Seq[written:written+wrap] + "\n"))
-							if err != nil {
-								cErr <- err
-								return
-							}
-							written = written + wrap
-						}
-					} else {
-						break
-					}
-				}
-				delete(outputMap, counter)
-				counter++
-				written = 0
-			} else {
+			record, ok := outputMap[counter]
+			if !ok {
 				break
 			}
+			if err := WriteRecord(w, record, wrap); err != nil {
+				cErr <- err
+				return
+			}
+			delete(outputMap, counter)
+			counter++
 		}
-
 	}
 	cDone <- true
 }

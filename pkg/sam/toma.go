@@ -1,34 +1,19 @@
 package sam
 
 import (
+	"context"
 	"errors"
 	"io"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/fasta"
-
-	biogosam "github.com/biogo/hts/sam"
+	"github.com/virus-evolution/gofasta/pkg/pipeline"
 )
 
 // ToMultiAlign converts a SAM file containing pairwise alignments between assembled genomes to a fasta-format alignment.
 // Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
 func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trimend int, pad bool, threads int) error {
 
-	cSR := make(chan samRecords, threads)
-	cReadDone := make(chan bool)
-
-	cSH := make(chan biogosam.Header)
-
-	cFR := make(chan fasta.Record)
-	cWriteDone := make(chan bool)
-
-	cErr := make(chan error)
-
-	cWaitGroupDone := make(chan bool)
-
-	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
-
-	header, err := waitForHeader(cSH, cErr)
+	header, next, err := newSamSource(samIn)
 	if err != nil {
 		return err
 	}
@@ -39,58 +24,17 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 		return err
 	}
 
-	if wrap > 0 {
-		go fasta.WriteWrapAlignment(cFR, out, wrap, cErr, cWriteDone)
-	} else {
-		go fasta.WriteAlignment(cFR, out, cErr, cWriteDone)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			blockToRecord(cSR, cFR, cErr, refLen, trim, pad, trimstart, trimend, false)
-			wg.Done()
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		cWaitGroupDone <- true
-	}()
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cReadDone:
-			close(cSR)
-			close(cSH)
-			n--
+	work := func(group samRecords) (fasta.Record, error) {
+		rawseq, err := getSeqFromBlock(group.records, refLen, false)
+		if err != nil {
+			return fasta.Record{}, err
 		}
+		return getRecord(rawseq, group.records[0].Name, group.idx, trim, pad, trimstart, trimend), nil
 	}
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cWaitGroupDone:
-			close(cFR)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cWriteDone:
-			n--
-		}
-	}
-
-	return nil
+	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(func(record fasta.Record) error {
+		return fasta.WriteRecord(out, record, wrap)
+	}))
 }
 
 // checkArgs sanity checks the trimming and padding arguments, given the length of the reference sequence
@@ -121,22 +65,6 @@ func checkArgs(refLen int, trimstart int, trimend int) (int, int, bool, error) {
 	}
 
 	return trimstart, trimend, trim, nil
-}
-
-// blockToRecord is a worker function that takes items from a channel of sam block structs (with indices)
-// and writes the corresponding fasta records to a channel
-func blockToRecord(ch_in chan samRecords, ch_out chan fasta.Record, ch_err chan error,
-	refLen int, trim bool, pad bool, trimstart int, trimend int, includeInsertions bool) {
-
-	for group := range ch_in {
-
-		id := group.records[0].Name
-		rawseq, err := getSeqFromBlock(group.records, refLen, includeInsertions)
-		if err != nil {
-			ch_err <- err
-		}
-		ch_out <- getRecord(rawseq, id, group.idx, trim, pad, trimstart, trimend)
-	}
 }
 
 // getRecord returns a Record struct with a sequence ID and a sequence

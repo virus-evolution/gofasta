@@ -110,8 +110,8 @@ var e2eCases = []e2eCase{
 	{name: "sam_toma_headeronly", args: []string{"sam", "toMultiAlign", "-s", "aln_headeronly.sam"}},
 	{name: "sam_toma_empty", args: []string{"sam", "toMultiAlign", "-s", "empty.sam"}},
 
-	// sam toPairAlign (stdout output is only ordered with one thread)
-	{name: "sam_topa_stdout", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout"}},
+	// sam toPairAlign
+	{name: "sam_topa_stdout", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout"}, threadsFlag: "-t"},
 	{name: "sam_topa_omitref", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout", "--omit-reference"}},
 	{name: "sam_topa_skipins", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout", "--skip-insertions"}},
 	{name: "sam_topa_start_end", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout", "--start", "20", "--end", "100"}},

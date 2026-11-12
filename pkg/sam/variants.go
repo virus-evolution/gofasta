@@ -1,17 +1,17 @@
 package sam
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
 	"strconv"
-	"sync"
 
-	biogosam "github.com/biogo/hts/sam"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
+	"github.com/virus-evolution/gofasta/pkg/pipeline"
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
@@ -85,136 +85,50 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 		}
 	}
 
-	cErr := make(chan error)
-
-	// do some things that are basically just sam topairalign:
-	cSR := make(chan samRecords, threads)
-	cSH := make(chan biogosam.Header)
-	cPairAlign := make(chan alignPair)
-
-	cVariants := make(chan variants.AnnoStructs)
-
-	cReadDone := make(chan bool)
-	cAlignWaitGroupDone := make(chan bool)
-	cVariantsDone := make(chan bool)
-	cWriteDone := make(chan bool)
-
-	switch aggregate {
-	case true:
-		go variants.AggregateWriteVariants(out, start, end, appendSNP, threshold, ref.ID, cVariants, cWriteDone, cErr)
-	case false:
-		go variants.WriteVariants(out, start, end, false, appendSNP, ref.ID, cVariants, cWriteDone, cErr)
+	// the output header is written before the sam file is read
+	var lw *variants.LineWriter
+	var agg *variants.Aggregator
+	var err error
+	if aggregate {
+		agg, err = variants.NewAggregator(out, start, end, appendSNP, ref.ID)
+	} else {
+		lw, err = variants.NewLineWriter(out, start, end, appendSNP, ref.ID)
 	}
-
-	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
-
-	header, err := waitForHeader(cSH, cErr)
 	if err != nil {
 		return err
 	}
-	if header.Refs()[0].Len() != len(ref.Decode().Seq) {
-		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(ref.Decode().Seq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
+
+	header, next, err := newSamSource(samIn)
+	if err != nil {
+		return err
 	}
-
-	var wgAlign sync.WaitGroup
-	wgAlign.Add(threads)
-
-	var wgVariants sync.WaitGroup
-	wgVariants.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			blockToPairwiseAlignment(cSR, cPairAlign, cErr, []byte(ref.Decode().Seq), false)
-			wgAlign.Done()
-		}()
+	refSeq := ref.Decode().Seq
+	if header.Refs()[0].Len() != len(refSeq) {
+		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
 	}
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			getVariantsSam(cdsregions, intregions, cPairAlign, cVariants, cErr)
-			wgVariants.Done()
-		}()
-	}
-
-	go func() {
-		wgAlign.Wait()
-		cAlignWaitGroupDone <- true
-	}()
-
-	go func() {
-		wgVariants.Wait()
-		cVariantsDone <- true
-	}()
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cReadDone:
-			close(cSR)
-			close(cSH)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cAlignWaitGroupDone:
-			close(cPairAlign)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cVariantsDone:
-			close(cVariants)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cWriteDone:
-			n--
-		}
-	}
-
-	return nil
-}
-
-// getVariantsSam gets the mutations for each pairwise alignment from a channel
-// at a time, and passes them to a channel of annotated variants, given an array
-// of annotated genome regions
-func getVariantsSam(cdsregions []variants.Region, intregions []int, cAlignPair chan alignPair, cVariants chan variants.AnnoStructs, cErr chan error) {
 
 	EA := encoding.MakeEncodingArray()
-
-	for pair := range cAlignPair {
-
+	work := func(group samRecords) (variants.AnnoStructs, error) {
+		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), false)
+		if err != nil {
+			return variants.AnnoStructs{}, err
+		}
 		for i, nuc := range pair.query {
 			pair.query[i] = EA[nuc]
 		}
-
 		for i, nuc := range pair.ref {
 			pair.ref[i] = EA[nuc]
 		}
-
 		offsetRefCoord, _ := variants.GetMSAOffsets(pair.ref)
-
-		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord)
-		if err != nil {
-			cErr <- err
-			break
-		}
-
-		// and we're done
-		cVariants <- AS
+		return variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord)
 	}
+
+	if aggregate {
+		err = pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(agg.Add))
+		if err != nil {
+			return err
+		}
+		return agg.Write(threshold)
+	}
+	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(lw.Write))
 }

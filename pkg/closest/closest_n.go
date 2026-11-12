@@ -45,100 +45,28 @@ func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 	nS.furthestCompleteness = nS.catchment[catchmentSize-1].completeness
 }
 
-// findClosestN finds the closest sequences by genetic distance to single a query sequence
-func findClosestN(query fasta.EncodedRecord, catchmentSize int, maxdist float64, measure string, cIn chan fasta.EncodedRecord, cOut chan catchmentStruct) {
-
-	neighbours := catchmentStruct{qname: query.ID, qidx: query.Idx}
-	neighbours.catchment = make([]resultsStruct, 0)
-
-	var rs resultsStruct
-
-	var distance float64
-
-	for target := range cIn {
-
-		switch measure {
-		case "raw":
-			distance = rawDistance(query, target)
-		case "snp":
-			distance = snpDistance(query, target)
-		case "tn93":
-			distance = tn93Distance(query, target)
-		}
-
-		if maxdist != -1.0 {
-			// an undefined distance (NaN) can't be said to be within maxdist
-			if math.IsNaN(distance) || distance > maxdist {
-				continue
-			}
-		}
-
-		if len(neighbours.catchment) < catchmentSize {
-			rs = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance}
-			neighbours.catchment = append(neighbours.catchment, rs)
-
-			if len(neighbours.catchment) == catchmentSize {
-				rearrangeCatchment(&neighbours, catchmentSize)
-			}
-
-		} else if lessDistance(distance, neighbours.furthestDistance) {
-			rs = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance}
-			neighbours.catchment = append(neighbours.catchment, rs)
-			rearrangeCatchment(&neighbours, catchmentSize)
-
-		} else if distance == neighbours.furthestDistance && target.Score > neighbours.furthestCompleteness {
-			rs = resultsStruct{tname: target.ID, completeness: target.Score, distance: distance}
-			neighbours.catchment = append(neighbours.catchment, rs)
-			rearrangeCatchment(&neighbours, catchmentSize)
+// consider adds target to the catchment if there is room, or if it is closer than the furthest member
+// (or as close and more complete). A distance that is undefined (NaN) or greater than maxdist (unless
+// maxdist is -1) never qualifies.
+func (neighbours *catchmentStruct) consider(target fasta.EncodedRecord, distance float64, catchmentSize int, maxdist float64) {
+	if maxdist != -1.0 {
+		// an undefined distance (NaN) can't be said to be within maxdist
+		if math.IsNaN(distance) || distance > maxdist {
+			return
 		}
 	}
-
-	// If the user specified a larger catchment than there are records in the target file,
-	// they won't be sorted above, so do it here (need to modify the size argument passed
-	// to the function):
-	if len(neighbours.catchment) < catchmentSize && len(neighbours.catchment) > 0 {
-		rearrangeCatchment(&neighbours, len(neighbours.catchment))
-	}
-
-	cOut <- neighbours
-}
-
-// splitInputN fans out target sequences over an array of query sequences, so that each target is passed over each query.
-func splitInputN(queries []fasta.EncodedRecord, catchmentSize int, maxdist float64, measure string, cIn chan fasta.EncodedRecord, cOut chan catchmentStruct, cErr chan error, cSplitDone chan bool) {
-
-	nQ := len(queries)
-
-	// make an array of channels, one for each query
-	QChanArray := make([]chan fasta.EncodedRecord, nQ)
-	for i := 0; i < nQ; i++ {
-		QChanArray[i] = make(chan fasta.EncodedRecord)
-	}
-
-	for i, q := range queries {
-		go findClosestN(q, catchmentSize, maxdist, measure, QChanArray[i], cOut)
-	}
-
-	targetCounter := 0
-	for EFR := range cIn {
-		if targetCounter == 0 {
-			if len(EFR.Seq) != len(queries[0].Seq) {
-				cErr <- errors.New("query and target alignments are not the same width")
-			}
+	rs := resultsStruct{tname: target.ID, completeness: target.Score, distance: distance}
+	switch {
+	case len(neighbours.catchment) < catchmentSize:
+		neighbours.catchment = append(neighbours.catchment, rs)
+		if len(neighbours.catchment) == catchmentSize {
+			rearrangeCatchment(neighbours, catchmentSize)
 		}
-		targetCounter++
-
-		for i, _ := range QChanArray {
-			QChanArray[i] <- EFR
-		}
+	case lessDistance(distance, neighbours.furthestDistance),
+		distance == neighbours.furthestDistance && target.Score > neighbours.furthestCompleteness:
+		neighbours.catchment = append(neighbours.catchment, rs)
+		rearrangeCatchment(neighbours, catchmentSize)
 	}
-
-	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", targetCounter)
-
-	for i, _ := range QChanArray {
-		close(QChanArray[i])
-	}
-
-	cSplitDone <- true
 }
 
 // writeClosestN parses an array of catchmentStructs in order to write them, usually to stdout or file
@@ -217,40 +145,24 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 	fmt.Fprintf(os.Stderr, "number of sequences in query alignment: %d\n", nQ)
 
 	QResultsArray := make([]catchmentStruct, nQ)
-
-	cErr := make(chan error)
-
-	cTEFR := make(chan fasta.EncodedRecord, runtime.NumCPU())
-	cTEFRdone := make(chan bool)
-	cSplitDone := make(chan bool)
-	cResults := make(chan catchmentStruct)
-
-	go fasta.StreamEncodeAlignment(target, cTEFR, cErr, cTEFRdone, false, true, true)
-
-	go splitInputN(queries, catchmentSize, maxdist, measure, cTEFR, cResults, cErr, cSplitDone)
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cTEFRdone:
-			close(cTEFR)
-			n--
-		}
+	for i, q := range queries {
+		QResultsArray[i] = catchmentStruct{qname: q.ID, qidx: q.Idx, catchment: make([]resultsStruct, 0)}
 	}
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cSplitDone:
-			n--
+	_, err = scanTargets(queries, target, measure, threads, func(st scoredTarget) {
+		for i := range QResultsArray {
+			QResultsArray[i].consider(st.target, st.distances[i], catchmentSize, maxdist)
 		}
+	})
+	if err != nil {
+		return err
 	}
 
-	for i := 0; i < nQ; i++ {
-		result := <-cResults
-		QResultsArray[result.qidx] = result
+	// a catchment that never filled up has not been sorted yet
+	for i := range QResultsArray {
+		if n := len(QResultsArray[i].catchment); n < catchmentSize && n > 0 {
+			rearrangeCatchment(&QResultsArray[i], n)
+		}
 	}
 
 	switch table {

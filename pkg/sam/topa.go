@@ -1,6 +1,7 @@
 package sam
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,9 +10,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/fasta"
+	"github.com/virus-evolution/gofasta/pkg/pipeline"
 
 	biogosam "github.com/biogo/hts/sam"
 )
@@ -226,68 +227,42 @@ func blockToSeqPair(alignedBlock alignedBlockInfo, ref []byte) alignPair {
 	return alignPair{ref: R, query: Q}
 }
 
-// blockToPairwiseAlignment should convert a block of SAM records that correspond
-// to the same query sequence to a pairwise alignment between that query and the
-// reference. It should return the pair of sequences (query + reference) aligned
-// to each other - insertions in the query can be represented or not.
-func blockToPairwiseAlignment(cSR chan samRecords, cPair chan alignPair, cErr chan error, ref []byte, omitIns bool) {
+// blockToPairwiseAlignment converts the SAM records for one query to a pairwise alignment between that
+// query and the reference, with or without the query's insertions relative to the reference.
+func blockToPairwiseAlignment(group samRecords, ref []byte, omitIns bool) (alignPair, error) {
 
-	for group := range cSR {
+	qname := group.records[0].Name
+	refname := string(group.records[0].Ref.Name())
 
-		// seqs is an array of seqs, one item for each line in the
-		// block of sam lines for one query
-		seqs := make([]alignPair, 0)
-		cigars := make([]biogosam.Cigar, 0)
-		positions := make([]int, 0)
-
-		infoBlock := alignedBlockInfo{}
-
-		// might not use this:
-		Q := make([][]byte, 0)
-
-		if !omitIns {
-			// populate it
-			for _, line := range group.records {
-				seq, refseq, err := getOneLinePlusRef(line, ref, !omitIns)
-				if err != nil {
-					cErr <- err
-				}
-				seqs = append(seqs, alignPair{ref: refseq, query: seq, queryname: line.Name})
-				cigars = append(cigars, line.Cigar)
-				positions = append(positions, line.Pos)
+	if omitIns {
+		Q := make([][]byte, 0, len(group.records))
+		for _, line := range group.records {
+			seq, _, err := getOneLinePlusRef(line, ref, false)
+			if err != nil {
+				return alignPair{}, err
 			}
-
-			infoBlock.seqpairArray = seqs
-			infoBlock.cigarArray = cigars
-			infoBlock.posArray = positions
-
-			pair := blockToSeqPair(infoBlock, ref)
-			pair.refname = string(group.records[0].Ref.Name())
-			pair.queryname = group.records[0].Name
-			pair.idx = group.idx
-			cPair <- pair
-
-		} else {
-			qname := group.records[0].Name
-
-			for _, line := range group.records {
-				seq, _, err := getOneLinePlusRef(line, ref, !omitIns)
-				if err != nil {
-					cErr <- err
-				}
-				Q = append(Q, seq)
-			}
-
-			Qflat := swapInNs(checkAndGetFlattenedSeq(Q, qname))
-
-			pair := alignPair{ref: ref, query: Qflat}
-			pair.queryname = group.records[0].Name
-			pair.refname = string(group.records[0].Ref.Name())
-			pair.idx = group.idx
-
-			cPair <- pair
+			Q = append(Q, seq)
 		}
+		Qflat := swapInNs(checkAndGetFlattenedSeq(Q, qname))
+		return alignPair{ref: ref, query: Qflat, refname: refname, queryname: qname, idx: group.idx}, nil
 	}
+
+	infoBlock := alignedBlockInfo{}
+	for _, line := range group.records {
+		seq, refseq, err := getOneLinePlusRef(line, ref, true)
+		if err != nil {
+			return alignPair{}, err
+		}
+		infoBlock.seqpairArray = append(infoBlock.seqpairArray, alignPair{ref: refseq, query: seq, queryname: line.Name})
+		infoBlock.cigarArray = append(infoBlock.cigarArray, line.Cigar)
+		infoBlock.posArray = append(infoBlock.posArray, line.Pos)
+	}
+
+	pair := blockToSeqPair(infoBlock, ref)
+	pair.refname = refname
+	pair.queryname = qname
+	pair.idx = group.idx
+	return pair, nil
 }
 
 // get the number of bases to add to convert each reference position to MSA coordinates
@@ -315,29 +290,16 @@ func getRefOffset(refseq []byte) []int {
 	return refToMSA
 }
 
-// trimAlignment trims the alignment to user-specified coordinates in degapped reference space
-func trimAlignment(trim bool, trimStart int, trimEnd int, cPairIn chan alignPair, cPairOut chan alignPair) {
+// trimAlignment trims a pairwise alignment to coordinates in degapped reference space
+func trimAlignment(pair alignPair, trimStart int, trimEnd int) alignPair {
+	refToMSA := getRefOffset(pair.ref)
 
-	if !trim {
-		// if no trimming is specified we take the whole sequence:
-		for pair := range cPairIn {
-			cPairOut <- pair
-		}
-	} else {
-		// otherwise we trim
-		for pair := range cPairIn {
+	adjTrimStart := trimStart + refToMSA[trimStart-1] - 1
+	adjTrimEnd := trimEnd + refToMSA[trimEnd-1]
 
-			refToMSA := getRefOffset(pair.ref)
-
-			adjTrimStart := trimStart + refToMSA[trimStart-1] - 1
-			adjTrimEnd := trimEnd + refToMSA[trimEnd-1]
-
-			pair.query = pair.query[adjTrimStart:adjTrimEnd]
-			pair.ref = pair.ref[adjTrimStart:adjTrimEnd]
-
-			cPairOut <- pair
-		}
-	}
+	pair.query = pair.query[adjTrimStart:adjTrimEnd]
+	pair.ref = pair.ref[adjTrimStart:adjTrimEnd]
+	return pair
 }
 
 func wrap(old string, wrap int) string {
@@ -364,77 +326,42 @@ func wrap(old string, wrap int) string {
 	return string(new)
 }
 
-// writePairwiseAlignment writes the pairwise alignments between reference and queries to a directory, p, one fasta
-// file per query
-func writePairwiseAlignment(p string, w int, cPair chan alignPair, cWriteDone chan bool, cErr chan error, omitRef bool) {
-
-	var err error
-
-	if p == "stdout" {
-		for AP := range cPair {
-			if !omitRef {
-				_, err = fmt.Fprintln(os.Stdout, ">"+AP.refname)
-				if err != nil {
-					cErr <- err
-				}
-				_, err = fmt.Fprint(os.Stdout, wrap(string(AP.ref), w))
-				if err != nil {
-					cErr <- err
-				}
-			}
-			_, err = fmt.Fprintln(os.Stdout, ">"+AP.queryname)
-			if err != nil {
-				cErr <- err
-			}
-			_, err = fmt.Fprint(os.Stdout, wrap(string(AP.query), w))
-			if err != nil {
-				cErr <- err
-			}
-		}
-	} else {
-		os.MkdirAll(p, 0755)
-
-		for AP := range cPair {
-			// forward slashes are illegal in unix filenames (so is ascii NUL ?)
-			des := strings.ReplaceAll(AP.queryname, "/", "_")
-			// unix filenames must be <= 255 chars, (account for ".fasta")
-			if len(des) > 249 {
-				fmt.Fprintf(os.Stderr, "Filename too long, truncating \"%s\" to: \"%s\"\n", des, des[0:249])
-				des = des[0:249]
-			}
-			f, err := os.Create(path.Join(p, des+".fasta"))
-			if err != nil {
-				cErr <- err
-			}
-			if !omitRef {
-				_, err = f.WriteString(">" + AP.refname + "\n")
-				if err != nil {
-					cErr <- err
-				}
-				_, err = f.WriteString(wrap(string(AP.ref), w))
-				if err != nil {
-					cErr <- err
-				}
-			}
-			_, err = f.WriteString(">" + AP.queryname + "\n")
-			if err != nil {
-				cErr <- err
-			}
-			_, err = f.WriteString(wrap(string(AP.query), w))
-			if err != nil {
-				cErr <- err
-			}
-			f.Close()
+// writePair writes a pairwise alignment, with the reference first unless omitRef
+func writePair(w io.Writer, AP alignPair, wrapWidth int, omitRef bool) error {
+	if !omitRef {
+		if _, err := io.WriteString(w, ">"+AP.refname+"\n"+wrap(string(AP.ref), wrapWidth)); err != nil {
+			return err
 		}
 	}
-	cWriteDone <- true
+	_, err := io.WriteString(w, ">"+AP.queryname+"\n"+wrap(string(AP.query), wrapWidth))
+	return err
+}
+
+// writePairToFile writes a pairwise alignment to its own file in directory p, named after the query
+func writePairToFile(p string, AP alignPair, wrapWidth int, omitRef bool) (err error) {
+	// forward slashes are illegal in unix filenames (so is ascii NUL ?)
+	des := strings.ReplaceAll(AP.queryname, "/", "_")
+	// unix filenames must be <= 255 chars, (account for ".fasta")
+	if len(des) > 249 {
+		fmt.Fprintf(os.Stderr, "Filename too long, truncating \"%s\" to: \"%s\"\n", des, des[0:249])
+		des = des[0:249]
+	}
+	f, err := os.Create(path.Join(p, des+".fasta"))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}()
+	return writePair(f, AP, wrapWidth, omitRef)
 }
 
 // ToPairAlign converts a SAM file containing pairwise alignments between assembled genomes into pairwise fasta-format alignments,
-// optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space
+// optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space.
+// The alignments are written to stdout if outpath is "stdout", otherwise to one file per query in the directory outpath.
 func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int) error {
-
-	cErr := make(chan error)
 
 	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)
 	if err != nil {
@@ -450,20 +377,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 		return err
 	}
 
-	cSR := make(chan samRecords, threads)
-	cSH := make(chan biogosam.Header)
-
-	cPairAlign := make(chan alignPair)
-	cPairTrim := make(chan alignPair)
-
-	cReadDone := make(chan bool)
-	cAlignWaitGroupDone := make(chan bool)
-	cTrimWaitGroupDone := make(chan bool)
-	cWriteDone := make(chan bool)
-
-	go groupSamRecords(samIn, cSH, cSR, cReadDone, cErr)
-
-	header, err := waitForHeader(cSH, cErr)
+	header, next, err := newSamSource(samIn)
 	if err != nil {
 		return err
 	}
@@ -471,77 +385,24 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
 	}
 
-	go writePairwiseAlignment(outpath, wrap, cPairTrim, cWriteDone, cErr, omitRef)
-
-	var wgAlign sync.WaitGroup
-	wgAlign.Add(threads)
-
-	var wgTrim sync.WaitGroup
-	wgTrim.Add(threads)
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			blockToPairwiseAlignment(cSR, cPairAlign, cErr, []byte(refSeq), omitIns)
-			wgAlign.Done()
-		}()
-	}
-
-	for n := 0; n < threads; n++ {
-		go func() {
-			trimAlignment(trim, trimStart, trimEnd, cPairAlign, cPairTrim)
-			wgTrim.Done()
-		}()
-	}
-
-	go func() {
-		wgAlign.Wait()
-		cAlignWaitGroupDone <- true
-	}()
-
-	go func() {
-		wgTrim.Wait()
-		cTrimWaitGroupDone <- true
-	}()
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
+	write := func(AP alignPair) error { return writePair(os.Stdout, AP, wrap, omitRef) }
+	if outpath != "stdout" {
+		if err := os.MkdirAll(outpath, 0755); err != nil {
 			return err
-		case <-cReadDone:
-			close(cSR)
-			close(cSH)
-			n--
 		}
+		write = func(AP alignPair) error { return writePairToFile(outpath, AP, wrap, omitRef) }
 	}
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cAlignWaitGroupDone:
-			close(cPairAlign)
-			n--
+	work := func(group samRecords) (alignPair, error) {
+		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), omitIns)
+		if err != nil {
+			return alignPair{}, err
 		}
+		if trim {
+			pair = trimAlignment(pair, trimStart, trimEnd)
+		}
+		return pair, nil
 	}
 
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cTrimWaitGroupDone:
-			close(cPairTrim)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cWriteDone:
-			n--
-		}
-	}
-
-	return nil
+	return pipeline.Run(context.Background(), threads, next, work, pipeline.FirstError(write))
 }

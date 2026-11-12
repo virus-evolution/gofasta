@@ -323,16 +323,6 @@ func readSamRecord(s *biogosam.Reader) (rec *biogosam.Record, err error) {
 	return s.Read()
 }
 
-// waitForHeader receives the sam header from groupSamRecords, or the error that stopped it from producing one
-func waitForHeader(cHeader chan biogosam.Header, cErr chan error) (biogosam.Header, error) {
-	select {
-	case h := <-cHeader:
-		return h, nil
-	case err := <-cErr:
-		return biogosam.Header{}, err
-	}
-}
-
 // validateRecord checks that a mapped sam record is internally consistent and fits the reference, so that
 // the code that builds alignments from CIGAR strings can index its sequence without going out of range.
 func validateRecord(rec *biogosam.Record, refLen int) error {
@@ -370,103 +360,84 @@ func validateRecord(rec *biogosam.Record, refLen int) error {
 	return nil
 }
 
-// groupSamRecords yields blocks of sam records that correspond to the same query
-// sequence (to a channel)
-func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samRecords, cdone chan bool, cerr chan error) {
-
-	var err error
+// newSamSource reads the header of a sam file and returns it, with a function that returns the records
+// for the next query each time it is called, and io.EOF after the last query. The records for a query are
+// consecutive records with the same QNAME; unmapped and secondary records, and records mapped to any
+// reference other than the first @SQ, are skipped (with a message on stderr), every other record is
+// validated, and overlaps between a query's records are resolved.
+func newSamSource(sam io.Reader) (biogosam.Header, func() (samRecords, error), error) {
 
 	s, err := newSamReader(sam)
 	if err != nil {
-		cerr <- err
-		return
+		return biogosam.Header{}, nil, err
 	}
 
 	if len(s.Header().Refs()) == 0 {
-		cerr <- errors.New("no reference sequence (@SQ line) in the sam header")
-		return
+		return biogosam.Header{}, nil, errors.New("no reference sequence (@SQ line) in the sam header")
 	}
 	refLen := s.Header().Refs()[0].Len()
 
-	cHeader <- *s.Header()
-
-	// this counter will be used to preserve order in input and output:
-	counter := 0
-
-	first := true
-	samLineGroup := samRecords{idx: counter}
-	var previous string
-
-	for {
-
-		rec, err := readSamRecord(s)
-
-		if err == io.EOF {
-
-			break
-
-		} else if err != nil {
-
-			cerr <- err
-			return
-
-		} else {
-			// if this read is unmapped, then skip it.
-			// the third bit (== 4) in the sam flag is set if the read is unmapped,
-			// can use the rightshift method to check this:
+	// readUsable returns the next record that is not skipped, or io.EOF
+	readUsable := func() (*biogosam.Record, error) {
+		for {
+			rec, err := readSamRecord(s)
+			if err != nil {
+				return nil, err
+			}
+			// the third bit (== 4) in the sam flag is set if the read is unmapped
 			if ((rec.Flags >> 2) & 1) == 1 {
 				os.Stderr.WriteString("skipping unmapped read: " + rec.Name + "\n")
 				continue
 			}
-
-			// if this mapping is secondary, then skip it.
-			// the 9th bit (== 256) in the sam flag is set if the mapping is secondary,
-			// can use the rightshift method to check this:
+			// the 9th bit (== 256) in the sam flag is set if the mapping is secondary
 			if ((rec.Flags >> 8) & 1) == 1 {
 				os.Stderr.WriteString("ignoring secondary mapping: " + rec.Name + "\n")
 				continue
 			}
-
 			// only one reference sequence is supported: records mapped to any other @SQ are skipped
 			if rec.Ref != nil && rec.Ref.ID() != 0 {
 				os.Stderr.WriteString("skipping record mapped to a reference other than the first @SQ (" + rec.Ref.Name() + "): " + rec.Name + "\n")
 				continue
 			}
-
 			if err := validateRecord(rec, refLen); err != nil {
-				cerr <- err
-				return
+				return nil, err
 			}
-
-			if first {
-				samLineGroup.records = append(samLineGroup.records, *rec)
-				first = false
-				previous = rec.Name
-				continue
-			}
-
-			if rec.Name != previous {
-				samLineGroup.records = resolveOverlaps(samLineGroup.records)
-				chnl <- samLineGroup
-				counter++
-
-				samLineGroup = samRecords{idx: counter}
-				samLineGroup.records = append(samLineGroup.records, *rec)
-				previous = rec.Name
-				continue
-			}
-
-			samLineGroup.records = append(samLineGroup.records, *rec)
-			previous = rec.Name
-
+			return rec, nil
 		}
-
 	}
 
-	if len(samLineGroup.records) > 0 {
-		samLineGroup.records = resolveOverlaps(samLineGroup.records)
-		chnl <- samLineGroup
+	var pending *biogosam.Record // the first record of the next query, once it has been read
+	finished := false
+	counter := 0
+
+	next := func() (samRecords, error) {
+		group := samRecords{idx: counter}
+		for !finished {
+			rec := pending
+			pending = nil
+			if rec == nil {
+				rec, err = readUsable()
+				if err == io.EOF {
+					finished = true
+					break
+				}
+				if err != nil {
+					return samRecords{}, err
+				}
+			}
+			if len(group.records) > 0 && rec.Name != group.records[0].Name {
+				pending = rec
+				break
+			}
+			group.records = append(group.records, *rec)
+		}
+		if len(group.records) == 0 {
+			return samRecords{}, io.EOF
+		}
+		group.records = resolveOverlaps(group.records)
+		counter++
+		return group, nil
 	}
 
-	cdone <- true
+	return *s.Header(), next, nil
 }

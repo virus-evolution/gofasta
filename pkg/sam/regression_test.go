@@ -46,22 +46,11 @@ func pairAlignFromSamWith(t *testing.T, samText string, ref string, resolve bool
 		group.records = resolveOverlaps(group.records)
 	}
 
-	cIn := make(chan samRecords, 1)
-	cIn <- group
-	close(cIn)
-
-	cErr := make(chan error, 8)
-	cPair := make(chan alignPair, 1)
-	blockToPairwiseAlignment(cIn, cPair, cErr, []byte(ref), false)
-	close(cPair)
-
-	select {
-	case err := <-cErr:
+	pair, err := blockToPairwiseAlignment(group, []byte(ref), false)
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	default:
 	}
-
-	return <-cPair
+	return pair
 }
 
 // when a query has several SAM records (e.g. primary + supplementary) and one

@@ -1,0 +1,14 @@
+args: snps -r ref.fasta -q msa.fasta --hard-gaps
+exit: 0
+--- stdout
+query,SNPs
+ref,
+q1,G5A|A14G
+q2,C80T|A100G
+q3,A21-|A22-|A23-
+q4,C30R
+q5,T50C|A111-|G112-|T113-|G114-|C115-|G116-|C117-|C118-|A119-|A120-
+q6,G5A|A14G
+q7,A14G|T40C|C115T
+q8,
+--- stderr

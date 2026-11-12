@@ -1,0 +1,6 @@
+args: snps -r ref.fasta -q msa.fasta --aggregate --threshold 0.3
+exit: 0
+--- stdout
+SNP,frequency
+A14G,0.333333333
+--- stderr

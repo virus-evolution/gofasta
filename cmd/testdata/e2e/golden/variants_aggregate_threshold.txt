@@ -1,0 +1,7 @@
+args: variants --msa msa.fasta -r ref -a ref.gb --aggregate --threshold 0.2 --append-snps
+exit: 0
+--- stdout
+mutation,frequency
+nuc:G5A,0.250000000
+aa:geneA:I2V(nuc:A14G),0.375000000
+--- stderr

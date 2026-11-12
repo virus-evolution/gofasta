@@ -1,0 +1,16 @@
+args: updown topranking -r ref.fasta -q query.fasta -t target.fasta --size-total 4 --table
+exit: 0
+--- stdout
+query,direction,distance,target
+q1,same,0,q6
+q1,up,2,q8
+q1,up,2,q4
+q1,side,3,q7
+q2,up,2,q8
+q2,up,2,q4
+q2,side,4,q6
+q2,side,5,q7
+q5,up,1,q8
+q5,up,1,q4
+q5,up,1,q3
+--- stderr

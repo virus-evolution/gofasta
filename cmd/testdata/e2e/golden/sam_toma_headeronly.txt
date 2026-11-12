@@ -1,0 +1,4 @@
+args: sam toMultiAlign -s aln_headeronly.sam
+exit: 0
+--- stdout
+--- stderr

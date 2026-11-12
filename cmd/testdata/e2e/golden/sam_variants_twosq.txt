@@ -1,0 +1,14 @@
+args: sam variants -s aln_twosq.sam -r ref.fasta -a ref.gb
+exit: 0
+--- stdout
+query,mutations
+s1,aa:geneA:I2V|aa:geneB:M8I
+s2,del:31:3|ins:73:2
+s3,nuc:A60G|nuc:A100G
+s4,aa:geneB:L5P
+s7,nuc:T40C
+s8,ins:44:3
+--- stderr
+skipping record mapped to a reference other than the first @SQ (other): s10
+skipping unmapped read: s5
+ignoring secondary mapping: s6

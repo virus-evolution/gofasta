@@ -1,0 +1,14 @@
+args: variants --msa msa.fasta -r ref -a ref.gb --aggregate
+exit: 0
+--- stdout
+mutation,frequency
+nuc:G5A,0.250000000
+aa:geneA:I2V,0.375000000
+del:21:3,0.125000000
+nuc:C30R,0.125000000
+nuc:T40C,0.125000000
+aa:geneA:Y14H,0.125000000
+aa:geneB:R10H,0.125000000
+nuc:A100G,0.125000000
+nuc:C115T,0.125000000
+--- stderr

@@ -1,0 +1,13 @@
+args: closest --query query.fasta --target target.fasta -n 2 --table
+exit: 0
+--- stdout
+query,target,distance
+q1,q6,0.000000000
+q1,q8,0.016666667
+q2,q8,0.016666667
+q2,q3,0.017094017
+q5,q6,0.010526316
+q5,q8,0.010526316
+--- stderr
+number of sequences in query alignment: 3
+number of sequences in target alignment: 5

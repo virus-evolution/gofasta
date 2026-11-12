@@ -1,0 +1,16 @@
+args: snps -r ref.fasta -q nosuchfile.fasta
+exit: 1
+--- stderr
+Error: open -q / --query nosuchfile.fasta: no such file or directory
+Usage:
+  gofasta snps [flags]
+
+Flags:
+  -r, --reference string   Reference sequence, in fasta format
+  -q, --query string       Alignment of sequences to find snps in, in fasta format (default "stdin")
+  -o, --outfile string     Output to write (default "stdout")
+      --hard-gaps          Don't treat alignment gaps as missing data
+      --aggregate          Report the proportions of each change
+      --threshold float    If --aggregate, only report snps with a freq greater than or equal to this value
+  -h, --help               help for snps
+

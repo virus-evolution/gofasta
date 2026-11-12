@@ -1,0 +1,7 @@
+args: variants --msa msa_ins.fasta -r ref -a ref.gb
+exit: 0
+--- stdout
+query,mutations
+i1,ins:44:3
+i2,aa:geneB:I7V
+--- stderr

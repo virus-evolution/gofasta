@@ -1,0 +1,14 @@
+LOCUS       ref                      120 bp    RNA     linear   VRL 12-NOV-2026
+FEATURES             Location/Qualifiers
+     CDS             11..61
+                     /gene="geneA"
+                     /codon_start=1
+                     /translation="MISEIRSVCIATCYIR"
+     CDS             complement(70..108)
+                     /gene="geneB"
+                     /codon_start=1
+                     /translation="MPSSLEIMLRRN"
+ORIGIN
+        1 gacagaagct atgatctcag aaatccgatc ggtgtgtatt gcgacttgtt acattcgtta
+       61 atgaatgctt tagttacgac gaagcatgat ctccagtgaa ctcggcatac agtgcgccaa
+//

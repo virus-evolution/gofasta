@@ -1,0 +1,10 @@
+args: closest --query query.fasta --target target.fasta -n 2
+exit: 0
+--- stdout
+query,closest
+q1,q6;q8
+q2,q8;q3
+q5,q6;q8
+--- stderr
+number of sequences in query alignment: 3
+number of sequences in target alignment: 5

@@ -1,0 +1,14 @@
+args: updown list -r ref.fasta -q msa.fasta
+exit: 0
+--- stdout
+query,SNPs,ambiguities,SNPcount,ambcount
+ref,,,0,0
+q1,G5A|A14G,,2,0
+q2,C80T|A100G,,2,0
+q3,,21-23,0,3
+q4,,30-31,0,2
+q5,T50C,1-15|111-120,1,25
+q6,G5A|A14G,,2,0
+q7,A14G|T40C|C115T,,3,0
+q8,,,0,0
+--- stderr

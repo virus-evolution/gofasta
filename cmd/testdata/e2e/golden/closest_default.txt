@@ -1,0 +1,10 @@
+args: closest --query query.fasta --target target.fasta
+exit: 0
+--- stdout
+query,closest,distance,SNPs
+q1,q6,0.000000000,
+q2,q8,0.016666667,80TC;100GA
+q5,q6,0.010526316,50CT
+--- stderr
+number of sequences in query alignment: 3
+number of sequences in target alignment: 5

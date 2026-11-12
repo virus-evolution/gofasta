@@ -1,0 +1,15 @@
+args: snps -r ref.fasta
+stdin: msa.fasta
+exit: 0
+--- stdout
+query,SNPs
+ref,
+q1,G5A|A14G
+q2,C80T|A100G
+q3,
+q4,C30R
+q5,T50C
+q6,G5A|A14G
+q7,A14G|T40C|C115T
+q8,
+--- stderr

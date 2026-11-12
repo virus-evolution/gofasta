@@ -1,0 +1,13 @@
+args: variants --msa msa.fasta -r ref -a ref.gb --start 10 --end 90
+exit: 0
+--- stdout
+query,mutations
+q1,aa:geneA:I2V
+q2,aa:geneB:R10H
+q3,del:21:3
+q4,nuc:C30R
+q5,aa:geneA:Y14H
+q6,aa:geneA:I2V
+q7,aa:geneA:I2V|nuc:T40C
+q8,
+--- stderr
